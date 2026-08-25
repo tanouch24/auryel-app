@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
+import 'screens/splash_screen.dart';
 import 'theme/auryel_theme.dart';
-import 'widgets/main_nav_shell.dart';
 
 void main() {
   runApp(const AuryelApp());
@@ -16,7 +16,7 @@ class AuryelApp extends StatelessWidget {
       title: 'Auryel',
       debugShowCheckedModeBanner: false,
       theme: AuryelTheme.dark,
-      home: const MainNavShell(),
+      home: const SplashScreen(),
     );
   }
 }

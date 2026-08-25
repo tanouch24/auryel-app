@@ -16,9 +16,9 @@ class HomeScreen extends StatelessWidget {
       decoration: const BoxDecoration(gradient: AuryelColors.backgroundGradient),
       child: Stack(
         children: [
-          // Halo chaud radial, subtil, derrière la phrase du jour.
+          // Halo chaud radial derrière la phrase du jour — chaleur subtile mais perceptible.
           Positioned(
-            top: 180,
+            top: 210,
             left: 0,
             right: 0,
             child: IgnorePointer(
@@ -30,7 +30,7 @@ class HomeScreen extends StatelessWidget {
                     shape: BoxShape.circle,
                     gradient: RadialGradient(
                       colors: [
-                        AuryelColors.gold.withValues(alpha: 0.10),
+                        AuryelColors.gold.withValues(alpha: 0.16),
                         AuryelColors.gold.withValues(alpha: 0.0),
                       ],
                     ),
@@ -40,11 +40,11 @@ class HomeScreen extends StatelessWidget {
             ),
           ),
           SafeArea(
-            child: SingleChildScrollView(
+            child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 28),
               child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const SizedBox(height: 28),
                   const _Wordmark().animate().fadeIn(duration: 600.ms),
                   const SizedBox(height: 10),
                   Text(
@@ -57,7 +57,7 @@ class HomeScreen extends StatelessWidget {
                       letterSpacing: 2.4,
                     ),
                   ).animate().fadeIn(delay: 150.ms, duration: 600.ms),
-                  const SizedBox(height: 64),
+                  const SizedBox(height: 56),
                   const _Ornament().animate().fadeIn(delay: 250.ms, duration: 600.ms),
                   const SizedBox(height: 22),
                   RichText(
@@ -89,13 +89,12 @@ class HomeScreen extends StatelessWidget {
                       ),
                   const SizedBox(height: 28),
                   _TapToRead().animate().fadeIn(delay: 550.ms, duration: 600.ms),
-                  const SizedBox(height: 48),
+                  const SizedBox(height: 44),
                   const _AdvisorPanel().animate().fadeIn(delay: 650.ms, duration: 600.ms).slideY(
                         begin: 0.06,
                         end: 0,
                         curve: Curves.easeOutCubic,
                       ),
-                  const SizedBox(height: 24),
                 ],
               ),
             ),

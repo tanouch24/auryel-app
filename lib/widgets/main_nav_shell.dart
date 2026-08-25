@@ -5,7 +5,7 @@ import '../screens/home_screen.dart';
 import '../screens/placeholder_screen.dart';
 import '../theme/auryel_theme.dart';
 
-/// Coquille de navigation : 4 onglets, contenu réel pour "Consulter",
+/// Coquille de navigation : 4 onglets, contenu réel pour "Consultation",
 /// placeholders stylés pour les 3 autres en attendant leur écran.
 class MainNavShell extends StatefulWidget {
   const MainNavShell({super.key});
@@ -43,7 +43,7 @@ class _AuryelTabBar extends StatelessWidget {
   final ValueChanged<int> onTap;
 
   static const _tabs = [
-    (label: 'Consulter', icon: PhosphorIconsRegular.chatCircleText, activeIcon: PhosphorIconsFill.chatCircleText),
+    (label: 'Consultation', icon: PhosphorIconsRegular.chatCircleText, activeIcon: PhosphorIconsFill.chatCircleText),
     (label: 'Tirage', icon: PhosphorIconsRegular.cardsThree, activeIcon: PhosphorIconsFill.cardsThree),
     (label: 'Moment', icon: PhosphorIconsRegular.moonStars, activeIcon: PhosphorIconsFill.moonStars),
     (label: 'Espace', icon: PhosphorIconsRegular.userCircle, activeIcon: PhosphorIconsFill.userCircle),

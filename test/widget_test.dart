@@ -3,11 +3,13 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:auryel/main.dart';
 
 void main() {
-  testWidgets('Home screen shows the Auryel wordmark', (WidgetTester tester) async {
+  testWidgets('Splash shows the wordmark, then transitions to home', (WidgetTester tester) async {
     await tester.pumpWidget(const AuryelApp());
+    expect(find.text('AURYEL'), findsOneWidget);
+
+    await tester.pump(const Duration(milliseconds: 2000));
     await tester.pumpAndSettle();
 
-    expect(find.text('AURYEL'), findsOneWidget);
-    expect(find.text('Consulter'), findsOneWidget);
+    expect(find.text('Consultation'), findsOneWidget);
   });
 }
