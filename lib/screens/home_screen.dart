@@ -4,6 +4,8 @@ import 'package:phosphor_icons/phosphor_icons.dart';
 import 'package:share_plus/share_plus.dart';
 
 import '../theme/auryel_theme.dart';
+import '../widgets/advisors_carousel.dart';
+import '../widgets/consultation_block.dart';
 import 'placeholder_screen.dart';
 
 // La phrase du jour, en dur pour l'instant — factorisée pour que l'affichage
@@ -11,6 +13,12 @@ import 'placeholder_screen.dart';
 const _dailyPhraseLead = 'Ce que tu n’oses pas regarder ';
 const _dailyPhraseAccent = 'te dirige.';
 const _dailyPhrase = '$_dailyPhraseLead$_dailyPhraseAccent';
+
+// Variable de test pour visualiser les 4 états du bloc consultation avant
+// tout branchement réel (session/abonnement). À changer à la main.
+const _testConsultationState = ConsultationState.firstFree;
+const _testAdvisorName = 'Séléna';
+const _testAdvisorAsset = 'assets/conseillers/selena.webp';
 
 /// Écran d'accueil "Accueil". Contenu en dur pour l'instant — structuré
 /// pour être branché sur des données réelles (phrase du jour, conseiller
@@ -21,7 +29,9 @@ class HomeScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      decoration: const BoxDecoration(gradient: AuryelColors.backgroundGradient),
+      decoration: const BoxDecoration(
+        gradient: AuryelColors.backgroundGradient,
+      ),
       child: Stack(
         children: [
           // Halo chaud radial derrière la phrase du jour — chaleur subtile mais perceptible.
@@ -48,57 +58,114 @@ class HomeScreen extends StatelessWidget {
             ),
           ),
           SafeArea(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 28),
+            child: SingleChildScrollView(
               child: Column(
                 children: [
-                  const SizedBox(height: 56),
-                  const _Wordmark().animate().fadeIn(duration: 600.ms),
-                  const SizedBox(height: 10),
-                  Text(
-                    'MARDI 25 AOÛT · ESPACE PRIVÉ',
-                    textAlign: TextAlign.center,
-                    style: AuryelText.body(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w500,
-                      color: AuryelColors.textMuted,
-                      letterSpacing: 2.4,
-                    ),
-                  ).animate().fadeIn(delay: 150.ms, duration: 600.ms),
-                  const SizedBox(height: 56),
-                  const _Ornament().animate().fadeIn(delay: 250.ms, duration: 600.ms),
-                  const SizedBox(height: 22),
-                  RichText(
-                    textAlign: TextAlign.center,
-                    text: TextSpan(
-                      style: AuryelText.display(
-                        fontSize: 30,
-                        fontWeight: FontWeight.w500,
-                        height: 1.32,
-                      ),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 28),
+                    child: Column(
                       children: [
-                        const TextSpan(text: _dailyPhraseLead),
-                        TextSpan(
-                          text: _dailyPhraseAccent,
-                          style: AuryelText.display(
-                            fontSize: 30,
+                        const SizedBox(height: 56),
+                        const _Wordmark().animate().fadeIn(duration: 600.ms),
+                        const SizedBox(height: 10),
+                        Text(
+                          'MARDI 25 AOÛT · ESPACE PRIVÉ',
+                          textAlign: TextAlign.center,
+                          style: AuryelText.body(
+                            fontSize: 11,
                             fontWeight: FontWeight.w500,
-                            fontStyle: FontStyle.italic,
-                            color: AuryelColors.goldLight,
-                            height: 1.32,
+                            color: AuryelColors.textMuted,
+                            letterSpacing: 2.4,
                           ),
+                        ).animate().fadeIn(delay: 150.ms, duration: 600.ms),
+                        if (_testConsultationState ==
+                            ConsultationState.active) ...[
+                          const SizedBox(height: 24),
+                          const ConsultationBlock(
+                            state: _testConsultationState,
+                            advisorName: _testAdvisorName,
+                            advisorAssetPath: _testAdvisorAsset,
+                          ).animate().fadeIn(duration: 500.ms),
+                        ],
+                        const SizedBox(height: 56),
+                        const _Ornament().animate().fadeIn(
+                          delay: 250.ms,
+                          duration: 600.ms,
                         ),
+                        const SizedBox(height: 22),
+                        RichText(
+                              textAlign: TextAlign.center,
+                              text: TextSpan(
+                                style: AuryelText.display(
+                                  fontSize: 30,
+                                  fontWeight: FontWeight.w500,
+                                  height: 1.32,
+                                ),
+                                children: [
+                                  const TextSpan(text: _dailyPhraseLead),
+                                  TextSpan(
+                                    text: _dailyPhraseAccent,
+                                    style: AuryelText.display(
+                                      fontSize: 30,
+                                      fontWeight: FontWeight.w500,
+                                      fontStyle: FontStyle.italic,
+                                      color: AuryelColors.goldLight,
+                                      height: 1.32,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            )
+                            .animate()
+                            .fadeIn(delay: 350.ms, duration: 700.ms)
+                            .slideY(
+                              begin: 0.08,
+                              end: 0,
+                              curve: Curves.easeOutCubic,
+                            ),
+                        const SizedBox(height: 28),
+                        _TapToRead().animate().fadeIn(
+                          delay: 550.ms,
+                          duration: 600.ms,
+                        ),
+                        const SizedBox(height: 26),
+                        Text(
+                          'Ce message te fait penser à quelqu’un ?',
+                          textAlign: TextAlign.center,
+                          style: AuryelText.body(
+                            fontSize: 13,
+                            color: AuryelColors.textSecondary,
+                          ),
+                        ).animate().fadeIn(delay: 580.ms, duration: 600.ms),
+                        const SizedBox(height: 12),
+                        const _ShareButton().animate().fadeIn(
+                          delay: 600.ms,
+                          duration: 600.ms,
+                        ),
+                        if (_testConsultationState !=
+                            ConsultationState.active) ...[
+                          const SizedBox(height: 32),
+                          ConsultationBlock(
+                                state: _testConsultationState,
+                                advisorName: _testAdvisorName,
+                                advisorAssetPath: _testAdvisorAsset,
+                              )
+                              .animate()
+                              .fadeIn(delay: 650.ms, duration: 600.ms)
+                              .slideY(
+                                begin: 0.06,
+                                end: 0,
+                                curve: Curves.easeOutCubic,
+                              ),
+                        ],
                       ],
                     ),
-                  ).animate().fadeIn(delay: 350.ms, duration: 700.ms).slideY(
-                        begin: 0.08,
-                        end: 0,
-                        curve: Curves.easeOutCubic,
-                      ),
-                  const SizedBox(height: 28),
-                  _TapToRead().animate().fadeIn(delay: 550.ms, duration: 600.ms),
-                  const SizedBox(height: 20),
-                  const _ShareButton().animate().fadeIn(delay: 600.ms, duration: 600.ms),
+                  ),
+                  const SizedBox(height: 40),
+                  AdvisorsCarousel(selectedAdvisorName: _testAdvisorName)
+                      .animate()
+                      .fadeIn(delay: 700.ms, duration: 600.ms),
+                  const SizedBox(height: 32),
                 ],
               ),
             ),
@@ -154,7 +221,8 @@ class _Wordmark extends StatelessWidget {
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 14),
           child: ShaderMask(
-            shaderCallback: (bounds) => AuryelColors.goldGradient.createShader(bounds),
+            shaderCallback: (bounds) =>
+                AuryelColors.goldGradient.createShader(bounds),
             child: Text(
               'AURYEL',
               style: AuryelText.display(
@@ -188,7 +256,11 @@ class _Ornament extends StatelessWidget {
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
-        Container(width: 22, height: 1, color: AuryelColors.gold.withValues(alpha: 0.4)),
+        Container(
+          width: 22,
+          height: 1,
+          color: AuryelColors.gold.withValues(alpha: 0.4),
+        ),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 10),
           child: Transform.rotate(
@@ -203,7 +275,11 @@ class _Ornament extends StatelessWidget {
             ),
           ),
         ),
-        Container(width: 22, height: 1, color: AuryelColors.gold.withValues(alpha: 0.4)),
+        Container(
+          width: 22,
+          height: 1,
+          color: AuryelColors.gold.withValues(alpha: 0.4),
+        ),
       ],
     );
   }
@@ -250,7 +326,9 @@ class _ShareButton extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 9),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(20),
-            border: Border.all(color: AuryelColors.gold.withValues(alpha: 0.35)),
+            border: Border.all(
+              color: AuryelColors.gold.withValues(alpha: 0.35),
+            ),
           ),
           child: Row(
             mainAxisSize: MainAxisSize.min,
