@@ -25,7 +25,9 @@ class PlaceholderScreen extends StatelessWidget {
     // propre, Text retombe sur DefaultTextStyle.fallback() (souligné jaune debug).
     return Scaffold(
       body: Container(
-        decoration: const BoxDecoration(gradient: AuryelColors.backgroundGradient),
+        decoration: const BoxDecoration(
+          gradient: AuryelColors.backgroundGradient,
+        ),
         child: SafeArea(
           child: Center(
             child: Column(
@@ -40,13 +42,20 @@ class PlaceholderScreen extends StatelessWidget {
                     border: Border.all(color: AuryelColors.warmBorder),
                   ),
                   child: Center(
-                    child: PhosphorIcon(icon, size: 26, color: AuryelColors.gold),
+                    child: PhosphorIcon(
+                      icon,
+                      size: 26,
+                      color: AuryelColors.gold,
+                    ),
                   ),
                 ),
                 const SizedBox(height: 18),
                 Text(
                   title,
-                  style: AuryelText.display(fontSize: 22, fontWeight: FontWeight.w500),
+                  style: AuryelText.display(
+                    fontSize: 22,
+                    fontWeight: FontWeight.w500,
+                  ),
                 ),
                 const SizedBox(height: 8),
                 Padding(
@@ -54,7 +63,10 @@ class PlaceholderScreen extends StatelessWidget {
                   child: Text(
                     subtitle,
                     textAlign: TextAlign.center,
-                    style: AuryelText.body(fontSize: 13, color: AuryelColors.textMuted),
+                    style: AuryelText.body(
+                      fontSize: 13,
+                      color: AuryelColors.textMuted,
+                    ),
                   ),
                 ),
               ],

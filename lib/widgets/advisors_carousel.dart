@@ -110,6 +110,16 @@ const List<AdvisorInfo> kAdvisors = [
   ),
 ];
 
+/// Retrouve un conseiller par prénom (ex: `selectedAdvisor` de l'état
+/// partagé). Retombe sur le premier de la liste si le nom est inconnu —
+/// ne doit jamais arriver une fois l'onboarding terminé.
+AdvisorInfo advisorByName(String name) {
+  return kAdvisors.firstWhere(
+    (advisor) => advisor.name == name,
+    orElse: () => kAdvisors.first,
+  );
+}
+
 /// Section "Découvre nos conseillers" — carrousel horizontal des 10 conseillers.
 /// Un tap sur une carte ouvre la fiche complète du conseiller.
 class AdvisorsCarousel extends StatelessWidget {

@@ -1,8 +1,11 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:phosphor_icons/phosphor_icons.dart';
 import 'package:share_plus/share_plus.dart';
 
+import '../screens/splash_screen.dart';
+import '../state/auryel_state.dart';
 import '../theme/auryel_theme.dart';
 import '../widgets/advisors_carousel.dart';
 import '../widgets/consultation_block.dart';
@@ -15,10 +18,22 @@ const _dailyPhraseAccent = 'te dirige.';
 const _dailyPhrase = '$_dailyPhraseLead$_dailyPhraseAccent';
 
 // Variable de test pour visualiser les 4 états du bloc consultation avant
-// tout branchement réel (session/abonnement). À changer à la main.
-const _testConsultationState = ConsultationState.firstFree;
-const _testAdvisorName = 'Séléna';
-const _testAdvisorAsset = 'assets/conseillers/selena.webp';
+// tout branchement réel (session/abonnement). À changer à la main. Le
+// CONSEILLER, lui, n'est plus en dur — il vient de l'état partagé
+// (`selectedAdvisor`, choisi pendant l'onboarding).
+const _debugConsultationState = ConsultationState.firstFree;
+
+/// Reset DEBUG uniquement (geste caché — appui long sur l'icône profil,
+/// visible seulement en `kDebugMode`) : efface les données mock
+/// d'onboarding et relance l'app depuis le splash pour rejouer le parcours.
+Future<void> _debugResetOnboarding(BuildContext context) async {
+  await AuryelStateScope.of(context).debugReset();
+  if (!context.mounted) return;
+  Navigator.of(context).pushAndRemoveUntil(
+    MaterialPageRoute(builder: (_) => const SplashScreen()),
+    (route) => false,
+  );
+}
 
 /// Écran d'accueil "Accueil". Contenu en dur pour l'instant — structuré
 /// pour être branché sur des données réelles (phrase du jour, conseiller
@@ -28,6 +43,8 @@ class HomeScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final state = AuryelStateScope.of(context);
+    final advisor = advisorByName(state.selectedAdvisor!);
     return Container(
       decoration: const BoxDecoration(
         gradient: AuryelColors.backgroundGradient,
@@ -78,13 +95,13 @@ class HomeScreen extends StatelessWidget {
                             letterSpacing: 2.4,
                           ),
                         ).animate().fadeIn(delay: 150.ms, duration: 600.ms),
-                        if (_testConsultationState ==
+                        if (_debugConsultationState ==
                             ConsultationState.active) ...[
                           const SizedBox(height: 24),
-                          const ConsultationBlock(
-                            state: _testConsultationState,
-                            advisorName: _testAdvisorName,
-                            advisorAssetPath: _testAdvisorAsset,
+                          ConsultationBlock(
+                            state: _debugConsultationState,
+                            advisorName: advisor.name,
+                            advisorAssetPath: advisor.assetPath,
                           ).animate().fadeIn(duration: 500.ms),
                         ],
                         const SizedBox(height: 56),
@@ -142,13 +159,13 @@ class HomeScreen extends StatelessWidget {
                           delay: 600.ms,
                           duration: 600.ms,
                         ),
-                        if (_testConsultationState !=
+                        if (_debugConsultationState !=
                             ConsultationState.active) ...[
                           const SizedBox(height: 32),
                           ConsultationBlock(
-                                state: _testConsultationState,
-                                advisorName: _testAdvisorName,
-                                advisorAssetPath: _testAdvisorAsset,
+                                state: _debugConsultationState,
+                                advisorName: advisor.name,
+                                advisorAssetPath: advisor.assetPath,
                               )
                               .animate()
                               .fadeIn(delay: 650.ms, duration: 600.ms)
@@ -162,7 +179,7 @@ class HomeScreen extends StatelessWidget {
                     ),
                   ),
                   const SizedBox(height: 40),
-                  AdvisorsCarousel(selectedAdvisorName: _testAdvisorName)
+                  AdvisorsCarousel(selectedAdvisorName: state.selectedAdvisor)
                       .animate()
                       .fadeIn(delay: 700.ms, duration: 600.ms),
                   const SizedBox(height: 32),
@@ -172,6 +189,8 @@ class HomeScreen extends StatelessWidget {
           ),
           // Icône profil ancrée en haut de l'écran, indépendante du bloc de
           // contenu centré — mène à l'écran "Espace" (placeholder).
+          // Appui long = reset DEBUG de l'onboarding mock (kDebugMode
+          // uniquement — jamais exposé comme fonctionnalité utilisateur).
           Positioned(
             top: 0,
             left: 0,
@@ -182,22 +201,27 @@ class HomeScreen extends StatelessWidget {
                 padding: const EdgeInsets.only(right: 12, top: 2),
                 child: Align(
                   alignment: Alignment.topRight,
-                  child: IconButton(
-                    onPressed: () => Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (_) => const PlaceholderScreen(
-                          title: 'Mon espace',
-                          icon: PhosphorIconsRegular.userCircle,
-                          subtitle: 'Bientôt, ton espace personnel.',
+                  child: GestureDetector(
+                    onLongPress: kDebugMode
+                        ? () => _debugResetOnboarding(context)
+                        : null,
+                    child: IconButton(
+                      onPressed: () => Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) => const PlaceholderScreen(
+                            title: 'Mon espace',
+                            icon: PhosphorIconsRegular.userCircle,
+                            subtitle: 'Bientôt, ton espace personnel.',
+                          ),
                         ),
                       ),
+                      icon: PhosphorIcon(
+                        PhosphorIconsThin.userCircle,
+                        size: 22,
+                        color: AuryelColors.textMuted,
+                      ),
+                      splashRadius: 20,
                     ),
-                    icon: PhosphorIcon(
-                      PhosphorIconsThin.userCircle,
-                      size: 22,
-                      color: AuryelColors.textMuted,
-                    ),
-                    splashRadius: 20,
                   ),
                 ),
               ),

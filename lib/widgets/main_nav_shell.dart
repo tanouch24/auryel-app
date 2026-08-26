@@ -49,9 +49,21 @@ class _AuryelTabBar extends StatelessWidget {
   final ValueChanged<int> onTap;
 
   static const _tabs = [
-    (label: 'Accueil', icon: PhosphorIconsRegular.house, activeIcon: PhosphorIconsFill.house),
-    (label: 'Mes cartes', icon: PhosphorIconsRegular.cardsThree, activeIcon: PhosphorIconsFill.cardsThree),
-    (label: 'Méditer', icon: PhosphorIconsRegular.flowerLotus, activeIcon: PhosphorIconsFill.flowerLotus),
+    (
+      label: 'Accueil',
+      icon: PhosphorIconsRegular.house,
+      activeIcon: PhosphorIconsFill.house,
+    ),
+    (
+      label: 'Mes cartes',
+      icon: PhosphorIconsRegular.cardsThree,
+      activeIcon: PhosphorIconsFill.cardsThree,
+    ),
+    (
+      label: 'Méditer',
+      icon: PhosphorIconsRegular.flowerLotus,
+      activeIcon: PhosphorIconsFill.flowerLotus,
+    ),
   ];
 
   @override
@@ -59,7 +71,9 @@ class _AuryelTabBar extends StatelessWidget {
     return DecoratedBox(
       decoration: BoxDecoration(
         color: AuryelColors.surface,
-        border: Border(top: BorderSide(color: AuryelColors.warmBorder, width: 1)),
+        border: Border(
+          top: BorderSide(color: AuryelColors.warmBorder, width: 1),
+        ),
       ),
       child: SafeArea(
         top: false,
@@ -76,13 +90,19 @@ class _AuryelTabBar extends StatelessWidget {
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      PhosphorIcon(active ? tab.activeIcon : tab.icon, size: 22, color: color),
+                      PhosphorIcon(
+                        active ? tab.activeIcon : tab.icon,
+                        size: 22,
+                        color: color,
+                      ),
                       const SizedBox(height: 4),
                       Text(
                         tab.label,
                         style: AuryelText.body(
                           fontSize: 10.5,
-                          fontWeight: active ? FontWeight.w600 : FontWeight.w400,
+                          fontWeight: active
+                              ? FontWeight.w600
+                              : FontWeight.w400,
                           color: color,
                           letterSpacing: 0.3,
                         ),
