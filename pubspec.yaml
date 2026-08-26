@@ -37,6 +37,7 @@ dependencies:
   google_fonts: ^8.2.1
   flutter_animate: ^4.5.2
   phosphor_icons: ^3.0.1
+  share_plus: ^13.3.0
 
 dev_dependencies:
   flutter_test:

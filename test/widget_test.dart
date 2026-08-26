@@ -10,6 +10,6 @@ void main() {
     await tester.pump(const Duration(milliseconds: 2000));
     await tester.pumpAndSettle();
 
-    expect(find.text('Consultation'), findsOneWidget);
+    expect(find.text('Accueil'), findsOneWidget);
   });
 }

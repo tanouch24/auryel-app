@@ -1,10 +1,18 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:phosphor_icons/phosphor_icons.dart';
+import 'package:share_plus/share_plus.dart';
 
 import '../theme/auryel_theme.dart';
+import 'placeholder_screen.dart';
 
-/// Écran d'accueil "Consulter". Contenu en dur pour l'instant — structuré
+// La phrase du jour, en dur pour l'instant — factorisée pour que l'affichage
+// (RichText) et le partage restent synchronisés sans dupliquer le texte.
+const _dailyPhraseLead = 'Ce que tu n’oses pas regarder ';
+const _dailyPhraseAccent = 'te dirige.';
+const _dailyPhrase = '$_dailyPhraseLead$_dailyPhraseAccent';
+
+/// Écran d'accueil "Accueil". Contenu en dur pour l'instant — structuré
 /// pour être branché sur des données réelles (phrase du jour, conseiller
 /// assigné) plus tard.
 class HomeScreen extends StatelessWidget {
@@ -18,7 +26,7 @@ class HomeScreen extends StatelessWidget {
         children: [
           // Halo chaud radial derrière la phrase du jour — chaleur subtile mais perceptible.
           Positioned(
-            top: 210,
+            top: 150,
             left: 0,
             right: 0,
             child: IgnorePointer(
@@ -43,8 +51,8 @@ class HomeScreen extends StatelessWidget {
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 28),
               child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
                 children: [
+                  const SizedBox(height: 56),
                   const _Wordmark().animate().fadeIn(duration: 600.ms),
                   const SizedBox(height: 10),
                   Text(
@@ -69,9 +77,9 @@ class HomeScreen extends StatelessWidget {
                         height: 1.32,
                       ),
                       children: [
-                        const TextSpan(text: 'Ce que tu n’oses pas regarder '),
+                        const TextSpan(text: _dailyPhraseLead),
                         TextSpan(
-                          text: 'te dirige.',
+                          text: _dailyPhraseAccent,
                           style: AuryelText.display(
                             fontSize: 30,
                             fontWeight: FontWeight.w500,
@@ -89,16 +97,45 @@ class HomeScreen extends StatelessWidget {
                       ),
                   const SizedBox(height: 28),
                   _TapToRead().animate().fadeIn(delay: 550.ms, duration: 600.ms),
-                  const SizedBox(height: 44),
-                  const _AdvisorPanel().animate().fadeIn(delay: 650.ms, duration: 600.ms).slideY(
-                        begin: 0.06,
-                        end: 0,
-                        curve: Curves.easeOutCubic,
-                      ),
+                  const SizedBox(height: 20),
+                  const _ShareButton().animate().fadeIn(delay: 600.ms, duration: 600.ms),
                 ],
               ),
             ),
           ),
+          // Icône profil ancrée en haut de l'écran, indépendante du bloc de
+          // contenu centré — mène à l'écran "Espace" (placeholder).
+          Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            child: SafeArea(
+              bottom: false,
+              child: Padding(
+                padding: const EdgeInsets.only(right: 12, top: 2),
+                child: Align(
+                  alignment: Alignment.topRight,
+                  child: IconButton(
+                    onPressed: () => Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => const PlaceholderScreen(
+                          title: 'Mon espace',
+                          icon: PhosphorIconsRegular.userCircle,
+                          subtitle: 'Bientôt, ton espace personnel.',
+                        ),
+                      ),
+                    ),
+                    icon: PhosphorIcon(
+                      PhosphorIconsThin.userCircle,
+                      size: 22,
+                      color: AuryelColors.textMuted,
+                    ),
+                    splashRadius: 20,
+                  ),
+                ),
+              ),
+            ),
+          ).animate().fadeIn(delay: 200.ms, duration: 500.ms),
         ],
       ),
     );
@@ -178,12 +215,12 @@ class _TapToRead extends StatelessWidget {
     return Column(
       children: [
         Text(
-          'TOUCHER POUR LIRE',
+          'Découvrir le message du jour',
           style: AuryelText.body(
             fontSize: 11,
             fontWeight: FontWeight.w500,
             color: AuryelColors.textMuted,
-            letterSpacing: 2,
+            letterSpacing: 0.3,
           ),
         ),
         const SizedBox(height: 6),
@@ -197,71 +234,45 @@ class _TapToRead extends StatelessWidget {
   }
 }
 
-class _AdvisorPanel extends StatelessWidget {
-  const _AdvisorPanel();
+class _ShareButton extends StatelessWidget {
+  const _ShareButton();
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: AuryelColors.surface,
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(color: AuryelColors.warmBorder, width: 1),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 52,
-            height: 52,
-            padding: const EdgeInsets.all(2),
-            decoration: const BoxDecoration(
-              shape: BoxShape.circle,
-              gradient: AuryelColors.goldGradient,
-            ),
-            child: Container(
-              decoration: const BoxDecoration(
-                shape: BoxShape.circle,
-                color: AuryelColors.surfaceLight,
+        onTap: () => SharePlus.instance.share(
+          ShareParams(text: '$_dailyPhrase\n\n— Auryel'),
+        ),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 9),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(color: AuryelColors.gold.withValues(alpha: 0.35)),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              PhosphorIcon(
+                PhosphorIconsRegular.shareNetwork,
+                size: 15,
+                color: AuryelColors.goldLight,
               ),
-              child: Center(
-                child: PhosphorIcon(
-                  PhosphorIconsFill.moonStars,
+              const SizedBox(width: 8),
+              Text(
+                'Partager',
+                style: AuryelText.body(
+                  fontSize: 11,
+                  fontWeight: FontWeight.w500,
                   color: AuryelColors.goldLight,
-                  size: 22,
+                  letterSpacing: 1.6,
                 ),
               ),
-            ),
+            ],
           ),
-          const SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Séléna',
-                  style: AuryelText.display(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  't’accompagne aujourd’hui',
-                  style: AuryelText.body(
-                    fontSize: 12.5,
-                    color: AuryelColors.textMuted,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          PhosphorIcon(
-            PhosphorIconsRegular.caretRight,
-            size: 18,
-            color: AuryelColors.gold.withValues(alpha: 0.8),
-          ),
-        ],
+        ),
       ),
     );
   }

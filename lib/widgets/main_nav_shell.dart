@@ -5,8 +5,8 @@ import '../screens/home_screen.dart';
 import '../screens/placeholder_screen.dart';
 import '../theme/auryel_theme.dart';
 
-/// Coquille de navigation : 4 onglets, contenu réel pour "Consultation",
-/// placeholders stylés pour les 3 autres en attendant leur écran.
+/// Coquille de navigation : 3 onglets, contenu réel pour "Accueil",
+/// placeholders stylés pour les 2 autres en attendant leur écran.
 class MainNavShell extends StatefulWidget {
   const MainNavShell({super.key});
 
@@ -19,9 +19,15 @@ class _MainNavShellState extends State<MainNavShell> {
 
   static const _screens = [
     HomeScreen(),
-    PlaceholderScreen(title: 'Tirage', icon: PhosphorIconsRegular.cardsThree),
-    PlaceholderScreen(title: 'Moment', icon: PhosphorIconsRegular.moonStars),
-    PlaceholderScreen(title: 'Espace', icon: PhosphorIconsRegular.userCircle),
+    PlaceholderScreen(
+      title: 'Mes cartes du jour',
+      icon: PhosphorIconsRegular.cardsThree,
+    ),
+    PlaceholderScreen(
+      title: 'Ton moment',
+      icon: PhosphorIconsRegular.flowerLotus,
+      subtitle: 'Quelques minutes pour ralentir et revenir à toi.',
+    ),
   ];
 
   @override
@@ -43,10 +49,9 @@ class _AuryelTabBar extends StatelessWidget {
   final ValueChanged<int> onTap;
 
   static const _tabs = [
-    (label: 'Consultation', icon: PhosphorIconsRegular.chatCircleText, activeIcon: PhosphorIconsFill.chatCircleText),
-    (label: 'Tirage', icon: PhosphorIconsRegular.cardsThree, activeIcon: PhosphorIconsFill.cardsThree),
-    (label: 'Moment', icon: PhosphorIconsRegular.moonStars, activeIcon: PhosphorIconsFill.moonStars),
-    (label: 'Espace', icon: PhosphorIconsRegular.userCircle, activeIcon: PhosphorIconsFill.userCircle),
+    (label: 'Accueil', icon: PhosphorIconsRegular.house, activeIcon: PhosphorIconsFill.house),
+    (label: 'Mes cartes', icon: PhosphorIconsRegular.cardsThree, activeIcon: PhosphorIconsFill.cardsThree),
+    (label: 'Méditer', icon: PhosphorIconsRegular.flowerLotus, activeIcon: PhosphorIconsFill.flowerLotus),
   ];
 
   @override
