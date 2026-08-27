@@ -149,6 +149,16 @@ AdvisorInfo? advisorByNameOrNull(String? name) {
   return null;
 }
 
+/// Retrouve un conseiller par sa clé backend (`advisor_id` d'une consultation :
+/// `selena`…`raphael`). `null` si la clé est inconnue.
+AdvisorInfo? advisorByGuideKey(String? guideKey) {
+  if (guideKey == null || guideKey.isEmpty) return null;
+  for (final advisor in kAdvisors) {
+    if (advisor.guideKey == guideKey) return advisor;
+  }
+  return null;
+}
+
 /// Section "Découvre nos conseillers" — carrousel horizontal des 10 conseillers.
 /// Un tap sur une carte ouvre la fiche complète du conseiller.
 class AdvisorsCarousel extends StatelessWidget {

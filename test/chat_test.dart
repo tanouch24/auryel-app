@@ -1,0 +1,391 @@
+import 'dart:convert';
+
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
+import 'package:auryel/api/api_client.dart';
+import 'package:auryel/api/auth_api.dart';
+import 'package:auryel/api/consultation_api.dart';
+import 'package:auryel/api/profile_api.dart';
+import 'package:auryel/data/consultation.dart';
+import 'package:auryel/data/auth_repository.dart';
+import 'package:auryel/data/onboarding_record.dart';
+import 'package:auryel/data/onboarding_repository.dart';
+import 'package:auryel/data/token_store.dart';
+import 'package:auryel/screens/chat_screen.dart';
+import 'package:auryel/screens/home_screen.dart';
+import 'package:auryel/state/auryel_state.dart';
+import 'package:auryel/state/auth_controller.dart';
+import 'package:auryel/widgets/advisors_carousel.dart';
+
+http.Response _json(Map<String, dynamic> body, [int status = 200]) =>
+    http.Response(jsonEncode(body), status,
+        headers: {'content-type': 'application/json'});
+
+Map<String, dynamic> _okBody({
+  String reply = 'Je te vois clairement.',
+  String advisorId = 'maia',
+  bool openedNow = true,
+  int secondsRemaining = 6500,
+}) =>
+    {
+      'reply': reply,
+      'consultation': {
+        'id': 'c-1',
+        'advisor_id': advisorId,
+        'started_at': '2026-08-27T10:00:00Z',
+        'expires_at': '2026-08-27T12:00:00Z',
+        'seconds_remaining': secondsRemaining,
+        'credit_source': 'monthly',
+        'opened_now': openedNow,
+      },
+      'quota': {
+        'is_premium': true,
+        'monthly_limit': 4,
+        'monthly_used': 1,
+        'monthly_remaining': 3,
+        'earned_available': 0,
+        'period_start': '2026-08-01T00:00:00Z',
+        'period_end': '2026-09-01T00:00:00Z',
+      },
+    };
+
+const _noCreditBody = {
+  'error': 'no_credit',
+  'consultation': null,
+  'quota': {
+    'is_premium': true,
+    'monthly_limit': 4,
+    'monthly_used': 4,
+    'monthly_remaining': 0,
+    'earned_available': 0,
+    'period_start': '2026-08-01T00:00:00Z',
+    'period_end': '2026-09-01T00:00:00Z',
+  },
+};
+
+typedef _Env = ({AuthController auth, InMemoryTokenStore tokens, List<int> posts});
+
+_Env _env(
+  Future<http.Response> Function(http.Request req) handler, {
+  String? token = 'tok',
+}) {
+  final posts = <int>[];
+  final tokens = InMemoryTokenStore(token);
+  final client = ApiClient(
+    httpClient: MockClient((req) async {
+      if (req.url.path == '/api/consultation/message') posts.add(1);
+      return handler(req);
+    }),
+    baseUrl: 'http://test.local',
+  );
+  final auth = AuthController(
+    repository: AuthRepository(api: AuthApi(client), tokenStore: tokens),
+    profileApi: ProfileApi(client),
+    consultationApi: ConsultationApi(client),
+  );
+  return (auth: auth, tokens: tokens, posts: posts);
+}
+
+Future<void> _pumpChat(
+  WidgetTester tester, {
+  required AuthController auth,
+  String advisorName = 'Séléna',
+}) {
+  final state = AuryelState(
+    repository: LocalOnboardingRepository(),
+    initial: OnboardingRecord(
+      userId: 'u',
+      selectedAdvisor: advisorName,
+      firstName: 'N',
+      birthDate: DateTime(1994, 1, 1),
+      portraitData: 'x',
+      portraitFeedback: 'y',
+      onboardingCompleted: true,
+    ),
+  );
+  return tester.pumpWidget(
+    AuthScope(
+      controller: auth,
+      child: AuryelStateScope(
+        state: state,
+        child: MaterialApp(
+          home: ChatScreen(advisor: advisorByNameOrNull(advisorName)!),
+        ),
+      ),
+    ),
+  );
+}
+
+Future<void> _type(WidgetTester tester, String msg) async {
+  await tester.enterText(find.byType(TextField), msg);
+  await tester.pump();
+}
+
+Future<void> _tapSend(WidgetTester tester) async {
+  await tester.tap(find.byIcon(Icons.send_rounded));
+  await tester.pumpAndSettle();
+}
+
+const _confirmText = 'Cette conversation ouvrira une consultation de 2 h.';
+
+void main() {
+  setUp(() => SharedPreferences.setMockInitialValues({}));
+
+  // =========================================================================
+  // DTO parsing
+  // =========================================================================
+  test('ConsultationMessageResponse.fromJson : parsing complet', () {
+    final r = ConsultationMessageResponse.fromJson(_okBody());
+    expect(r.reply, 'Je te vois clairement.');
+    expect(r.consultation, isNotNull);
+    expect(r.consultation!.id, 'c-1');
+    expect(r.consultation!.advisorId, 'maia');
+    expect(r.consultation!.secondsRemaining, 6500);
+    expect(r.consultation!.creditSource, 'monthly');
+    expect(r.consultation!.openedNow, isTrue);
+    expect(r.consultation!.startedAt, isA<DateTime>());
+    expect(r.consultation!.expiresAt, isA<DateTime>());
+    expect(r.quota.isPremium, isTrue);
+    expect(r.quota.monthlyLimit, 4);
+    expect(r.quota.monthlyUsed, 1);
+    expect(r.quota.monthlyRemaining, 3);
+    expect(r.quota.earnedAvailable, 0);
+    expect(r.quota.periodStart, isA<DateTime>());
+  });
+
+  test('parsing robuste : seconds_remaining string, opened_now absent, dates nulles',
+      () {
+    final r = ConsultationMessageResponse.fromJson({
+      'reply': 'x',
+      'consultation': {
+        'id': 'c',
+        'advisor_id': 'selena',
+        'seconds_remaining': '5400',
+        'credit_source': 'referral',
+      },
+      'quota': {'is_premium': false, 'monthly_limit': 0},
+    });
+    expect(r.consultation!.secondsRemaining, 5400);
+    expect(r.consultation!.openedNow, isFalse);
+    expect(r.consultation!.startedAt, isNull);
+    expect(r.consultation!.expiresAt, isNull);
+    expect(r.quota.isPremium, isFalse);
+    expect(r.quota.monthlyUsed, 0);
+  });
+
+  test('formatRemaining : h/min/terminé', () {
+    expect(_ChatScreenStateFormat.f(6500), 'Consultation ouverte · 1 h 48 restantes');
+    expect(_ChatScreenStateFormat.f(600), 'Consultation ouverte · 10 min restantes');
+    expect(_ChatScreenStateFormat.f(0), 'Consultation terminée');
+  });
+
+  // =========================================================================
+  // ConsultationApi
+  // =========================================================================
+  test('sendMessage : POST /api/consultation/message body {message} + Bearer', () async {
+    http.Request? seen;
+    final client = ApiClient(
+      httpClient: MockClient((req) async {
+        seen = req;
+        return _json(_okBody());
+      }),
+      baseUrl: 'http://test.local',
+    );
+    final res =
+        await ConsultationApi(client).sendMessage(bearer: 'tk', message: '  salut  ');
+
+    expect(seen!.method, 'POST');
+    expect(seen!.url.path, '/api/consultation/message');
+    expect(seen!.headers['Authorization'], 'Bearer tk');
+    expect(jsonDecode(seen!.body), {'message': '  salut  '});
+    expect(res.reply, 'Je te vois clairement.');
+    expect(res.consultation!.advisorId, 'maia');
+  });
+
+  test('sendMessage : 402 -> ApiNoCreditException portant quota', () async {
+    final client = ApiClient(
+      httpClient: MockClient((_) async => _json(_noCreditBody, 402)),
+      baseUrl: 'http://test.local',
+    );
+    await expectLater(
+      ConsultationApi(client).sendMessage(bearer: 'tk', message: 'x'),
+      throwsA(isA<ApiNoCreditException>()),
+    );
+  });
+
+  // =========================================================================
+  // ChatScreen — widget
+  // =========================================================================
+  testWidgets('écran neuf : aucun faux historique, invite de départ', (t) async {
+    final e = _env((_) async => _json(_okBody()));
+    await _pumpChat(t, auth: e.auth);
+    await t.pumpAndSettle();
+
+    expect(find.text('Écris ton premier message pour commencer.'), findsOneWidget);
+    expect(find.byType(ListView), findsNothing); // pas de liste => pas de bulle
+  });
+
+  testWidgets('1er message : confirmation affichée', (t) async {
+    final e = _env((_) async => _json(_okBody()));
+    await _pumpChat(t, auth: e.auth);
+    await _type(t, 'bonjour');
+    await _tapSend(t);
+
+    expect(find.text(_confirmText), findsOneWidget);
+    expect(find.text('Commencer'), findsOneWidget);
+    expect(find.text('Annuler'), findsOneWidget);
+  });
+
+  testWidgets('confirmation annulée -> aucun POST, texte conservé', (t) async {
+    final e = _env((_) async => _json(_okBody()));
+    await _pumpChat(t, auth: e.auth);
+    await _type(t, 'bonjour');
+    await _tapSend(t);
+    await t.tap(find.text('Annuler'));
+    await t.pumpAndSettle();
+
+    expect(e.posts, isEmpty);
+    expect(find.text('bonjour'), findsOneWidget); // toujours dans le champ
+    expect(find.text(_confirmText), findsNothing);
+  });
+
+  testWidgets('confirmation validée -> POST + bulles user & assistant', (t) async {
+    final e = _env((_) async => _json(_okBody(reply: 'Réponse conseiller')));
+    await _pumpChat(t, auth: e.auth);
+    await _type(t, 'bonjour');
+    await _tapSend(t);
+    await t.tap(find.text('Commencer'));
+    await t.pumpAndSettle();
+
+    expect(e.posts.length, 1);
+    expect(find.text('bonjour'), findsOneWidget);
+    expect(find.text('Réponse conseiller'), findsOneWidget);
+  });
+
+  testWidgets('advisor_id backend "maia" -> header passe à Maïa', (t) async {
+    final e = _env((_) async => _json(_okBody(advisorId: 'maia')));
+    await _pumpChat(t, auth: e.auth, advisorName: 'Séléna');
+
+    expect(find.text('Séléna'), findsOneWidget); // header initial
+
+    await _type(t, 'salut');
+    await _tapSend(t);
+    await t.tap(find.text('Commencer'));
+    await t.pumpAndSettle();
+
+    expect(find.text('Maïa'), findsOneWidget);
+    expect(find.text('Séléna'), findsNothing);
+  });
+
+  testWidgets('2e message même session : pas de nouvelle confirmation', (t) async {
+    final e = _env((_) async => _json(_okBody()));
+    await _pumpChat(t, auth: e.auth);
+    await _type(t, 'un');
+    await _tapSend(t);
+    await t.tap(find.text('Commencer'));
+    await t.pumpAndSettle();
+
+    await _type(t, 'deux');
+    await _tapSend(t);
+
+    expect(find.text(_confirmText), findsNothing);
+    expect(e.posts.length, 2);
+    expect(find.text('deux'), findsOneWidget);
+  });
+
+  testWidgets('402 -> écran no_credit, aucune fausse réponse', (t) async {
+    final e = _env((_) async => _json(_noCreditBody, 402));
+    await _pumpChat(t, auth: e.auth);
+    await _type(t, 'coucou');
+    await _tapSend(t);
+    await t.tap(find.text('Commencer'));
+    await t.pumpAndSettle();
+
+    expect(find.text('Tu as utilisé tes consultations disponibles.'), findsOneWidget);
+    expect(find.text('Premium — 7,99 €/mois'), findsOneWidget);
+    expect(find.text('coucou'), findsNothing); // pas de bulle user
+    expect(find.byType(TextField), findsNothing); // input remplacé
+  });
+
+  testWidgets('401 -> session purgée + retour EmailAuthScreen', (t) async {
+    final e = _env((_) async => _json({'error': 'unauthorized'}, 401));
+    await _pumpChat(t, auth: e.auth);
+    await _type(t, 'hello');
+    await _tapSend(t);
+    await t.tap(find.text('Commencer'));
+    await t.pumpAndSettle();
+
+    expect(find.text('Ton adresse email'), findsOneWidget);
+    expect(await e.tokens.read(), isNull);
+    expect(e.auth.status, AuthStatus.sessionExpired);
+  });
+
+  testWidgets('réseau KO -> Réessayer dispo, texte conservé, pas de duplication',
+      (t) async {
+    var call = 0;
+    final e = _env((_) async {
+      call++;
+      if (call == 1) throw http.ClientException('offline');
+      return _json(_okBody(reply: 'enfin'));
+    });
+    await _pumpChat(t, auth: e.auth);
+    await _type(t, 'mon message');
+    await _tapSend(t);
+    await t.tap(find.text('Commencer'));
+    await t.pumpAndSettle();
+
+    // Échec : bulle "pending" visible une seule fois, bouton Réessayer présent.
+    expect(find.text('mon message'), findsOneWidget);
+    expect(find.text('Réessayer'), findsOneWidget);
+    expect(e.posts.length, 1);
+
+    await t.tap(find.text('Réessayer'));
+    await t.pumpAndSettle();
+
+    expect(e.posts.length, 2);
+    expect(find.text('mon message'), findsOneWidget); // pas dédoublé
+    expect(find.text('enfin'), findsOneWidget);
+    expect(find.text('Réessayer'), findsNothing);
+  });
+
+  testWidgets('CTA Accueil -> ouvre ChatScreen', (t) async {
+    final e = _env((_) async => _json(_okBody()));
+    final state = AuryelState(
+      repository: LocalOnboardingRepository(),
+      initial: OnboardingRecord(
+        userId: 'u',
+        selectedAdvisor: 'Maïa',
+        firstName: 'N',
+        birthDate: DateTime(1994, 1, 1),
+        portraitData: 'x',
+        portraitFeedback: 'y',
+        onboardingCompleted: true,
+      ),
+    );
+    await t.pumpWidget(
+      AuthScope(
+        controller: e.auth,
+        child: AuryelStateScope(
+          state: state,
+          child: const MaterialApp(home: HomeScreen()),
+        ),
+      ),
+    );
+    await t.pumpAndSettle();
+
+    await t.tap(find.text('Commencer ma consultation'));
+    await t.pumpAndSettle();
+
+    expect(find.text('Écris ton message…'), findsOneWidget); // hint du ChatScreen
+  });
+}
+
+/// Petit proxy pour tester la fonction statique de formatage sans exposer
+/// l'état privé du widget.
+class _ChatScreenStateFormat {
+  static String f(int s) => ChatScreen.debugFormatRemaining(s);
+}

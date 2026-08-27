@@ -8,6 +8,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:auryel/api/api_client.dart';
 import 'package:auryel/api/auth_api.dart';
+import 'package:auryel/api/consultation_api.dart';
 import 'package:auryel/api/profile_api.dart';
 import 'package:auryel/data/auth_repository.dart';
 import 'package:auryel/data/onboarding_record.dart';
@@ -17,6 +18,7 @@ import 'package:auryel/main.dart';
 import 'package:auryel/screens/onboarding/otp_code_screen.dart';
 import 'package:auryel/state/auryel_state.dart';
 import 'package:auryel/state/auth_controller.dart';
+import 'package:auryel/state/consultation_controller.dart';
 
 /// AuthController de test : jeton initial optionnel + réponse HTTP contrôlée
 /// (utilisé par les tests de splash).
@@ -36,6 +38,7 @@ AuthController _auth({
       tokenStore: InMemoryTokenStore(token),
     ),
     profileApi: ProfileApi(client),
+    consultationApi: ConsultationApi(client),
   );
 }
 
@@ -50,6 +53,7 @@ AuthController _auth({
     auth: AuthController(
       repository: AuthRepository(api: AuthApi(client), tokenStore: tokens),
       profileApi: ProfileApi(client),
+      consultationApi: ConsultationApi(client),
     ),
     tokens: tokens,
   );
@@ -82,6 +86,17 @@ AuryelState _completedOnboardingState({String userId = 'temp_deadbeef'}) =>
       userId: userId,
       selectedAdvisor: 'Séléna',
       firstName: 'Nina',
+    );
+
+/// Monte l'app complète avec un [ConsultationController] adossé au même
+/// [AuthController] (F4). Le GET /state du boot n'est déclenché que si la
+/// session est restaurée valide.
+AuryelApp _app({required AuryelState state, required AuthController auth}) =>
+    AuryelApp(
+      state: state,
+      auth: auth,
+      consultation:
+          ConsultationController(api: auth.consultationApi, auth: auth),
     );
 
 Future<void> _bootSplash(WidgetTester tester) async {
@@ -161,7 +176,7 @@ void main() {
   // =========================================================================
   testWidgets('Splash : nouvel utilisateur -> parcours onboarding', (tester) async {
     final state = AuryelState(repository: LocalOnboardingRepository());
-    await tester.pumpWidget(AuryelApp(state: state, auth: _auth()));
+    await tester.pumpWidget(_app(state: state, auth: _auth()));
     expect(find.text('AURYEL'), findsOneWidget);
     await _bootSplash(tester);
     expect(find.text('Choisis ton conseiller'), findsOneWidget);
@@ -170,7 +185,7 @@ void main() {
   testWidgets('Splash : onboarding terminé + AUCUN token -> EmailAuthScreen',
       (tester) async {
     await tester.pumpWidget(
-      AuryelApp(state: _completedOnboardingState(), auth: _auth(token: null)),
+      _app(state: _completedOnboardingState(), auth: _auth(token: null)),
     );
     await _bootSplash(tester);
     expect(find.text(_emailScreenMarker), findsOneWidget);
@@ -180,7 +195,7 @@ void main() {
   testWidgets('Splash : token valide (GET /account 200) -> MainNavShell',
       (tester) async {
     await tester.pumpWidget(
-      AuryelApp(
+      _app(
         state: _completedOnboardingState(),
         auth: _auth(
           token: 'good-tok',
@@ -197,7 +212,7 @@ void main() {
       (tester) async {
     final auth = _auth(token: 'keep-tok', throwNetwork: true);
     await tester.pumpWidget(
-      AuryelApp(state: _completedOnboardingState(), auth: auth),
+      _app(state: _completedOnboardingState(), auth: auth),
     );
     await _bootSplash(tester);
     expect(find.text(_homeMarker), findsOneWidget);
@@ -209,7 +224,7 @@ void main() {
     final b = _authFrom((_) async => _json({'error': 'unauthorized'}, 401),
         token: 'bad-tok');
     await tester.pumpWidget(
-      AuryelApp(state: _completedOnboardingState(), auth: b.auth),
+      _app(state: _completedOnboardingState(), auth: b.auth),
     );
     await _bootSplash(tester);
     expect(find.text(_emailScreenMarker), findsOneWidget);

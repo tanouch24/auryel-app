@@ -16,21 +16,44 @@ class ConsultationBlock extends StatelessWidget {
     required this.state,
     required this.advisorName,
     required this.advisorAssetPath,
+    this.onStart,
+    this.activeResumeLabel,
+    this.activeRemainingText,
   });
 
   final ConsultationState state;
   final String advisorName;
   final String advisorAssetPath;
 
+  /// Callback du CTA principal (F3 : ouvrir le ChatScreen). Injecté par
+  /// l'écran hôte plutôt que codé en dur dans le widget.
+  final VoidCallback? onStart;
+
+  /// F4 — libellé du CTA quand une VRAIE session est active (ex.
+  /// « Reprendre ma consultation · 1h40 restante »). `null` => libellé par
+  /// défaut « Continuer ma consultation ».
+  final String? activeResumeLabel;
+
+  /// F4 — temps restant réel dérivé de `ConsultationController` ; remplace
+  /// l'ancien texte fictif « Encore 22h ». `null` => aucune sous-ligne.
+  final String? activeRemainingText;
+
   @override
   Widget build(BuildContext context) {
     if (state == ConsultationState.active) {
-      return _ActiveBanner(name: advisorName, assetPath: advisorAssetPath);
+      return _ActiveBanner(
+        name: advisorName,
+        assetPath: advisorAssetPath,
+        onStart: onStart,
+        resumeLabel: activeResumeLabel,
+        remainingText: activeRemainingText,
+      );
     }
     return _StandardCard(
       state: state,
       name: advisorName,
       assetPath: advisorAssetPath,
+      onStart: onStart,
     );
   }
 }
@@ -40,11 +63,13 @@ class _StandardCard extends StatelessWidget {
     required this.state,
     required this.name,
     required this.assetPath,
+    this.onStart,
   });
 
   final ConsultationState state;
   final String name;
   final String assetPath;
+  final VoidCallback? onStart;
 
   (String, String) get _copy => switch (state) {
     ConsultationState.firstFree => (
@@ -103,7 +128,7 @@ class _StandardCard extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 18),
-          _GoldButton(label: cta),
+          _GoldButton(label: cta, onTap: onStart),
         ],
       ),
     );
@@ -111,10 +136,19 @@ class _StandardCard extends StatelessWidget {
 }
 
 class _ActiveBanner extends StatelessWidget {
-  const _ActiveBanner({required this.name, required this.assetPath});
+  const _ActiveBanner({
+    required this.name,
+    required this.assetPath,
+    this.onStart,
+    this.resumeLabel,
+    this.remainingText,
+  });
 
   final String name;
   final String assetPath;
+  final VoidCallback? onStart;
+  final String? resumeLabel;
+  final String? remainingText;
 
   @override
   Widget build(BuildContext context) {
@@ -146,23 +180,29 @@ class _ActiveBanner extends StatelessWidget {
                         height: 1.2,
                       ),
                     ),
-                    const SizedBox(height: 3),
-                    Text(
-                      'Encore 22h',
-                      style: AuryelText.body(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w500,
-                        color: AuryelColors.goldLight,
-                        letterSpacing: 0.4,
+                    if (remainingText != null &&
+                        remainingText!.isNotEmpty) ...[
+                      const SizedBox(height: 3),
+                      Text(
+                        remainingText!,
+                        style: AuryelText.body(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w500,
+                          color: AuryelColors.goldLight,
+                          letterSpacing: 0.4,
+                        ),
                       ),
-                    ),
+                    ],
                   ],
                 ),
               ),
             ],
           ),
           const SizedBox(height: 16),
-          const _GoldButton(label: 'Continuer ma consultation'),
+          _GoldButton(
+            label: resumeLabel ?? 'Continuer ma consultation',
+            onTap: onStart,
+          ),
         ],
       ),
     );
@@ -192,9 +232,10 @@ class _Portrait extends StatelessWidget {
 
 /// Bouton or plein — l'action premium de l'accueil, doit rester bien visible.
 class _GoldButton extends StatelessWidget {
-  const _GoldButton({required this.label});
+  const _GoldButton({required this.label, this.onTap});
 
   final String label;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -210,7 +251,7 @@ class _GoldButton extends StatelessWidget {
           ),
           child: InkWell(
             borderRadius: BorderRadius.circular(16),
-            onTap: () {},
+            onTap: onTap,
             child: Padding(
               padding: const EdgeInsets.symmetric(vertical: 14),
               child: Center(

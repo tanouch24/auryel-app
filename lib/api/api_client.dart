@@ -26,6 +26,15 @@ class ApiUnauthorizedException extends ApiException {
   ApiUnauthorizedException({super.code, super.message}) : super(401);
 }
 
+/// 402 — le backend refuse faute de crédit de consultation disponible.
+/// Porte le corps décodé (contient `quota`, et `consultation: null`) pour
+/// permettre l'affichage du mur Premium sans nouvel appel.
+class ApiNoCreditException extends ApiException {
+  ApiNoCreditException(this.body, {super.code, super.message}) : super(402);
+
+  final Map<String, dynamic> body;
+}
+
 /// Le serveur n'a pas pu être joint (DNS, socket, timeout, TLS...). Ne signifie
 /// PAS que la session est invalide : on ne détruit jamais le token là-dessus.
 class ApiNetworkException implements Exception {
@@ -122,6 +131,9 @@ class ApiClient {
     final message = decoded['message'] as String?;
     if (response.statusCode == 401) {
       throw ApiUnauthorizedException(code: code, message: message);
+    }
+    if (response.statusCode == 402) {
+      throw ApiNoCreditException(decoded, code: code, message: message);
     }
     throw ApiException(response.statusCode, code: code, message: message);
   }

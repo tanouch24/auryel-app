@@ -7,6 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:auryel/api/api_client.dart';
 import 'package:auryel/api/auth_api.dart';
+import 'package:auryel/api/consultation_api.dart';
 import 'package:auryel/api/profile_api.dart';
 import 'package:auryel/config/api_config.dart';
 import 'package:auryel/data/auth_repository.dart';
@@ -32,7 +33,11 @@ _Bundle _build(
 }
 
 AuthController _controller(_Bundle b) =>
-    AuthController(repository: b.repo, profileApi: ProfileApi(b.client));
+    AuthController(
+      repository: b.repo,
+      profileApi: ProfileApi(b.client),
+      consultationApi: ConsultationApi(b.client),
+    );
 
 http.Response _json(Map<String, dynamic> body, [int status = 200]) =>
     http.Response(jsonEncode(body), status,
@@ -476,6 +481,7 @@ void main() {
       final c = AuthController(
         repository: AuthRepository(api: AuthApi(client), tokenStore: tokens),
         profileApi: ProfileApi(client),
+        consultationApi: ConsultationApi(client),
       );
 
       final first = await c.syncProfile(

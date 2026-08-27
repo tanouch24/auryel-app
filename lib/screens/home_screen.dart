@@ -6,9 +6,11 @@ import 'package:share_plus/share_plus.dart';
 
 import '../screens/splash_screen.dart';
 import '../state/auryel_state.dart';
+import '../state/consultation_controller.dart';
 import '../theme/auryel_theme.dart';
 import '../widgets/advisors_carousel.dart';
 import '../widgets/consultation_block.dart';
+import 'chat_screen.dart';
 import 'placeholder_screen.dart';
 
 // La phrase du jour, en dur pour l'instant — factorisée pour que l'affichage
@@ -41,10 +43,53 @@ Future<void> _debugResetOnboarding(BuildContext context) async {
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
 
+  /// F3 — ouvre le vrai chat avec le conseiller choisi. Seul branchement du
+  /// CTA consultation ; le reste de l'accueil est inchangé (redesign = F5).
+  void _openChat(BuildContext context, AdvisorInfo advisor) {
+    Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => ChatScreen(advisor: advisor)),
+    );
+  }
+
+  /// F4 — bloc consultation piloté par l'état partagé. Session active ET non
+  /// expirée => bannière « Reprendre ma consultation · XhXX restante » vers le
+  /// ChatScreen (aucun POST, aucun crédit). Sinon, comportement/CTA inchangés.
+  Widget _buildConsultationBlock(
+    BuildContext context,
+    ConsultationController consultation,
+    AdvisorInfo fallbackAdvisor,
+  ) {
+    final session =
+        consultation.hasActiveSession ? consultation.active : null;
+    if (session == null) {
+      return ConsultationBlock(
+        state: _debugConsultationState,
+        advisorName: fallbackAdvisor.name,
+        advisorAssetPath: fallbackAdvisor.assetPath,
+        onStart: () => _openChat(context, fallbackAdvisor),
+      );
+    }
+    // Le conseiller backend prime pendant la session.
+    final advisor = advisorByGuideKey(session.advisorId) ?? fallbackAdvisor;
+    final remaining =
+        ConsultationController.formatRemaining(consultation.remaining);
+    return ConsultationBlock(
+      state: ConsultationState.active,
+      advisorName: advisor.name,
+      advisorAssetPath: advisor.assetPath,
+      activeResumeLabel: 'Reprendre ma consultation · $remaining restante',
+      onStart: () => _openChat(context, advisor),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final state = AuryelStateScope.of(context);
     final advisor = advisorByName(state.selectedAdvisor!);
+    // Lecture SANS dépendance : le rebuild d'1 s est confiné au bloc
+    // consultation via un ListenableBuilder (l'accueil animé ne se
+    // reconstruit pas à chaque tick). `null` = écran monté hors scope (tests).
+    final consultation = ConsultationScope.maybeReadOf(context);
     return Container(
       decoration: const BoxDecoration(
         gradient: AuryelColors.backgroundGradient,
@@ -102,6 +147,7 @@ class HomeScreen extends StatelessWidget {
                             state: _debugConsultationState,
                             advisorName: advisor.name,
                             advisorAssetPath: advisor.assetPath,
+                            onStart: () => _openChat(context, advisor),
                           ).animate().fadeIn(duration: 500.ms),
                         ],
                         const SizedBox(height: 56),
@@ -162,11 +208,21 @@ class HomeScreen extends StatelessWidget {
                         if (_debugConsultationState !=
                             ConsultationState.active) ...[
                           const SizedBox(height: 32),
-                          ConsultationBlock(
-                                state: _debugConsultationState,
-                                advisorName: advisor.name,
-                                advisorAssetPath: advisor.assetPath,
-                              )
+                          (consultation == null
+                                  ? ConsultationBlock(
+                                      state: _debugConsultationState,
+                                      advisorName: advisor.name,
+                                      advisorAssetPath: advisor.assetPath,
+                                      onStart: () => _openChat(context, advisor),
+                                    )
+                                  : ListenableBuilder(
+                                      listenable: consultation,
+                                      builder: (context, _) => _buildConsultationBlock(
+                                        context,
+                                        consultation,
+                                        advisor,
+                                      ),
+                                    ))
                               .animate()
                               .fadeIn(delay: 650.ms, duration: 600.ms)
                               .slideY(

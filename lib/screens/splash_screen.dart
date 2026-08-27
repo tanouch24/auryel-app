@@ -5,6 +5,7 @@ import 'package:flutter_animate/flutter_animate.dart';
 
 import '../state/auryel_state.dart';
 import '../state/auth_controller.dart';
+import '../state/consultation_controller.dart';
 import '../theme/auryel_theme.dart';
 import '../widgets/main_nav_shell.dart';
 import 'onboarding/advisor_selection_screen.dart';
@@ -31,11 +32,18 @@ class _SplashScreenState extends State<SplashScreen> {
   Future<void> _boot() async {
     // Restauration de session + durée mini de splash, en parallèle.
     final auth = AuthScope.of(context);
+    final consultation = ConsultationScope.of(context);
     await Future.wait([
       auth.restore(),
       Future<void>.delayed(const Duration(milliseconds: 2000)),
     ]);
     if (!mounted) return;
+    // Resynchro de l'état consultation UNIQUEMENT une fois la session restaurée
+    // et valide (le GET /state exige un Bearer). Lecture seule : aucun POST,
+    // aucun crédit consommé.
+    if (auth.isSignedIn) {
+      unawaited(consultation.refresh());
+    }
     _goToNext(auth);
   }
 

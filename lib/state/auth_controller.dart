@@ -1,6 +1,7 @@
 import 'package:flutter/widgets.dart';
 
 import '../api/api_client.dart';
+import '../api/consultation_api.dart';
 import '../api/profile_api.dart';
 import '../data/account.dart';
 import '../data/auth_repository.dart';
@@ -44,11 +45,27 @@ class AuthController extends ChangeNotifier {
   AuthController({
     required AuthRepository repository,
     required ProfileApi profileApi,
+    required ConsultationApi consultationApi,
   })  : _repo = repository,
-        _profileApi = profileApi;
+        _profileApi = profileApi,
+        _consultationApi = consultationApi;
 
   final AuthRepository _repo;
   final ProfileApi _profileApi;
+  final ConsultationApi _consultationApi;
+
+  /// Exposé pour les écrans qui appellent le backend consultation (F3+).
+  ConsultationApi get consultationApi => _consultationApi;
+
+  /// Jeton Bearer courant (ou null). Passthrough vers le stockage sécurisé.
+  Future<String?> currentToken() => _repo.currentToken();
+
+  /// Invalidation de session sur 401 rencontré hors login (ex. chat) :
+  /// purge locale + statut sessionExpired. L'appelant renvoie au login.
+  Future<void> invalidateSession() async {
+    await _repo.clearSession();
+    _set(AuthStatus.sessionExpired, null);
+  }
 
   AuthStatus _status = AuthStatus.unknown;
   Account? _account;
