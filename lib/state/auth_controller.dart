@@ -1,6 +1,7 @@
 import 'package:flutter/widgets.dart';
 
 import '../api/api_client.dart';
+import '../api/profile_api.dart';
 import '../data/account.dart';
 import '../data/auth_repository.dart';
 
@@ -22,12 +23,32 @@ enum AuthStatus {
   networkError,
 }
 
+/// Résultat de la synchro du profil onboarding vers le backend (B4.3).
+enum ProfileSyncOutcome {
+  /// PATCH accepté — on peut clôturer l'onboarding et entrer dans l'app.
+  ok,
+
+  /// 401 pendant le PATCH : session invalidée (jeton purgé) — retour au login.
+  unauthorized,
+
+  /// Réseau KO / 5xx : jeton CONSERVÉ, l'utilisateur peut réessayer sans
+  /// redemander de code.
+  retryable,
+}
+
 /// État d'authentification partagé. Séparé de `AuryelState` (onboarding métier)
 /// pour ne pas mélanger les responsabilités.
 class AuthController extends ChangeNotifier {
-  AuthController({required AuthRepository repository}) : _repo = repository;
+  // Champs privés -> pas d'« initializing formal » possible.
+  // ignore_for_file: prefer_initializing_formals
+  AuthController({
+    required AuthRepository repository,
+    required ProfileApi profileApi,
+  })  : _repo = repository,
+        _profileApi = profileApi;
 
   final AuthRepository _repo;
+  final ProfileApi _profileApi;
 
   AuthStatus _status = AuthStatus.unknown;
   Account? _account;
@@ -69,6 +90,39 @@ class AuthController extends ChangeNotifier {
       rethrow;
     } on ApiNetworkException {
       _set(AuthStatus.networkError, null);
+    }
+  }
+
+  /// B4.3 — pousse le profil onboarding vers `PATCH /api/app/profile` avec le
+  /// jeton courant. Applique les mêmes règles 401 que le reste de l'auth
+  /// (purge + sessionExpired). Ne clôt PAS l'onboarding : c'est l'appelant qui
+  /// le fait, uniquement sur [ProfileSyncOutcome.ok].
+  Future<ProfileSyncOutcome> syncProfile({
+    required String guide,
+    required String prenom,
+    required String dateNaissance,
+  }) async {
+    final token = await _repo.currentToken();
+    if (token == null || token.isEmpty) {
+      _set(AuthStatus.signedOut, null);
+      return ProfileSyncOutcome.unauthorized;
+    }
+    try {
+      await _profileApi.patchProfile(
+        token,
+        guide: guide,
+        prenom: prenom,
+        dateNaissance: dateNaissance,
+      );
+      return ProfileSyncOutcome.ok;
+    } on ApiUnauthorizedException {
+      await _repo.clearSession();
+      _set(AuthStatus.sessionExpired, null);
+      return ProfileSyncOutcome.unauthorized;
+    } on ApiNetworkException {
+      return ProfileSyncOutcome.retryable;
+    } on ApiException {
+      return ProfileSyncOutcome.retryable;
     }
   }
 

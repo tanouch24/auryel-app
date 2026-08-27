@@ -62,6 +62,20 @@ class ApiClient {
     );
   }
 
+  Future<Map<String, dynamic>> patchJson(
+    String path,
+    Map<String, dynamic> body, {
+    String? bearer,
+  }) {
+    return _send(
+      () => _http.patch(
+        _uri(path),
+        headers: _headers(bearer: bearer, json: true),
+        body: jsonEncode(body),
+      ),
+    );
+  }
+
   Future<Map<String, dynamic>> getJson(String path, {String? bearer}) {
     return _send(
       () => _http.get(_uri(path), headers: _headers(bearer: bearer)),

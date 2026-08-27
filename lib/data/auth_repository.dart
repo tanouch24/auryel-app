@@ -37,6 +37,10 @@ class AuthRepository {
 
   Future<String?> currentToken() => _tokens.read();
 
+  /// Purge locale du jeton, sans appel réseau. Utilisé quand un 401 est
+  /// rencontré hors du flux de login (ex. PATCH profil).
+  Future<void> clearSession() => _tokens.clear();
+
   /// Étape 1 — demande d'un code à usage unique par email.
   Future<void> requestCode(String email) => _api.requestCode(email.trim());
 

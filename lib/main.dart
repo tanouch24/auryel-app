@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import 'api/api_client.dart';
 import 'api/auth_api.dart';
+import 'api/profile_api.dart';
 import 'data/auth_repository.dart';
 import 'data/onboarding_repository.dart';
 import 'data/token_store.dart';
@@ -17,11 +18,13 @@ void main() async {
   final record = await repository.load();
   final state = AuryelState(repository: repository, initial: record);
 
+  final apiClient = ApiClient();
   final auth = AuthController(
     repository: AuthRepository(
-      api: AuthApi(ApiClient()),
+      api: AuthApi(apiClient),
       tokenStore: SecureTokenStore(),
     ),
+    profileApi: ProfileApi(apiClient),
   );
 
   runApp(AuryelApp(state: state, auth: auth));

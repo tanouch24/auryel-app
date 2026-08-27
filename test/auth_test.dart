@@ -7,6 +7,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:auryel/api/api_client.dart';
 import 'package:auryel/api/auth_api.dart';
+import 'package:auryel/api/profile_api.dart';
 import 'package:auryel/config/api_config.dart';
 import 'package:auryel/data/auth_repository.dart';
 import 'package:auryel/data/onboarding_record.dart';
@@ -18,17 +19,20 @@ const _base = 'http://test.local';
 
 /// Construit un AuthRepository dont le HTTP est piloté par [handler] et dont
 /// le jeton vit en mémoire (jamais de vrai stockage).
-({AuthRepository repo, InMemoryTokenStore tokens}) _build(
+typedef _Bundle = ({AuthRepository repo, InMemoryTokenStore tokens, ApiClient client});
+
+_Bundle _build(
   Future<http.Response> Function(http.Request req) handler, {
   String? initialToken,
 }) {
   final tokens = InMemoryTokenStore(initialToken);
-  final repo = AuthRepository(
-    api: AuthApi(ApiClient(httpClient: MockClient(handler), baseUrl: _base)),
-    tokenStore: tokens,
-  );
-  return (repo: repo, tokens: tokens);
+  final client = ApiClient(httpClient: MockClient(handler), baseUrl: _base);
+  final repo = AuthRepository(api: AuthApi(client), tokenStore: tokens);
+  return (repo: repo, tokens: tokens, client: client);
 }
+
+AuthController _controller(_Bundle b) =>
+    AuthController(repository: b.repo, profileApi: ProfileApi(b.client));
 
 http.Response _json(Map<String, dynamic> body, [int status = 200]) =>
     http.Response(jsonEncode(body), status,
@@ -201,7 +205,7 @@ void main() {
       }
       return _json({}, 404);
     });
-    final c = AuthController(repository: b.repo);
+    final c = _controller(b);
 
     await c.verifyCode('x@y.z', '654321');
 
@@ -219,7 +223,7 @@ void main() {
       }
       throw http.ClientException('offline'); // /api/account
     });
-    final c = AuthController(repository: b.repo);
+    final c = _controller(b);
 
     await c.verifyCode('x@y.z', '654321'); // ne throw pas
 
@@ -337,6 +341,154 @@ void main() {
       // Aucun --dart-define ici : on doit obtenir le repli, pas une exception.
       expect(ApiConfig.baseUrl, 'http://10.0.2.2:8000');
       expect(ApiConfig.isCleartext, isTrue);
+    });
+  });
+
+  // ---------------------------------------------------------------------------
+  group('AuthController.syncProfile (B4.3)', () {
+    _Bundle patchBundle(
+      void Function(http.Request req) onPatch, {
+      String? initialToken = 'tok',
+      int status = 200,
+      Object? throwOnPatch,
+    }) {
+      return _build(
+        (req) async {
+          if (req.url.path == '/api/app/profile' && req.method == 'PATCH') {
+            onPatch(req);
+            if (throwOnPatch != null) throw throwOnPatch;
+            return _json({
+              'user_id': 'uuid-1',
+              'guide': jsonDecode(req.body)['guide'] ?? 'selena',
+              'prenom': jsonDecode(req.body)['prenom'] ?? '',
+              'date_naissance': jsonDecode(req.body)['date_naissance'],
+              'chemin_de_vie': '6',
+              'signe_zodiaque': 'Capricorne',
+            }, status);
+          }
+          return _json({}, 404);
+        },
+        initialToken: initialToken,
+      );
+    }
+
+    test('succès : PATCH {guide, prenom, date_naissance} exacts, AUCUN user_id, '
+        'token inchangé', () async {
+      Map<String, dynamic>? sent;
+      String? auth;
+      final b = patchBundle((req) {
+        sent = jsonDecode(req.body) as Map<String, dynamic>;
+        auth = req.headers['Authorization'];
+      });
+      final c = _controller(b);
+
+      final out = await c.syncProfile(
+        guide: 'maia', prenom: 'Nathanyel', dateNaissance: '1984-01-01');
+
+      expect(out, ProfileSyncOutcome.ok);
+      expect(sent, {
+        'guide': 'maia',
+        'prenom': 'Nathanyel',
+        'date_naissance': '1984-01-01',
+      });
+      expect(sent!.containsKey('user_id'), isFalse);
+      expect(auth, 'Bearer tok');
+      expect(await b.tokens.read(), 'tok');
+    });
+
+    test('conseiller Maïa -> le corps porte "maia", jamais "Séléna"/"selena"',
+        () async {
+      Map<String, dynamic>? sent;
+      final b = patchBundle((req) => sent = jsonDecode(req.body));
+      await _controller(b).syncProfile(
+        guide: 'maia', prenom: 'Zoe', dateNaissance: '1990-05-05');
+      expect(sent!['guide'], 'maia');
+      expect(sent!['prenom'], isNot(anyOf('Séléna', 'selena')));
+    });
+
+    test('401 pendant le PATCH -> unauthorized + PURGE token + sessionExpired',
+        () async {
+      final b = _build(
+        (req) async => _json({'error': 'unauthorized'}, 401),
+        initialToken: 'tok',
+      );
+      final c = _controller(b);
+
+      final out = await c.syncProfile(
+        guide: 'selena', prenom: 'A', dateNaissance: '2000-01-01');
+
+      expect(out, ProfileSyncOutcome.unauthorized);
+      expect(await b.tokens.read(), isNull);
+      expect(c.status, AuthStatus.sessionExpired);
+    });
+
+    test('réseau KO -> retryable, token CONSERVÉ', () async {
+      final b = patchBundle((_) {}, throwOnPatch: http.ClientException('offline'));
+      final c = _controller(b);
+
+      final out = await c.syncProfile(
+        guide: 'selena', prenom: 'A', dateNaissance: '2000-01-01');
+
+      expect(out, ProfileSyncOutcome.retryable);
+      expect(await b.tokens.read(), 'tok');
+    });
+
+    test('5xx -> retryable, token CONSERVÉ', () async {
+      final b = patchBundle((_) {}, status: 503);
+      final c = _controller(b);
+      final out = await c.syncProfile(
+        guide: 'selena', prenom: 'A', dateNaissance: '2000-01-01');
+      expect(out, ProfileSyncOutcome.retryable);
+      expect(await b.tokens.read(), 'tok');
+    });
+
+    test('aucun token -> unauthorized', () async {
+      final b = patchBundle((_) {}, initialToken: null);
+      final out = await _controller(b).syncProfile(
+        guide: 'selena', prenom: 'A', dateNaissance: '2000-01-01');
+      expect(out, ProfileSyncOutcome.unauthorized);
+    });
+
+    test('retry après réseau KO : 2e appel OK, aucun nouvel appel verify-code',
+        () async {
+      var patchCalls = 0;
+      var verifyCalls = 0;
+      final tokens = InMemoryTokenStore('tok');
+      final client = ApiClient(
+        httpClient: MockClient((req) async {
+          if (req.url.path == '/api/auth/verify-code') {
+            verifyCalls++;
+            return _json({'token': 'tok'});
+          }
+          if (req.url.path == '/api/app/profile') {
+            patchCalls++;
+            if (patchCalls == 1) throw http.ClientException('offline');
+            return _json({
+              'user_id': 'u', 'guide': 'maia', 'prenom': 'N',
+              'date_naissance': '1984-01-01', 'chemin_de_vie': '6',
+              'signe_zodiaque': 'Capricorne',
+            });
+          }
+          return _json({}, 404);
+        }),
+        baseUrl: _base,
+      );
+      final c = AuthController(
+        repository: AuthRepository(api: AuthApi(client), tokenStore: tokens),
+        profileApi: ProfileApi(client),
+      );
+
+      final first = await c.syncProfile(
+        guide: 'maia', prenom: 'N', dateNaissance: '1984-01-01');
+      expect(first, ProfileSyncOutcome.retryable);
+      expect(await tokens.read(), 'tok'); // conservé
+
+      final second = await c.syncProfile(
+        guide: 'maia', prenom: 'N', dateNaissance: '1984-01-01');
+      expect(second, ProfileSyncOutcome.ok);
+
+      expect(patchCalls, 2);
+      expect(verifyCalls, 0); // aucun OTP redemandé
     });
   });
 }

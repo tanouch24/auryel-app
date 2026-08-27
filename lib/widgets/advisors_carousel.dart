@@ -8,6 +8,7 @@ import '../theme/auryel_theme.dart';
 class AdvisorInfo {
   const AdvisorInfo({
     required this.name,
+    required this.guideKey,
     required this.specialty,
     required this.tagline,
     required this.bio,
@@ -15,7 +16,14 @@ class AdvisorInfo {
     required this.voicePath,
   });
 
+  /// Nom affiché (accentué), tel que stocké dans `AuryelState.selectedAdvisor`.
   final String name;
+
+  /// Clé conseiller EXACTE attendue par le backend (`app_profiles.guide`) :
+  /// selena / luna / maia / thea / cassandre / myriam / orion / ezra / kael /
+  /// raphael. Explicite par conseiller — jamais dérivée du nom accentué.
+  final String guideKey;
+
   final String specialty;
   final String tagline;
   final String bio;
@@ -29,6 +37,7 @@ class AdvisorInfo {
 const List<AdvisorInfo> kAdvisors = [
   AdvisorInfo(
     name: 'Séléna',
+    guideKey: 'selena',
     specialty: 'AMOUR & RELATIONS',
     tagline: 'Directe et posée, elle dit ce qu’elle perçoit, pas ce qu’on veut entendre.',
     bio: 'Je vais droit à ce qui compte. Quand une relation devient floue, qu’un silence s’installe ou que tu ne sais plus quoi penser de l’autre, je cherche ce qui se joue derrière les apparences. Je préfère une réponse claire à une fausse consolation. Avec moi, on regarde la situation telle qu’elle se présente, puis on avance point par point.',
@@ -37,6 +46,7 @@ const List<AdvisorInfo> kAdvisors = [
   ),
   AdvisorInfo(
     name: 'Luna',
+    guideKey: 'luna',
     specialty: 'AMOUR & RUPTURE',
     tagline: 'Directe et sans fausse consolation, elle dit ce qu’elle perçoit.',
     bio: 'Je suis là quand les sentiments deviennent difficiles à lire : rapprochement, distance, retour, hésitation ou relation qui n’avance plus. Mon approche est directe et intuitive. Je ne cherche pas à embellir ce que je perçois. Je t’aide à mettre des mots sur la dynamique entre vous et à regarder ce qui semble réellement se dessiner.',
@@ -45,6 +55,7 @@ const List<AdvisorInfo> kAdvisors = [
   ),
   AdvisorInfo(
     name: 'Maïa',
+    guideKey: 'maia',
     specialty: 'DÉCISIONS & SITUATIONS',
     tagline: 'Posée et précise, elle met de l’ordre dans le compliqué.',
     bio: 'Quand tout se mélange, j’aime remettre les éléments dans le bon ordre. Une décision à prendre, plusieurs possibilités, une situation qui traîne : je regarde les faits, les tensions et ce qui semble évoluer. Mon approche est posée et précise. Le but est que tu ressortes de l’échange avec une lecture plus nette de ce qui se passe.',
@@ -53,6 +64,7 @@ const List<AdvisorInfo> kAdvisors = [
   ),
   AdvisorInfo(
     name: 'Théa',
+    guideKey: 'thea',
     specialty: 'CYCLES & SCHÉMAS',
     tagline: 'Analytique, elle éclaire les cycles qui se répètent.',
     bio: 'Je m’intéresse particulièrement à ce qui se répète : les mêmes relations, les mêmes blocages, les mêmes hésitations ou les mêmes tournants. J’observe les liens entre ce que tu vis aujourd’hui et les dynamiques qui reviennent. Mon approche est analytique, mais reste simple : comprendre le mouvement de la situation pour mieux lire ce qui est en train de changer.',
@@ -61,6 +73,7 @@ const List<AdvisorInfo> kAdvisors = [
   ),
   AdvisorInfo(
     name: 'Cassandre',
+    guideKey: 'cassandre',
     specialty: 'REGARD GLOBAL',
     tagline: 'Équilibrée et sans jugement, un regard global et posé.',
     bio: 'Certaines situations ne se comprennent pas en regardant un seul détail. J’aime prendre de la hauteur et relier les différents éléments : relation, contexte, décisions, tensions et évolution possible. Mon approche est équilibrée et sans jugement. Je prends le temps de regarder l’ensemble avant de te donner une lecture claire et posée.',
@@ -69,6 +82,7 @@ const List<AdvisorInfo> kAdvisors = [
   ),
   AdvisorInfo(
     name: 'Myriam',
+    guideKey: 'myriam',
     specialty: 'TAROT',
     tagline:
         'Rigoureuse, elle s’appuie sur le tarot pour des réponses claires.',
@@ -78,6 +92,7 @@ const List<AdvisorInfo> kAdvisors = [
   ),
   AdvisorInfo(
     name: 'Orion',
+    guideKey: 'orion',
     specialty: 'DÉCISIONS & RECUL',
     tagline: 'Calme et pragmatique, il aide à prendre du recul.',
     bio: 'Quand on est au milieu d’une situation, il devient parfois difficile de distinguer ce qui compte vraiment. Mon approche est calme et pragmatique. Je cherche à séparer l’essentiel du bruit, à regarder les différentes forces en présence et à te donner une lecture sans dramatiser. On prend du recul, mais on ne contourne pas la question.',
@@ -86,6 +101,7 @@ const List<AdvisorInfo> kAdvisors = [
   ),
   AdvisorInfo(
     name: 'Ezra',
+    guideKey: 'ezra',
     specialty: 'VÉRITÉ & DÉCISIONS',
     tagline: 'Honnête et sans compromis, il n’édulcore rien.',
     bio: 'Je préfère une lecture qui dérange un peu à une réponse qui rassure sans rien dire. Si tu viens me voir, je vais chercher le point central de ta situation et je te dirai clairement ce que j’en comprends. Mon approche est franche, sans détour et sans fausse promesse. Quand quelque chose me paraît bloqué, ambigu ou au contraire en mouvement, je l’assume.',
@@ -94,6 +110,7 @@ const List<AdvisorInfo> kAdvisors = [
   ),
   AdvisorInfo(
     name: 'Kaël',
+    guideKey: 'kael',
     specialty: 'TRANSITIONS',
     tagline: 'Doux et progressif, il accompagne les transformations.',
     bio: 'Je travaille surtout sur les périodes où quelque chose est en train de changer : fin d’une relation, nouveau départ, décision importante ou impression d’être entre deux étapes. Mon approche est douce, mais pas floue. Je prends le temps de comprendre où tu en es avant de regarder ce qui semble s’ouvrir, se fermer ou demander encore du temps.',
@@ -102,6 +119,7 @@ const List<AdvisorInfo> kAdvisors = [
   ),
   AdvisorInfo(
     name: 'Raphaël',
+    guideKey: 'raphael',
     specialty: 'RELATIONS',
     tagline: 'Empathique, il éclaire ce qui unit et ce qui bloque.',
     bio: 'Je m’intéresse aux liens entre les personnes : ce qui rapproche, ce qui éloigne, ce qui reste non dit et ce qui crée un blocage. Mon approche est empathique et attentive, sans éviter les points difficiles. Je cherche à comprendre la dynamique réelle de la relation avant de te donner ma lecture, pour que la réponse reste reliée à ce que tu vis.',
@@ -118,6 +136,17 @@ AdvisorInfo advisorByName(String name) {
     (advisor) => advisor.name == name,
     orElse: () => kAdvisors.first,
   );
+}
+
+/// Version stricte : `null` si le nom n'est pas exactement l'un des 10
+/// conseillers. Sert à la validation avant la synchro profil (aucun repli
+/// silencieux vers Séléna).
+AdvisorInfo? advisorByNameOrNull(String? name) {
+  if (name == null) return null;
+  for (final advisor in kAdvisors) {
+    if (advisor.name == name) return advisor;
+  }
+  return null;
 }
 
 /// Section "Découvre nos conseillers" — carrousel horizontal des 10 conseillers.
