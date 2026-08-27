@@ -4,12 +4,15 @@ import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 
 import '../state/auryel_state.dart';
+import '../state/auth_controller.dart';
 import '../theme/auryel_theme.dart';
 import '../widgets/main_nav_shell.dart';
 import 'onboarding/advisor_selection_screen.dart';
+import 'onboarding/email_auth_screen.dart';
 
-/// Écran d'ouverture : le wordmark s'illumine, court et élégant (~2,2s),
-/// puis fondu vers l'accueil. Vu à chaque lancement — ne doit jamais lasser.
+/// Écran d'ouverture : le wordmark s'illumine, court et élégant (~2s), pendant
+/// que la session est restaurée en arrière-plan, puis fondu vers l'écran
+/// approprié. Vu à chaque lancement — ne doit jamais lasser.
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
 
@@ -21,18 +24,49 @@ class _SplashScreenState extends State<SplashScreen> {
   @override
   void initState() {
     super.initState();
-    Timer(const Duration(milliseconds: 2000), _goToNext);
+    // Après la première frame : le contexte peut alors résoudre les scopes.
+    WidgetsBinding.instance.addPostFrameCallback((_) => _boot());
   }
 
-  void _goToNext() {
+  Future<void> _boot() async {
+    // Restauration de session + durée mini de splash, en parallèle.
+    final auth = AuthScope.of(context);
+    await Future.wait([
+      auth.restore(),
+      Future<void>.delayed(const Duration(milliseconds: 2000)),
+    ]);
     if (!mounted) return;
-    // Onboarding déjà terminé (restauré depuis la persistance mock) → accueil
-    // direct. Sinon → parcours d'onboarding, à chaque fois depuis le début.
-    final onboardingCompleted = AuryelStateScope.of(context)
-        .onboardingCompleted;
-    final next = onboardingCompleted
-        ? const MainNavShell()
-        : const AdvisorSelectionScreen();
+    _goToNext(auth);
+  }
+
+  void _goToNext(AuthController auth) {
+    if (!mounted) return;
+    final onboardingCompleted =
+        AuryelStateScope.of(context).onboardingCompleted;
+
+    final Widget next;
+    if (!onboardingCompleted) {
+      // Parcours d'onboarding depuis le début (le login OTP en est l'étape 5).
+      next = const AdvisorSelectionScreen();
+    } else {
+      // Onboarding terminé : SEUL un vrai jeton donne accès à l'app.
+      // Un onboarding local terminé et/ou un ancien `temp_xxx` ne comptent
+      // jamais comme une authentification.
+      switch (auth.status) {
+        case AuthStatus.signedIn:
+        case AuthStatus.networkError:
+          // Jeton présent et accepté, OU présent mais backend momentanément
+          // injoignable (jeton conservé) → accueil, éventuellement en mode
+          // dégradé/offline.
+          next = const MainNavShell();
+        case AuthStatus.signedOut:
+        case AuthStatus.sessionExpired:
+        case AuthStatus.unknown:
+          // Aucun jeton, ou jeton rejeté en 401 (déjà purgé) → connexion.
+          next = const EmailAuthScreen();
+      }
+    }
+
     Navigator.of(context).pushReplacement(
       PageRouteBuilder(
         transitionDuration: const Duration(milliseconds: 450),

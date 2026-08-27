@@ -1,35 +1,28 @@
 import 'package:flutter/material.dart';
 import 'package:phosphor_icons/phosphor_icons.dart';
 
-import '../../state/auryel_state.dart';
 import '../../theme/auryel_theme.dart';
-import '../../widgets/main_nav_shell.dart';
 import '../../widgets/onboarding_scaffold.dart';
+import 'email_auth_screen.dart';
 
-/// Étape 5/5 — création de compte SIMULÉE. Les 3 boutons sont VISUELS
-/// UNIQUEMENT : aucun Firebase Auth, aucun Sign in with Apple/Google réel,
-/// aucun mot de passe. N'importe lequel simule une authentification réussie,
-/// génère un `userId` factice (`temp_<...>`, jamais l'email) et clôt
-/// l'onboarding. Cette structure pourra être remplacée par l'auth réelle
-/// au Temps 2 sans retoucher l'écran.
-class AccountCreationScreen extends StatefulWidget {
+/// Étape 5/5 — création de compte.
+///
+/// « Continuer avec email » lance l'auth RÉELLE (OTP backend, cf.
+/// [EmailAuthScreen]). Apple / Google restent affichés mais NE simulent plus
+/// aucune connexion : ils informent que le canal n'est pas encore disponible
+/// (F1 ne couvre que l'email).
+class AccountCreationScreen extends StatelessWidget {
   const AccountCreationScreen({super.key});
 
-  @override
-  State<AccountCreationScreen> createState() => _AccountCreationScreenState();
-}
+  void _openEmailAuth(BuildContext context) {
+    Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => const EmailAuthScreen()),
+    );
+  }
 
-class _AccountCreationScreenState extends State<AccountCreationScreen> {
-  bool _loading = false;
-
-  Future<void> _simulateAuth() async {
-    if (_loading) return;
-    setState(() => _loading = true);
-    await AuryelStateScope.of(context).completeOnboarding();
-    if (!mounted) return;
-    Navigator.of(context).pushAndRemoveUntil(
-      MaterialPageRoute(builder: (_) => const MainNavShell()),
-      (route) => false,
+  void _notAvailable(BuildContext context, String provider) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('$provider arrive bientôt. Continue avec ton email.')),
     );
   }
 
@@ -40,34 +33,27 @@ class _AccountCreationScreenState extends State<AccountCreationScreen> {
       totalSteps: 5,
       title: 'Sauvegarde ton espace',
       subtitle: 'Pour retrouver ton conseiller et tes échanges.',
-      child: _loading
-          ? const Padding(
-              padding: EdgeInsets.symmetric(vertical: 40),
-              child: Center(
-                child: CircularProgressIndicator(color: AuryelColors.gold),
-              ),
-            )
-          : Column(
-              children: [
-                _AuthButton(
-                  icon: PhosphorIconsFill.appleLogo,
-                  label: 'Continuer avec Apple',
-                  onTap: _simulateAuth,
-                ),
-                const SizedBox(height: 12),
-                _AuthButton(
-                  icon: PhosphorIconsBold.googleLogo,
-                  label: 'Continuer avec Google',
-                  onTap: _simulateAuth,
-                ),
-                const SizedBox(height: 12),
-                _AuthButton(
-                  icon: PhosphorIconsRegular.envelopeSimple,
-                  label: 'Continuer avec email',
-                  onTap: _simulateAuth,
-                ),
-              ],
-            ),
+      child: Column(
+        children: [
+          _AuthButton(
+            icon: PhosphorIconsFill.appleLogo,
+            label: 'Continuer avec Apple',
+            onTap: () => _notAvailable(context, 'Apple'),
+          ),
+          const SizedBox(height: 12),
+          _AuthButton(
+            icon: PhosphorIconsBold.googleLogo,
+            label: 'Continuer avec Google',
+            onTap: () => _notAvailable(context, 'Google'),
+          ),
+          const SizedBox(height: 12),
+          _AuthButton(
+            icon: PhosphorIconsRegular.envelopeSimple,
+            label: 'Continuer avec email',
+            onTap: () => _openEmailAuth(context),
+          ),
+        ],
+      ),
     );
   }
 }

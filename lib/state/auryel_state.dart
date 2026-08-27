@@ -54,11 +54,14 @@ class AuryelState extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Simule une authentification réussie (Apple / Google / email — visuel
-  /// uniquement) : génère un identifiant factice, clôt l'onboarding, et
-  /// persiste l'instantané via le repository courant.
-  Future<void> completeOnboarding() async {
-    userId = _generateTempUserId();
+  /// Clôt l'onboarding local et persiste l'instantané via le repository.
+  ///
+  /// [userId] : identité réelle du compte (`accounts.user_id` renvoyé par
+  /// `GET /api/account` après l'auth OTP). Si `null` (ex. réseau KO juste
+  /// après la vérification du code), on retombe sur un identifiant temporaire
+  /// local — la prochaine restauration de session récupérera le vrai.
+  Future<void> completeOnboarding({String? userId}) async {
+    this.userId = userId ?? this.userId ?? _generateTempUserId();
     onboardingCompleted = true;
     await repository.save(_toRecord());
     notifyListeners();
