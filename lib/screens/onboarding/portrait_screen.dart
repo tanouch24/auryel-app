@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import '../../state/auryel_state.dart';
 import '../../theme/auryel_theme.dart';
 import '../../widgets/onboarding_scaffold.dart';
-import 'account_creation_screen.dart';
+import 'advisor_selection_screen.dart';
 
 const _feedbackChoices = [
   'C’est assez juste',
@@ -11,9 +11,10 @@ const _feedbackChoices = [
   'Je ne sais pas encore',
 ];
 
-/// Étape 4/5 — portrait personnalisé SIMULÉ. Le texte affiché vient
-/// uniquement de `state.portraitData` (jamais codé en dur ici) afin que le
-/// vrai serveur puisse le remplacer au Temps 2 sans toucher cet écran.
+/// Étape 3/5 — « Parle-moi un peu de toi ». Portrait personnalisé SIMULÉ : le
+/// texte affiché vient uniquement de `state.portraitData` (jamais codé en dur
+/// ici) afin que le vrai serveur puisse le remplacer au Temps 2 sans toucher
+/// cet écran. Le retour de l'utilisateur alimente la mémoire du conseiller.
 class PortraitScreen extends StatefulWidget {
   const PortraitScreen({super.key});
 
@@ -37,19 +38,27 @@ class _PortraitScreenState extends State<PortraitScreen> {
       ?_choice,
       if (note.isNotEmpty) note,
     ].join(' — ');
-    AuryelStateScope.of(context)
-        .setPortraitFeedback(feedback.isEmpty ? 'Aucun retour' : feedback);
-    Navigator.of(context)
-        .push(MaterialPageRoute(builder: (_) => const AccountCreationScreen()));
+    final state = AuryelStateScope.of(context);
+    // Ne pas écraser un retour déjà donné par un vide (retour arrière).
+    if (feedback.isNotEmpty) {
+      state.setPortraitFeedback(feedback);
+    } else if (state.portraitFeedback == null ||
+        state.portraitFeedback!.isEmpty) {
+      state.setPortraitFeedback('Aucun retour');
+    }
+    Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => const AdvisorSelectionScreen()),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     final portraitText = AuryelStateScope.of(context).portraitData ?? '';
     return OnboardingScaffold(
-      step: 4,
+      step: 3,
       totalSteps: 5,
-      title: 'Ce qu’Auryel perçoit déjà',
+      title: 'Parle-moi un peu de toi',
+      subtitle: 'Voilà ce que je perçois déjà — dis-moi si je me trompe.',
       ctaLabel: 'Continuer',
       onCta: _continue,
       child: Column(

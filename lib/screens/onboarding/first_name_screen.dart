@@ -5,8 +5,9 @@ import '../../theme/auryel_theme.dart';
 import '../../widgets/onboarding_scaffold.dart';
 import 'birth_date_screen.dart';
 
-/// Étape 2/5 — prénom. `firstName` est simplement stocké pour les futures
-/// fonctionnalités ; on ne le réutilise pas encore dans le copy de l'accueil.
+/// Étape 1/5 — prénom. Premier écran du parcours (le choix du conseiller vient
+/// plus tard, une fois le profil connu). `firstName` est stocké pour les
+/// futures fonctionnalités ; on ne le réutilise pas encore dans le copy.
 class FirstNameScreen extends StatefulWidget {
   const FirstNameScreen({super.key});
 
@@ -16,6 +17,20 @@ class FirstNameScreen extends StatefulWidget {
 
 class _FirstNameScreenState extends State<FirstNameScreen> {
   final _controller = TextEditingController();
+  bool _prefilled = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_prefilled) return;
+    _prefilled = true;
+    // Préremplissage d'une valeur déjà saisie (retour arrière, reprise
+    // d'onboarding). On n'écrase jamais avec du vide.
+    final existing = AuryelStateScope.of(context).firstName;
+    if (existing != null && existing.trim().isNotEmpty) {
+      _controller.text = existing;
+    }
+  }
 
   @override
   void dispose() {
@@ -34,8 +49,9 @@ class _FirstNameScreenState extends State<FirstNameScreen> {
   @override
   Widget build(BuildContext context) {
     return OnboardingScaffold(
-      step: 2,
+      step: 1,
       totalSteps: 5,
+      showBack: false,
       title: 'Comment veux-tu qu’on t’appelle ?',
       ctaLabel: 'Continuer',
       ctaEnabled: _controller.text.trim().isNotEmpty,

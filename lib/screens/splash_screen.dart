@@ -8,8 +8,8 @@ import '../state/auth_controller.dart';
 import '../state/consultation_controller.dart';
 import '../theme/auryel_theme.dart';
 import '../widgets/main_nav_shell.dart';
-import 'onboarding/advisor_selection_screen.dart';
 import 'onboarding/email_auth_screen.dart';
+import 'onboarding/first_name_screen.dart';
 
 /// Écran d'ouverture : le wordmark s'illumine, court et élégant (~2s), pendant
 /// que la session est restaurée en arrière-plan, puis fondu vers l'écran
@@ -54,8 +54,10 @@ class _SplashScreenState extends State<SplashScreen> {
 
     final Widget next;
     if (!onboardingCompleted) {
-      // Parcours d'onboarding depuis le début (le login OTP en est l'étape 5).
-      next = const AdvisorSelectionScreen();
+      // Parcours d'onboarding depuis le début : prénom (1/5), date de
+      // naissance (2/5), « parle-moi de toi » (3/5), conseiller (4/5),
+      // création du compte (5/5, OTP inclus).
+      next = const FirstNameScreen();
     } else {
       // Onboarding terminé : SEUL un vrai jeton donne accès à l'app.
       // Un onboarding local terminé et/ou un ancien `temp_xxx` ne comptent

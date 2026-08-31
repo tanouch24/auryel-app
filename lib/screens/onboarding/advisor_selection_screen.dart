@@ -4,11 +4,14 @@ import '../../state/auryel_state.dart';
 import '../../theme/auryel_theme.dart';
 import '../../widgets/advisors_carousel.dart';
 import '../../widgets/onboarding_scaffold.dart';
-import 'first_name_screen.dart';
+import 'account_creation_screen.dart';
 
-/// Étape 1/5 — choix du conseiller. Réutilise le modèle `AdvisorInfo` et la
-/// liste `kAdvisors` déjà utilisés par le carrousel de l'accueil et la fiche
-/// conseiller — aucune donnée dupliquée.
+/// Étape 4/5 — choix du conseiller, APRÈS le profil (prénom, date, « parle-moi
+/// de toi »). Chaque conseiller est présenté avec photo + prénom + spécialité
+/// + accroche pour être compréhensible AVANT sélection — jamais une simple
+/// série de visages. Réutilise `AdvisorInfo` / `kAdvisors` (aucune donnée
+/// dupliquée). Le choix alimente `AuryelState.selectedAdvisor` ; la synchro
+/// backend a lieu plus loin dans le flux (inchangée).
 class AdvisorSelectionScreen extends StatefulWidget {
   const AdvisorSelectionScreen({super.key});
 
@@ -18,22 +21,36 @@ class AdvisorSelectionScreen extends StatefulWidget {
 
 class _AdvisorSelectionScreenState extends State<AdvisorSelectionScreen> {
   String? _selected;
+  bool _prefilled = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_prefilled) return;
+    _prefilled = true;
+    // Conserver un conseiller déjà choisi (retour arrière / reprise).
+    final existing = AuryelStateScope.of(context).selectedAdvisor;
+    if (advisorByNameOrNull(existing) != null) {
+      _selected = existing;
+    }
+  }
 
   void _continue() {
     if (_selected == null) return;
     AuryelStateScope.of(context).selectAdvisor(_selected!);
-    Navigator.of(context)
-        .push(MaterialPageRoute(builder: (_) => const FirstNameScreen()));
+    Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => const AccountCreationScreen()),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     return OnboardingScaffold(
-      step: 1,
+      step: 4,
       totalSteps: 5,
-      showBack: false,
       title: 'Choisis ton conseiller',
-      subtitle: 'Il t’accompagnera dans tes consultations.',
+      subtitle: 'Il t’accompagnera dans tes consultations. Tu pourras en '
+          'changer plus tard.',
       ctaLabel: 'Continuer',
       ctaEnabled: _selected != null,
       onCta: _continue,
@@ -45,14 +62,13 @@ class _AdvisorSelectionScreenState extends State<AdvisorSelectionScreen> {
           crossAxisCount: 2,
           crossAxisSpacing: 12,
           mainAxisSpacing: 12,
-          childAspectRatio: 0.82,
+          childAspectRatio: 0.60,
         ),
         itemBuilder: (context, index) {
           final advisor = kAdvisors[index];
-          final isSelected = advisor.name == _selected;
           return _SelectableAdvisorTile(
             advisor: advisor,
-            isSelected: isSelected,
+            isSelected: advisor.name == _selected,
             onTap: () => setState(() => _selected = advisor.name),
           );
         },
@@ -81,7 +97,7 @@ class _SelectableAdvisorTile extends StatelessWidget {
         onTap: onTap,
         child: AnimatedContainer(
           duration: const Duration(milliseconds: 200),
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 14),
+          padding: const EdgeInsets.fromLTRB(12, 14, 12, 12),
           decoration: BoxDecoration(
             color: isSelected
                 ? AuryelColors.surfaceLight
@@ -95,8 +111,8 @@ class _SelectableAdvisorTile extends StatelessWidget {
           child: Column(
             children: [
               Container(
-                width: 60,
-                height: 60,
+                width: 58,
+                height: 58,
                 padding: const EdgeInsets.all(2.5),
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
@@ -121,7 +137,7 @@ class _SelectableAdvisorTile extends StatelessWidget {
                   fontWeight: FontWeight.w600,
                 ),
               ),
-              const SizedBox(height: 2),
+              const SizedBox(height: 3),
               Text(
                 advisor.specialty,
                 textAlign: TextAlign.center,
@@ -133,6 +149,20 @@ class _SelectableAdvisorTile extends StatelessWidget {
                   color: AuryelColors.gold,
                   letterSpacing: 0.6,
                   height: 1.2,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Expanded(
+                child: Text(
+                  advisor.tagline,
+                  textAlign: TextAlign.center,
+                  maxLines: 4,
+                  overflow: TextOverflow.ellipsis,
+                  style: AuryelText.body(
+                    fontSize: 10,
+                    height: 1.3,
+                    color: AuryelColors.textMuted,
+                  ),
                 ),
               ),
             ],

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:phosphor_icons/phosphor_icons.dart';
 
+import '../../data/birth_date_parser.dart';
 import '../../state/auryel_state.dart';
 import '../../theme/auryel_theme.dart';
 import '../../widgets/onboarding_scaffold.dart';
@@ -12,8 +13,12 @@ const _mockPortraitText =
     'accordes beaucoup d’importance aux liens sincères et tu ressens vite '
     'lorsqu’une situation manque de clarté.';
 
-/// Étape 3/5 — date de naissance. Ne génère aucune prédiction : la valeur
-/// sert plus tard au portrait, à la numérologie et au contexte du conseiller.
+/// Étape 2/5 — date de naissance en SAISIE LIBRE. Aucune prédiction : la valeur
+/// nourrit plus tard le portrait, la numérologie et le contexte du conseiller.
+///
+/// Le champ texte est le mode principal ; le calendrier reste accessible en
+/// option secondaire (petite icône), jamais imposé. La normalisation est
+/// déléguée à [parseBirthDate] (testé à part).
 class BirthDateScreen extends StatefulWidget {
   const BirthDateScreen({super.key});
 
@@ -22,13 +27,38 @@ class BirthDateScreen extends StatefulWidget {
 }
 
 class _BirthDateScreenState extends State<BirthDateScreen> {
-  DateTime? _picked;
+  final _controller = TextEditingController();
+  DateTime? _parsed;
+  bool _prefilled = false;
 
-  Future<void> _pickDate() async {
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_prefilled) return;
+    _prefilled = true;
+    // Préremplissage lisible d'une date déjà connue (retour arrière / reprise).
+    final existing = AuryelStateScope.of(context).birthDate;
+    if (existing != null) {
+      _controller.text = formatBirthDateFr(existing);
+      _parsed = parseBirthDate(_controller.text);
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _onChanged(String value) {
+    setState(() => _parsed = parseBirthDate(value));
+  }
+
+  Future<void> _pickFromCalendar() async {
     final now = DateTime.now();
     final result = await showDatePicker(
       context: context,
-      initialDate: _picked ?? DateTime(now.year - 25),
+      initialDate: _parsed ?? DateTime(now.year - 25),
       firstDate: DateTime(now.year - 100),
       lastDate: now,
       helpText: 'DATE DE NAISSANCE',
@@ -49,86 +79,108 @@ class _BirthDateScreenState extends State<BirthDateScreen> {
         );
       },
     );
-    if (result != null) setState(() => _picked = result);
+    if (result == null) return;
+    // On repasse par le champ texte pour rester cohérent (une seule source).
+    _controller.text = formatBirthDateFr(result);
+    setState(() => _parsed = parseBirthDate(_controller.text));
   }
 
   void _continue() {
-    final date = _picked;
+    final date = _parsed;
     if (date == null) return;
     final state = AuryelStateScope.of(context);
     state.setBirthDate(date);
     // Texte simulé — stocké dans portraitData, pas codé en dur dans l'écran
     // suivant, pour que le vrai serveur puisse remplacer la valeur au Temps 2.
-    state.setPortraitData(_mockPortraitText);
+    // On ne l'écrase PAS si un portrait a déjà été produit (reprise / retour).
+    if (state.portraitData == null || state.portraitData!.isEmpty) {
+      state.setPortraitData(_mockPortraitText);
+    }
     Navigator.of(context)
         .push(MaterialPageRoute(builder: (_) => const PortraitScreen()));
   }
 
-  String _format(DateTime d) {
-    const months = [
-      'janvier',
-      'février',
-      'mars',
-      'avril',
-      'mai',
-      'juin',
-      'juillet',
-      'août',
-      'septembre',
-      'octobre',
-      'novembre',
-      'décembre',
-    ];
-    return '${d.day} ${months[d.month - 1]} ${d.year}';
-  }
-
   @override
   Widget build(BuildContext context) {
+    final raw = _controller.text.trim();
+    final showError = raw.isNotEmpty && _parsed == null;
+
     return OnboardingScaffold(
-      step: 3,
+      step: 2,
       totalSteps: 5,
       title: 'Quelle est ta date de naissance ?',
-      subtitle: 'Elle nourrira ton portrait et certains éclairages plus tard.',
+      subtitle: 'Écris-la comme tu veux, par exemple 17 mai 2000.',
       ctaLabel: 'Continuer',
-      ctaEnabled: _picked != null,
+      ctaEnabled: _parsed != null,
       onCta: _continue,
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          borderRadius: BorderRadius.circular(16),
-          onTap: _pickDate,
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 18),
-            decoration: BoxDecoration(
-              color: AuryelColors.surface,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(
-                color: _picked != null
-                    ? AuryelColors.gold.withValues(alpha: 0.5)
-                    : AuryelColors.warmBorder,
-              ),
-            ),
-            child: Row(
-              children: [
-                PhosphorIcon(
-                  PhosphorIconsThin.calendarBlank,
-                  size: 22,
-                  color: AuryelColors.gold,
-                ),
-                const SizedBox(width: 14),
-                Text(
-                  _picked == null ? 'Choisir une date' : _format(_picked!),
-                  style: AuryelText.body(
-                    fontSize: 15,
-                    color: _picked == null
-                        ? AuryelColors.textMuted
-                        : AuryelColors.textCream,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Expanded(
+                child: TextField(
+                  controller: _controller,
+                  autofocus: true,
+                  keyboardType: TextInputType.datetime,
+                  style: AuryelText.display(
+                    fontSize: 22,
+                    fontWeight: FontWeight.w500,
+                  ),
+                  cursorColor: AuryelColors.gold,
+                  onChanged: _onChanged,
+                  onSubmitted: (_) => _continue(),
+                  decoration: InputDecoration(
+                    hintText: 'jj/mm/aaaa',
+                    hintStyle: AuryelText.display(
+                      fontSize: 22,
+                      fontWeight: FontWeight.w500,
+                      color: AuryelColors.textMuted,
+                    ),
+                    enabledBorder: UnderlineInputBorder(
+                      borderSide: BorderSide(color: AuryelColors.warmBorder),
+                    ),
+                    focusedBorder: const UnderlineInputBorder(
+                      borderSide: BorderSide(
+                        color: AuryelColors.gold,
+                        width: 1.5,
+                      ),
+                    ),
                   ),
                 ),
-              ],
-            ),
+              ),
+              // Option secondaire — jamais obligatoire.
+              IconButton(
+                tooltip: 'Choisir dans le calendrier',
+                onPressed: _pickFromCalendar,
+                icon: PhosphorIcon(
+                  PhosphorIconsThin.calendarBlank,
+                  size: 22,
+                  color: AuryelColors.textMuted,
+                ),
+              ),
+            ],
           ),
-        ),
+          const SizedBox(height: 14),
+          if (_parsed != null)
+            Text(
+              '${formatBirthDateFr(_parsed!)} ✓',
+              style: AuryelText.body(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: AuryelColors.goldLight,
+              ),
+            )
+          else if (showError)
+            Text(
+              'Vérifie ta date de naissance',
+              style: AuryelText.body(
+                fontSize: 13,
+                color: AuryelColors.textMuted,
+              ),
+            ),
+        ],
       ),
     );
   }

@@ -177,12 +177,15 @@ void main() {
   // =========================================================================
   // SPLASH — routage (inchangé F1)
   // =========================================================================
-  testWidgets('Splash : nouvel utilisateur -> parcours onboarding', (tester) async {
+  testWidgets('Splash : nouvel utilisateur -> parcours onboarding (prénom d’abord)',
+      (tester) async {
     final state = AuryelState(repository: LocalOnboardingRepository());
     await tester.pumpWidget(_app(state: state, auth: _auth()));
     expect(find.text('AURYEL'), findsOneWidget);
     await _bootSplash(tester);
-    expect(find.text('Choisis ton conseiller'), findsOneWidget);
+    // Nouvel ordre : le premier écran est le prénom, plus le conseiller.
+    expect(find.text('Comment veux-tu qu’on t’appelle ?'), findsOneWidget);
+    expect(find.text('Choisis ton conseiller'), findsNothing);
   });
 
   testWidgets('Splash : onboarding terminé + AUCUN token -> EmailAuthScreen',

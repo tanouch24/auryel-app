@@ -21,7 +21,11 @@ import 'premium_screen.dart';
 /// - 402 -> mur Premium (quota resynchronisé, aucune session fabriquée).
 ///   401 -> purge session + retour login. Réseau/5xx -> texte conservé +
 ///   bouton Réessayer, sans dupliquer la bulle.
-/// - Aucun historique backend : seuls les messages de la session UI.
+/// - Reprise d'une session active : l'historique backend est chargé UNE seule
+///   fois via `GET /api/consultation/messages` (lecture seule, aucun crédit,
+///   aucun POST). Le `consultation_id` renvoyé doit correspondre à la session
+///   active, sinon rien n'est injecté. Un échec de ce chargement n'empêche
+///   jamais d'écrire : un retry discret est proposé.
 class ChatScreen extends StatefulWidget {
   const ChatScreen({super.key, required this.advisor, this.tirageId});
 
@@ -68,6 +72,18 @@ class _ChatScreenState extends State<ChatScreen> {
 
   bool _seeded = false;
 
+  /// Chargement de l'historique backend : tenté au plus une fois par ouverture
+  /// (le retry remet le drapeau à `false`). `_historyLoading` / `_historyError`
+  /// ne pilotent qu'un bandeau discret — jamais le blocage de la saisie.
+  AuthController? _auth;
+  bool _historyRequested = false;
+  bool _historyLoading = false;
+  bool _historyError = false;
+
+  /// Exposé pour les tests.
+  @visibleForTesting
+  bool get debugHistoryError => _historyError;
+
   /// T3 — tirage rattaché au PREMIER message. Effacé après le premier 200 (les
   /// messages suivants n'envoient plus `tirage_id`) ; CONSERVÉ sur réseau /
   /// timeout / 5xx / 402 pour que le retry garde le contexte.
@@ -95,7 +111,80 @@ class _ChatScreenState extends State<ChatScreen> {
       _consultation = controller.active;
       _quota = controller.quota;
       _firstMessageConfirmed = true; // session en cours -> pas de confirmation
+      _auth = AuthScope.maybeOf(context);
+      _loadHistory();
     }
+  }
+
+  /// Charge l'historique de la consultation active. Lecture seule : aucun
+  /// crédit, aucun POST. N'injecte les messages QUE si le `consultation_id`
+  /// renvoyé correspond à la session active. Idempotent tant que
+  /// `_historyRequested` est vrai (protège contre un `didChangeDependencies`
+  /// rappelé).
+  Future<void> _loadHistory() async {
+    if (_historyRequested) return;
+    final auth = _auth;
+    final activeId = _consultation?.id;
+    if (auth == null || activeId == null || activeId.isEmpty) return;
+
+    _historyRequested = true;
+    setState(() {
+      _historyLoading = true;
+      _historyError = false;
+    });
+
+    try {
+      final token = await auth.currentToken();
+      if (!mounted) return;
+      if (token == null || token.isEmpty) {
+        setState(() => _historyLoading = false);
+        return;
+      }
+      final res = await auth.consultationApi.getMessages(bearer: token);
+      if (!mounted) return;
+
+      // consultation_id inattendu -> on n'injecte AUCUN message.
+      if (res.consultationId == null || res.consultationId != activeId) {
+        setState(() => _historyLoading = false);
+        return;
+      }
+
+      final restored = <_ChatMessage>[
+        for (final m in res.messages)
+          if (m.content.trim().isNotEmpty)
+            _ChatMessage(fromUser: m.isUser, text: m.content),
+      ];
+      setState(() {
+        _historyLoading = false;
+        // Inséré en tête : d'éventuels messages tapés pendant le chargement
+        // restent après l'historique, dans l'ordre.
+        if (restored.isNotEmpty) _messages.insertAll(0, restored);
+      });
+      _scrollToEnd();
+    } on ApiUnauthorizedException {
+      // Un simple chargement d'historique ne casse pas la session : le
+      // prochain envoi de message traitera le 401 proprement.
+      _failHistory();
+    } on ApiNetworkException {
+      _failHistory();
+    } on ApiException {
+      _failHistory();
+    } catch (_) {
+      _failHistory();
+    }
+  }
+
+  void _failHistory() {
+    if (!mounted) return;
+    setState(() {
+      _historyLoading = false;
+      _historyError = true;
+    });
+  }
+
+  void _retryHistory() {
+    _historyRequested = false;
+    _loadHistory();
   }
 
   @override
@@ -307,6 +396,11 @@ class _ChatScreenState extends State<ChatScreen> {
           child: Column(
             children: [
               _Header(advisor: _headerAdvisor, statusLine: _statusLine()),
+              if (_historyLoading || _historyError)
+                _HistoryNotice(
+                  error: _historyError,
+                  onRetry: _historyError ? _retryHistory : null,
+                ),
               Expanded(child: _messageList()),
               if (_noCredit)
                 _NoCreditPanel(
@@ -422,6 +516,67 @@ class _Header extends StatelessWidget {
               ],
             ),
           ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Bandeau discret sous l'en-tête : chargement de l'historique en cours, ou
+/// échec rejouable. Ne remplace jamais la saisie — le chat reste utilisable.
+class _HistoryNotice extends StatelessWidget {
+  const _HistoryNotice({required this.error, this.onRetry});
+
+  final bool error;
+  final VoidCallback? onRetry;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(18, 8, 10, 8),
+      color: AuryelColors.surface.withValues(alpha: 0.5),
+      child: Row(
+        children: [
+          if (!error) ...[
+            const SizedBox(
+              width: 12,
+              height: 12,
+              child: CircularProgressIndicator(
+                strokeWidth: 1.6,
+                color: AuryelColors.gold,
+              ),
+            ),
+            const SizedBox(width: 10),
+          ],
+          Expanded(
+            child: Text(
+              error
+                  ? 'Historique indisponible pour le moment.'
+                  : 'Chargement de ta conversation…',
+              style: AuryelText.body(
+                fontSize: 11.5,
+                color: AuryelColors.textMuted,
+              ),
+            ),
+          ),
+          if (error && onRetry != null)
+            TextButton(
+              onPressed: onRetry,
+              style: TextButton.styleFrom(
+                padding: const EdgeInsets.symmetric(horizontal: 10),
+                minimumSize: const Size(0, 32),
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+              child: Text(
+                'Réessayer',
+                style: AuryelText.body(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: AuryelColors.goldLight,
+                ),
+              ),
+            ),
         ],
       ),
     );

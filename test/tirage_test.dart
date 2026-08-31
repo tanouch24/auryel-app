@@ -285,7 +285,10 @@ void main() {
         find.text('Lecture de ton tirage'),
         findsOneWidget,
       ); // reste sur le résultat
-      expect(e.posts.where((p) => p.contains('consultation/message')), isEmpty);
+      expect(
+        e.posts.where((p) => p.contains('POST /api/consultation/message')),
+        isEmpty,
+      );
     },
   );
 
@@ -301,7 +304,10 @@ void main() {
 
       expect(find.byType(ChatScreen), findsOneWidget);
       // aucun POST /api/consultation/message au simple clic
-      expect(e.posts.where((p) => p.contains('consultation/message')), isEmpty);
+      expect(
+        e.posts.where((p) => p.contains('POST /api/consultation/message')),
+        isEmpty,
+      );
       final chat = tester.state(find.byType(ChatScreen));
       expect((chat as dynamic).debugPendingTirageId, 'tir-abc-123');
       final chatWidget = tester.widget<ChatScreen>(find.byType(ChatScreen));
@@ -397,7 +403,10 @@ void main() {
       );
       expect(find.byType(ChatScreen), findsNothing);
       // simple clic « Continuer » : aucun POST message, aucun nouveau crédit
-      expect(e.posts.where((p) => p.contains('consultation/message')), isEmpty);
+      expect(
+        e.posts.where((p) => p.contains('POST /api/consultation/message')),
+        isEmpty,
+      );
 
       await tester.tap(find.text('Continuer'));
       await tester.pump();
@@ -406,7 +415,10 @@ void main() {
       final chat = tester.widget<ChatScreen>(find.byType(ChatScreen));
       expect(chat.advisor.name, 'Maïa');
       expect(chat.tirageId, 'tir-abc-123');
-      expect(e.posts.where((p) => p.contains('consultation/message')), isEmpty);
+      expect(
+        e.posts.where((p) => p.contains('POST /api/consultation/message')),
+        isEmpty,
+      );
 
       ctrl.dispose(); // stoppe le ticker 1 s avant la vérif des timers
     },

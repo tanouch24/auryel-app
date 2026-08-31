@@ -36,6 +36,57 @@ class ConsultationDto {
       );
 }
 
+/// Un message d'historique renvoyé par `GET /api/consultation/messages`.
+class ConsultationMessageDto {
+  const ConsultationMessageDto({
+    required this.role,
+    required this.content,
+    required this.timestamp,
+  });
+
+  /// `user` ou `assistant`. Toute autre valeur est traitée côté UI comme
+  /// « conseiller » (bulle gauche) — jamais comme un message utilisateur.
+  final String role;
+  final String content;
+  final DateTime? timestamp;
+
+  bool get isUser => role == 'user';
+
+  factory ConsultationMessageDto.fromJson(Map<String, dynamic> json) =>
+      ConsultationMessageDto(
+        role: (json['role'] ?? '').toString(),
+        content: (json['content'] ?? '').toString(),
+        timestamp: _date(json['timestamp']),
+      );
+}
+
+/// Réponse 200 de `GET /api/consultation/messages`. Lecture seule : aucun
+/// crédit consommé, aucun appel LLM, aucun POST. `consultationId` vaut `null`
+/// quand le backend n'a aucune consultation rattachée à renvoyer.
+class ConsultationMessagesResponse {
+  const ConsultationMessagesResponse({
+    required this.consultationId,
+    required this.messages,
+  });
+
+  final String? consultationId;
+  final List<ConsultationMessageDto> messages;
+
+  factory ConsultationMessagesResponse.fromJson(Map<String, dynamic> json) {
+    final rawId = json['consultation_id'];
+    final rawList = json['messages'];
+    return ConsultationMessagesResponse(
+      consultationId: (rawId is String && rawId.isNotEmpty) ? rawId : null,
+      messages: rawList is List
+          ? rawList
+                .whereType<Map<String, dynamic>>()
+                .map(ConsultationMessageDto.fromJson)
+                .toList(growable: false)
+          : const [],
+    );
+  }
+}
+
 /// DTO du quota de consultations.
 class QuotaDto {
   const QuotaDto({
