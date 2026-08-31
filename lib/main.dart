@@ -1,16 +1,21 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import 'api/api_client.dart';
 import 'api/auth_api.dart';
+import 'api/billing_api.dart';
 import 'api/consultation_api.dart';
 import 'api/profile_api.dart';
 import 'data/auth_repository.dart';
+import 'data/iap_gateway.dart';
 import 'data/onboarding_repository.dart';
 import 'data/token_store.dart';
 import 'screens/splash_screen.dart';
 import 'state/auryel_state.dart';
 import 'state/auth_controller.dart';
 import 'state/consultation_controller.dart';
+import 'state/purchase_controller.dart';
 import 'theme/auryel_theme.dart';
 
 void main() async {
@@ -22,6 +27,7 @@ void main() async {
 
   final apiClient = ApiClient();
   final consultationApi = ConsultationApi(apiClient);
+  final billingApi = BillingApi(apiClient);
   final auth = AuthController(
     repository: AuthRepository(
       api: AuthApi(apiClient),
@@ -31,8 +37,24 @@ void main() async {
     consultationApi: consultationApi,
   );
   final consultation = ConsultationController(api: consultationApi, auth: auth);
+  final purchase = PurchaseController(
+    billing: billingApi,
+    gateway: InAppPurchaseGateway(),
+    auth: auth,
+    consultation: consultation,
+  );
+  // Souscription à `purchaseStream` dès le démarrage (recommandation du plugin) ;
+  // le chargement produit continue en tâche de fond.
+  unawaited(purchase.initialize());
 
-  runApp(AuryelApp(state: state, auth: auth, consultation: consultation));
+  runApp(
+    AuryelApp(
+      state: state,
+      auth: auth,
+      consultation: consultation,
+      purchase: purchase,
+    ),
+  );
 }
 
 class AuryelApp extends StatefulWidget {
@@ -41,11 +63,17 @@ class AuryelApp extends StatefulWidget {
     required this.state,
     required this.auth,
     required this.consultation,
+    this.purchase,
   });
 
   final AuryelState state;
   final AuthController auth;
   final ConsultationController consultation;
+
+  /// F5-B — optionnel : quand fourni (cas réel de `main()`), l'arbre est
+  /// enveloppé d'un [PurchaseScope]. Absent dans les tests hérités qui ne
+  /// touchent pas à l'achat.
+  final PurchaseController? purchase;
 
   @override
   State<AuryelApp> createState() => _AuryelAppState();
@@ -74,20 +102,22 @@ class _AuryelAppState extends State<AuryelApp> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) {
+    Widget tree = AuryelStateScope(
+      state: widget.state,
+      child: MaterialApp(
+        title: 'Auryel',
+        debugShowCheckedModeBanner: false,
+        theme: AuryelTheme.dark,
+        home: const SplashScreen(),
+      ),
+    );
+    final purchase = widget.purchase;
+    if (purchase != null) {
+      tree = PurchaseScope(controller: purchase, child: tree);
+    }
     return AuthScope(
       controller: widget.auth,
-      child: ConsultationScope(
-        controller: widget.consultation,
-        child: AuryelStateScope(
-          state: widget.state,
-          child: MaterialApp(
-            title: 'Auryel',
-            debugShowCheckedModeBanner: false,
-            theme: AuryelTheme.dark,
-            home: const SplashScreen(),
-          ),
-        ),
-      ),
+      child: ConsultationScope(controller: widget.consultation, child: tree),
     );
   }
 }
