@@ -1,12 +1,16 @@
 import 'package:flutter/material.dart';
 import 'package:phosphor_icons/phosphor_icons.dart';
 
+import '../screens/bibliotheque_screen.dart';
 import '../screens/home_screen.dart';
 import '../screens/placeholder_screen.dart';
+import '../screens/tirage_screen.dart';
 import '../theme/auryel_theme.dart';
 
-/// Coquille de navigation : 3 onglets, contenu réel pour "Accueil",
-/// placeholders stylés pour les 2 autres en attendant leur écran.
+/// Coquille de navigation : 4 onglets, contenu réel pour "Accueil", "Tirage" et
+/// "Bibliothèque", placeholder stylé pour "Méditation" en attendant son écran.
+/// Le tableau de bord ("Mon espace") reste accessible via l'icône profil de
+/// l'Accueil — jamais un onglet du bas.
 class MainNavShell extends StatefulWidget {
   const MainNavShell({super.key});
 
@@ -19,15 +23,13 @@ class _MainNavShellState extends State<MainNavShell> {
 
   static const _screens = [
     HomeScreen(),
-    PlaceholderScreen(
-      title: 'Mes cartes du jour',
-      icon: PhosphorIconsRegular.cardsThree,
-    ),
+    TirageScreen(),
     PlaceholderScreen(
       title: 'Ton moment',
       icon: PhosphorIconsRegular.flowerLotus,
       subtitle: 'Quelques minutes pour ralentir et revenir à toi.',
     ),
+    BibliothequeScreen(),
   ];
 
   @override
@@ -55,14 +57,19 @@ class _AuryelTabBar extends StatelessWidget {
       activeIcon: PhosphorIconsFill.house,
     ),
     (
-      label: 'Mes cartes',
+      label: 'Tirage',
       icon: PhosphorIconsRegular.cardsThree,
       activeIcon: PhosphorIconsFill.cardsThree,
     ),
     (
-      label: 'Méditer',
+      label: 'Méditation',
       icon: PhosphorIconsRegular.flowerLotus,
       activeIcon: PhosphorIconsFill.flowerLotus,
+    ),
+    (
+      label: 'Bibliothèque',
+      icon: PhosphorIconsRegular.books,
+      activeIcon: PhosphorIconsFill.books,
     ),
   ];
 
@@ -96,15 +103,21 @@ class _AuryelTabBar extends StatelessWidget {
                         color: color,
                       ),
                       const SizedBox(height: 4),
-                      Text(
-                        tab.label,
-                        style: AuryelText.body(
-                          fontSize: 10.5,
-                          fontWeight: active
-                              ? FontWeight.w600
-                              : FontWeight.w400,
-                          color: color,
-                          letterSpacing: 0.3,
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 2),
+                        child: Text(
+                          tab.label,
+                          maxLines: 1,
+                          softWrap: false,
+                          overflow: TextOverflow.ellipsis,
+                          style: AuryelText.body(
+                            fontSize: 10.5,
+                            fontWeight: active
+                                ? FontWeight.w600
+                                : FontWeight.w400,
+                            color: color,
+                            letterSpacing: 0.3,
+                          ),
                         ),
                       ),
                     ],

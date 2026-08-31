@@ -12,6 +12,7 @@ import 'package:auryel/api/auth_api.dart';
 import 'package:auryel/api/billing_api.dart';
 import 'package:auryel/api/consultation_api.dart';
 import 'package:auryel/api/profile_api.dart';
+import 'package:auryel/api/tirage_api.dart';
 import 'package:auryel/data/auth_repository.dart';
 import 'package:auryel/data/iap_gateway.dart';
 import 'package:auryel/data/purchase.dart';
@@ -182,6 +183,7 @@ _Rig _rig({
     repository: AuthRepository(api: AuthApi(client), tokenStore: tokens),
     profileApi: ProfileApi(client),
     consultationApi: consultationApi,
+    tirageApi: TirageApi(client),
   );
   final consultation = ConsultationController(api: consultationApi, auth: auth);
   final gateway = FakeIapGateway(log: log);

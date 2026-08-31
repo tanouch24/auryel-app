@@ -23,11 +23,16 @@ import 'premium_screen.dart';
 ///   bouton Réessayer, sans dupliquer la bulle.
 /// - Aucun historique backend : seuls les messages de la session UI.
 class ChatScreen extends StatefulWidget {
-  const ChatScreen({super.key, required this.advisor});
+  const ChatScreen({super.key, required this.advisor, this.tirageId});
 
   /// Conseiller choisi (affiché tant que le backend n'a pas renvoyé de
   /// consultation). Ensuite `consultation.advisor_id` prime.
   final AdvisorInfo advisor;
+
+  /// T3 — tirage à rattacher à la consultation. Envoyé avec le PREMIER message
+  /// tant qu'il n'a pas obtenu un 200 ; ni le passage ici ni le clic du CTA
+  /// « En parler avec … » n'ouvrent une consultation ou ne consomment de crédit.
+  final String? tirageId;
 
   /// Exposé pour les tests : formatage de `seconds_remaining`.
   static String debugFormatRemaining(int seconds) =>
@@ -62,6 +67,21 @@ class _ChatScreenState extends State<ChatScreen> {
   QuotaDto? _noCreditQuota;
 
   bool _seeded = false;
+
+  /// T3 — tirage rattaché au PREMIER message. Effacé après le premier 200 (les
+  /// messages suivants n'envoient plus `tirage_id`) ; CONSERVÉ sur réseau /
+  /// timeout / 5xx / 402 pour que le retry garde le contexte.
+  String? _pendingTirageId;
+
+  /// Exposé pour les tests.
+  @visibleForTesting
+  String? get debugPendingTirageId => _pendingTirageId;
+
+  @override
+  void initState() {
+    super.initState();
+    _pendingTirageId = widget.tirageId;
+  }
 
   @override
   void didChangeDependencies() {
@@ -129,6 +149,7 @@ class _ChatScreenState extends State<ChatScreen> {
       final res = await auth.consultationApi.sendMessage(
         bearer: token,
         message: text,
+        tirageId: _pendingTirageId,
       );
       if (!mounted) return;
       // F4 — l'état renvoyé alimente aussi le state partagé de l'app.
@@ -140,6 +161,8 @@ class _ChatScreenState extends State<ChatScreen> {
         _quota = res.quota;
         _pending = null;
         _sending = false;
+        // T3 — le tirage a été rattaché : plus jamais renvoyé sur cette session.
+        _pendingTirageId = null;
       });
       _scrollToEnd();
     } on ApiUnauthorizedException {
@@ -157,7 +180,22 @@ class _ChatScreenState extends State<ChatScreen> {
       });
     } on ApiNetworkException {
       _failNetwork('Connexion impossible. Ton message n’a pas été envoyé.');
-    } on ApiException {
+    } on ApiException catch (e) {
+      if (e.statusCode == 404 && e.code == 'tirage_not_found') {
+        // T3 — le tirage rattaché n'existe plus côté serveur. Aucun crédit n'a
+        // été consommé (garanti backend). On abandonne le contexte tirage et on
+        // laisse l'utilisateur réessayer / continuer sans lui — pas de crash,
+        // pas de boucle.
+        if (!mounted) return;
+        setState(() {
+          _sending = false;
+          _pendingTirageId = null;
+          _networkError =
+              "Ce tirage n'est plus disponible. Tu peux revenir à ton "
+              'tirage ou continuer la conversation.';
+        });
+        return;
+      }
       _failNetwork('Le serveur n’a pas répondu. Réessaie dans un instant.');
     } catch (_) {
       _failNetwork('Une erreur est survenue. Réessaie.');

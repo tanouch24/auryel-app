@@ -7,6 +7,7 @@ import 'api/auth_api.dart';
 import 'api/billing_api.dart';
 import 'api/consultation_api.dart';
 import 'api/profile_api.dart';
+import 'api/tirage_api.dart';
 import 'data/auth_repository.dart';
 import 'data/iap_gateway.dart';
 import 'data/onboarding_repository.dart';
@@ -28,6 +29,7 @@ void main() async {
   final apiClient = ApiClient();
   final consultationApi = ConsultationApi(apiClient);
   final billingApi = BillingApi(apiClient);
+  final tirageApi = TirageApi(apiClient);
   final auth = AuthController(
     repository: AuthRepository(
       api: AuthApi(apiClient),
@@ -35,6 +37,7 @@ void main() async {
     ),
     profileApi: ProfileApi(apiClient),
     consultationApi: consultationApi,
+    tirageApi: tirageApi,
   );
   final consultation = ConsultationController(api: consultationApi, auth: auth);
   final purchase = PurchaseController(

@@ -4,8 +4,12 @@ import '../data/consultation.dart';
 /// Endpoint de consultation (F3/F4). Réutilise l'[ApiClient] F1 — aucun second
 /// client HTTP.
 ///
-///   POST /api/consultation/message   (Bearer) { "message": "..." }
+///   POST /api/consultation/message   (Bearer) { "message": "...", "tirage_id"? }
 ///   GET  /api/consultation/state     (Bearer)  — lecture seule, F4
+///
+/// T3 : `tirageId` optionnel. Fourni, il ajoute `tirage_id` au body (contexte
+/// tirage injecté serveur AVANT toute consommation de crédit). Absent, le body
+/// est EXACTEMENT `{ "message": ... }` — comportement historique inchangé.
 ///
 /// Erreurs propagées telles quelles par [ApiClient] :
 ///  - 401 -> [ApiUnauthorizedException]  (purge session + retour login)
@@ -20,10 +24,14 @@ class ConsultationApi {
   Future<ConsultationMessageResponse> sendMessage({
     required String bearer,
     required String message,
+    String? tirageId,
   }) async {
     final json = await _client.postJson(
       '/api/consultation/message',
-      {'message': message},
+      {
+        'message': message,
+        if (tirageId != null && tirageId.isNotEmpty) 'tirage_id': tirageId,
+      },
       bearer: bearer,
     );
     return ConsultationMessageResponse.fromJson(json);

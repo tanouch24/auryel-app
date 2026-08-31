@@ -9,6 +9,7 @@ import 'package:auryel/api/api_client.dart';
 import 'package:auryel/api/auth_api.dart';
 import 'package:auryel/api/consultation_api.dart';
 import 'package:auryel/api/profile_api.dart';
+import 'package:auryel/api/tirage_api.dart';
 import 'package:auryel/config/api_config.dart';
 import 'package:auryel/data/auth_repository.dart';
 import 'package:auryel/data/onboarding_record.dart';
@@ -37,6 +38,7 @@ AuthController _controller(_Bundle b) =>
       repository: b.repo,
       profileApi: ProfileApi(b.client),
       consultationApi: ConsultationApi(b.client),
+      tirageApi: TirageApi(b.client),
     );
 
 http.Response _json(Map<String, dynamic> body, [int status = 200]) =>
@@ -482,6 +484,7 @@ void main() {
         repository: AuthRepository(api: AuthApi(client), tokenStore: tokens),
         profileApi: ProfileApi(client),
         consultationApi: ConsultationApi(client),
+        tirageApi: TirageApi(client),
       );
 
       final first = await c.syncProfile(

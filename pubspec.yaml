@@ -69,6 +69,7 @@ flutter:
   assets:
     - assets/conseillers/
     - assets/vocaux/
+    - assets/images/tarot/
 
   # To add assets to your application, add an assets section, like this:
   # assets:

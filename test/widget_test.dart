@@ -10,6 +10,7 @@ import 'package:auryel/api/api_client.dart';
 import 'package:auryel/api/auth_api.dart';
 import 'package:auryel/api/consultation_api.dart';
 import 'package:auryel/api/profile_api.dart';
+import 'package:auryel/api/tirage_api.dart';
 import 'package:auryel/data/auth_repository.dart';
 import 'package:auryel/data/onboarding_record.dart';
 import 'package:auryel/data/onboarding_repository.dart';
@@ -39,6 +40,7 @@ AuthController _auth({
     ),
     profileApi: ProfileApi(client),
     consultationApi: ConsultationApi(client),
+    tirageApi: TirageApi(client),
   );
 }
 
@@ -54,6 +56,7 @@ AuthController _auth({
       repository: AuthRepository(api: AuthApi(client), tokenStore: tokens),
       profileApi: ProfileApi(client),
       consultationApi: ConsultationApi(client),
+      tirageApi: TirageApi(client),
     ),
     tokens: tokens,
   );

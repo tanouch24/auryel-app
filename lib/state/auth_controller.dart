@@ -3,6 +3,7 @@ import 'package:flutter/widgets.dart';
 import '../api/api_client.dart';
 import '../api/consultation_api.dart';
 import '../api/profile_api.dart';
+import '../api/tirage_api.dart';
 import '../data/account.dart';
 import '../data/auth_repository.dart';
 
@@ -46,16 +47,22 @@ class AuthController extends ChangeNotifier {
     required AuthRepository repository,
     required ProfileApi profileApi,
     required ConsultationApi consultationApi,
+    required TirageApi tirageApi,
   })  : _repo = repository,
         _profileApi = profileApi,
-        _consultationApi = consultationApi;
+        _consultationApi = consultationApi,
+        _tirageApi = tirageApi;
 
   final AuthRepository _repo;
   final ProfileApi _profileApi;
   final ConsultationApi _consultationApi;
+  final TirageApi _tirageApi;
 
   /// Exposé pour les écrans qui appellent le backend consultation (F3+).
   ConsultationApi get consultationApi => _consultationApi;
+
+  /// Exposé pour l'écran Tirage (T3) et la Bibliothèque — save + historique.
+  TirageApi get tirageApi => _tirageApi;
 
   /// Jeton Bearer courant (ou null). Passthrough vers le stockage sécurisé.
   Future<String?> currentToken() => _repo.currentToken();
@@ -168,4 +175,9 @@ class AuthScope extends InheritedNotifier<AuthController> {
     assert(scope != null, 'AuthScope introuvable dans l’arbre de widgets.');
     return scope!.notifier!;
   }
+
+  /// Variante nullable : `null` si aucun [AuthScope] n'est présent (utile pour
+  /// les écrans montés isolément dans des tests sans pile d'auth complète).
+  static AuthController? maybeOf(BuildContext context) =>
+      context.dependOnInheritedWidgetOfExactType<AuthScope>()?.notifier;
 }
