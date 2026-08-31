@@ -1,25 +1,71 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
+import 'package:in_app_purchase/in_app_purchase.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:auryel/api/api_client.dart';
 import 'package:auryel/api/auth_api.dart';
+import 'package:auryel/api/billing_api.dart';
 import 'package:auryel/api/consultation_api.dart';
 import 'package:auryel/api/profile_api.dart';
 import 'package:auryel/data/consultation.dart';
 import 'package:auryel/data/auth_repository.dart';
+import 'package:auryel/data/iap_gateway.dart';
 import 'package:auryel/data/onboarding_record.dart';
 import 'package:auryel/data/onboarding_repository.dart';
 import 'package:auryel/data/token_store.dart';
 import 'package:auryel/screens/chat_screen.dart';
 import 'package:auryel/screens/home_screen.dart';
+import 'package:auryel/screens/premium_screen.dart';
 import 'package:auryel/state/auryel_state.dart';
 import 'package:auryel/state/auth_controller.dart';
+import 'package:auryel/state/consultation_controller.dart';
+import 'package:auryel/state/purchase_controller.dart';
 import 'package:auryel/widgets/advisors_carousel.dart';
+
+/// Gateway IAP inerte pour les tests d'UI qui n'exercent pas l'achat.
+class _NullGateway implements IapGateway {
+  final _ctrl = StreamController<List<PurchaseDetails>>.broadcast();
+  @override
+  Future<bool> isAvailable() async => false;
+  @override
+  Future<ProductDetailsResponse> queryProductDetails(Set<String> ids) async =>
+      ProductDetailsResponse(
+          productDetails: const [], notFoundIDs: ids.toList());
+  @override
+  Stream<List<PurchaseDetails>> get purchaseStream => _ctrl.stream;
+  @override
+  Future<bool> buyNonConsumable(ProductDetails p) async => false;
+  @override
+  Future<void> completePurchase(PurchaseDetails p) async {}
+  @override
+  Future<void> restorePurchases() async {}
+}
+
+PurchaseController _stubPurchase(AuthController auth) {
+  final client = ApiClient(
+    httpClient: MockClient((_) async => http.Response('{}', 200)),
+    baseUrl: 'http://test.local',
+  );
+  final consultation =
+      ConsultationController(api: ConsultationApi(client), auth: auth);
+  final c = PurchaseController(
+    billing: BillingApi(client),
+    gateway: _NullGateway(),
+    auth: auth,
+    consultation: consultation,
+  );
+  addTearDown(() {
+    c.dispose();
+    consultation.dispose();
+  });
+  return c;
+}
 
 http.Response _json(Map<String, dynamic> body, [int status = 200]) =>
     http.Response(jsonEncode(body), status,
@@ -94,6 +140,7 @@ Future<void> _pumpChat(
   WidgetTester tester, {
   required AuthController auth,
   String advisorName = 'Séléna',
+  PurchaseController? purchase,
 }) {
   final state = AuryelState(
     repository: LocalOnboardingRepository(),
@@ -107,15 +154,16 @@ Future<void> _pumpChat(
       onboardingCompleted: true,
     ),
   );
+  Widget tree = MaterialApp(
+    home: ChatScreen(advisor: advisorByNameOrNull(advisorName)!),
+  );
+  if (purchase != null) {
+    tree = PurchaseScope(controller: purchase, child: tree);
+  }
   return tester.pumpWidget(
     AuthScope(
       controller: auth,
-      child: AuryelStateScope(
-        state: state,
-        child: MaterialApp(
-          home: ChatScreen(advisor: advisorByNameOrNull(advisorName)!),
-        ),
-      ),
+      child: AuryelStateScope(state: state, child: tree),
     ),
   );
 }
@@ -307,8 +355,31 @@ void main() {
 
     expect(find.text('Tu as utilisé tes consultations disponibles.'), findsOneWidget);
     expect(find.text('Premium — 7,99 €/mois'), findsOneWidget);
+    expect(
+      find.text(
+          '4 consultations de 2 h par mois · messages illimités pendant chacune'),
+      findsOneWidget,
+    );
+    expect(find.textContaining('10 consultations'), findsNothing);
     expect(find.text('coucou'), findsNothing); // pas de bulle user
     expect(find.byType(TextField), findsNothing); // input remplacé
+  });
+
+  testWidgets('I — "Découvrir Premium" ouvre PremiumScreen (plus de snackbar)',
+      (t) async {
+    final e = _env((_) async => _json(_noCreditBody, 402));
+    await _pumpChat(t, auth: e.auth, purchase: _stubPurchase(e.auth));
+    await _type(t, 'coucou');
+    await _tapSend(t);
+    await t.tap(find.text('Commencer'));
+    await t.pumpAndSettle();
+
+    await t.tap(find.text('Découvrir Premium'));
+    await t.pumpAndSettle();
+
+    expect(find.byType(PremiumScreen), findsOneWidget);
+    expect(find.text('Auryel Premium'), findsOneWidget);
+    expect(find.text('Premium arrive bientôt.'), findsNothing);
   });
 
   testWidgets('401 -> session purgée + retour EmailAuthScreen', (t) async {

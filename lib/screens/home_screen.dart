@@ -12,18 +12,13 @@ import '../widgets/advisors_carousel.dart';
 import '../widgets/consultation_block.dart';
 import 'chat_screen.dart';
 import 'placeholder_screen.dart';
+import 'premium_screen.dart';
 
 // La phrase du jour, en dur pour l'instant — factorisée pour que l'affichage
 // (RichText) et le partage restent synchronisés sans dupliquer le texte.
 const _dailyPhraseLead = 'Ce que tu n’oses pas regarder ';
 const _dailyPhraseAccent = 'te dirige.';
 const _dailyPhrase = '$_dailyPhraseLead$_dailyPhraseAccent';
-
-// Variable de test pour visualiser les 4 états du bloc consultation avant
-// tout branchement réel (session/abonnement). À changer à la main. Le
-// CONSEILLER, lui, n'est plus en dur — il vient de l'état partagé
-// (`selectedAdvisor`, choisi pendant l'onboarding).
-const _debugConsultationState = ConsultationState.firstFree;
 
 /// Reset DEBUG uniquement (geste caché — appui long sur l'icône profil,
 /// visible seulement en `kDebugMode`) : efface les données mock
@@ -46,39 +41,63 @@ class HomeScreen extends StatelessWidget {
   /// F3 — ouvre le vrai chat avec le conseiller choisi. Seul branchement du
   /// CTA consultation ; le reste de l'accueil est inchangé (redesign = F5).
   void _openChat(BuildContext context, AdvisorInfo advisor) {
-    Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => ChatScreen(advisor: advisor)),
-    );
+    Navigator.of(context)
+        .push(MaterialPageRoute(builder: (_) => ChatScreen(advisor: advisor)));
   }
 
-  /// F4 — bloc consultation piloté par l'état partagé. Session active ET non
-  /// expirée => bannière « Reprendre ma consultation · XhXX restante » vers le
-  /// ChatScreen (aucun POST, aucun crédit). Sinon, comportement/CTA inchangés.
+  /// F5-C — ouvre l'écran Premium (état `locked` du bloc consultation).
+  void _openPremium(BuildContext context) {
+    Navigator.of(context)
+        .push(MaterialPageRoute(builder: (_) => const PremiumScreen()));
+  }
+
+  /// F5-C — état du bloc consultation dérivé de l'état RÉEL (lecture seule,
+  /// aucun crédit consommé) :
+  ///   session active           -> active
+  ///   1re consultation offerte -> firstFree
+  ///   Premium avec quota restant / crédit gagné -> subscriberAvailable
+  ///   sinon                    -> locked
+  static ConsultationState _deriveState(ConsultationController c) {
+    if (c.hasActiveSession) return ConsultationState.active;
+    final q = c.quota;
+    if (q == null) return ConsultationState.firstFree;
+    if (q.firstFreeAvailable) return ConsultationState.firstFree;
+    if (q.isPremium && q.monthlyRemaining > 0) {
+      return ConsultationState.subscriberAvailable;
+    }
+    if (q.earnedAvailable > 0) return ConsultationState.subscriberAvailable;
+    return ConsultationState.locked;
+  }
+
+  /// F4/F5-C — bloc consultation piloté par l'état partagé. Session active ET
+  /// non expirée => bannière « Reprendre ma consultation · XhXX restante ».
+  /// Sinon, CTA dérivé du quota (offerte / abonné / locked).
   Widget _buildConsultationBlock(
     BuildContext context,
     ConsultationController consultation,
     AdvisorInfo fallbackAdvisor,
   ) {
-    final session =
-        consultation.hasActiveSession ? consultation.active : null;
-    if (session == null) {
+    if (consultation.hasActiveSession) {
+      final session = consultation.active!;
+      // Le conseiller backend prime pendant la session.
+      final advisor = advisorByGuideKey(session.advisorId) ?? fallbackAdvisor;
+      final remaining = ConsultationController.formatRemaining(
+        consultation.remaining,
+      );
       return ConsultationBlock(
-        state: _debugConsultationState,
-        advisorName: fallbackAdvisor.name,
-        advisorAssetPath: fallbackAdvisor.assetPath,
-        onStart: () => _openChat(context, fallbackAdvisor),
+        state: ConsultationState.active,
+        advisorName: advisor.name,
+        advisorAssetPath: advisor.assetPath,
+        activeResumeLabel: 'Reprendre ma consultation · $remaining restante',
+        onStart: () => _openChat(context, advisor),
       );
     }
-    // Le conseiller backend prime pendant la session.
-    final advisor = advisorByGuideKey(session.advisorId) ?? fallbackAdvisor;
-    final remaining =
-        ConsultationController.formatRemaining(consultation.remaining);
     return ConsultationBlock(
-      state: ConsultationState.active,
-      advisorName: advisor.name,
-      advisorAssetPath: advisor.assetPath,
-      activeResumeLabel: 'Reprendre ma consultation · $remaining restante',
-      onStart: () => _openChat(context, advisor),
+      state: _deriveState(consultation),
+      advisorName: fallbackAdvisor.name,
+      advisorAssetPath: fallbackAdvisor.assetPath,
+      onStart: () => _openChat(context, fallbackAdvisor),
+      onSubscribe: () => _openPremium(context),
     );
   }
 
@@ -140,16 +159,6 @@ class HomeScreen extends StatelessWidget {
                             letterSpacing: 2.4,
                           ),
                         ).animate().fadeIn(delay: 150.ms, duration: 600.ms),
-                        if (_debugConsultationState ==
-                            ConsultationState.active) ...[
-                          const SizedBox(height: 24),
-                          ConsultationBlock(
-                            state: _debugConsultationState,
-                            advisorName: advisor.name,
-                            advisorAssetPath: advisor.assetPath,
-                            onStart: () => _openChat(context, advisor),
-                          ).animate().fadeIn(duration: 500.ms),
-                        ],
                         const SizedBox(height: 56),
                         const _Ornament().animate().fadeIn(
                           delay: 250.ms,
@@ -205,32 +214,31 @@ class HomeScreen extends StatelessWidget {
                           delay: 600.ms,
                           duration: 600.ms,
                         ),
-                        if (_debugConsultationState !=
-                            ConsultationState.active) ...[
-                          const SizedBox(height: 32),
-                          (consultation == null
-                                  ? ConsultationBlock(
-                                      state: _debugConsultationState,
-                                      advisorName: advisor.name,
-                                      advisorAssetPath: advisor.assetPath,
-                                      onStart: () => _openChat(context, advisor),
-                                    )
-                                  : ListenableBuilder(
-                                      listenable: consultation,
-                                      builder: (context, _) => _buildConsultationBlock(
-                                        context,
-                                        consultation,
-                                        advisor,
-                                      ),
-                                    ))
-                              .animate()
-                              .fadeIn(delay: 650.ms, duration: 600.ms)
-                              .slideY(
-                                begin: 0.06,
-                                end: 0,
-                                curve: Curves.easeOutCubic,
-                              ),
-                        ],
+                        const SizedBox(height: 32),
+                        (consultation == null
+                                ? ConsultationBlock(
+                                    state: ConsultationState.firstFree,
+                                    advisorName: advisor.name,
+                                    advisorAssetPath: advisor.assetPath,
+                                    onStart: () => _openChat(context, advisor),
+                                    onSubscribe: () => _openPremium(context),
+                                  )
+                                : ListenableBuilder(
+                                    listenable: consultation,
+                                    builder: (context, _) =>
+                                        _buildConsultationBlock(
+                                          context,
+                                          consultation,
+                                          advisor,
+                                        ),
+                                  ))
+                            .animate()
+                            .fadeIn(delay: 650.ms, duration: 600.ms)
+                            .slideY(
+                              begin: 0.06,
+                              end: 0,
+                              curve: Curves.easeOutCubic,
+                            ),
                       ],
                     ),
                   ),

@@ -31,12 +31,20 @@ http.Response _json(Map<String, dynamic> body, [int status = 200]) =>
     http.Response(jsonEncode(body), status,
         headers: {'content-type': 'application/json'});
 
-Map<String, dynamic> _quota({int monthlyLimit = 10, int monthlyUsed = 1}) => {
-      'is_premium': true,
+Map<String, dynamic> _quota({
+  int monthlyLimit = 10,
+  int monthlyUsed = 1,
+  bool isPremium = true,
+  bool firstFree = false,
+  int earned = 0,
+}) =>
+    {
+      'is_premium': isPremium,
       'monthly_limit': monthlyLimit,
       'monthly_used': monthlyUsed,
       'monthly_remaining': monthlyLimit - monthlyUsed,
-      'earned_available': 0,
+      'earned_available': earned,
+      'first_free_available': firstFree,
       'period_start': '2026-08-01T00:00:00Z',
       'period_end': '2026-09-01T00:00:00Z',
     };
@@ -67,9 +75,22 @@ Map<String, dynamic> _activeState({
   };
 }
 
-Map<String, dynamic> _noState({int monthlyLimit = 10, int monthlyUsed = 1}) => {
+Map<String, dynamic> _noState({
+  int monthlyLimit = 10,
+  int monthlyUsed = 1,
+  bool isPremium = true,
+  bool firstFree = false,
+  int earned = 0,
+}) =>
+    {
       'consultation': null,
-      'quota': _quota(monthlyLimit: monthlyLimit, monthlyUsed: monthlyUsed),
+      'quota': _quota(
+        monthlyLimit: monthlyLimit,
+        monthlyUsed: monthlyUsed,
+        isPremium: isPremium,
+        firstFree: firstFree,
+        earned: earned,
+      ),
     };
 
 Map<String, dynamic> _noCreditBody({int monthlyUsed = 10}) => {
@@ -397,7 +418,9 @@ void main() {
       expect(find.text('Commencer ma consultation'), findsNothing);
     });
 
-    testWidgets('aucune session -> CTA normal', (t) async {
+    testWidgets('aucune session, Premium avec quota restant -> CTA abonné',
+        (t) async {
+      // _noState() = Premium, 9 consultations restantes -> subscriberAvailable.
       final rig = _rig((req) async {
         if (req.url.path == '/api/consultation/state') {
           return _json(_noState());
@@ -409,8 +432,65 @@ void main() {
       await _pumpWithin(t, rig, const HomeScreen());
       await t.pumpAndSettle();
 
-      expect(find.text('Commencer ma consultation'), findsOneWidget);
+      expect(find.text('Ouvrir une consultation'), findsOneWidget);
       expect(find.textContaining('Reprendre ma consultation'), findsNothing);
+    });
+
+    // F5-C — états du bloc consultation dérivés du quota RÉEL (lecture seule).
+    testWidgets('first_free_available -> "Commencer ma consultation"',
+        (t) async {
+      final rig = _rig((req) async {
+        if (req.url.path == '/api/consultation/state') {
+          return _json(_noState(isPremium: false, firstFree: true));
+        }
+        return _json({}, 404);
+      });
+      await rig.controller.refresh();
+      await _pumpWithin(t, rig, const HomeScreen());
+      await t.pumpAndSettle();
+      expect(find.text('Commencer ma consultation'), findsOneWidget);
+      expect(find.textContaining('offerte'), findsOneWidget);
+    });
+
+    testWidgets('crédit gagné (non Premium) -> CTA abonné', (t) async {
+      final rig = _rig((req) async {
+        if (req.url.path == '/api/consultation/state') {
+          return _json(_noState(isPremium: false, earned: 1));
+        }
+        return _json({}, 404);
+      });
+      await rig.controller.refresh();
+      await _pumpWithin(t, rig, const HomeScreen());
+      await t.pumpAndSettle();
+      expect(find.text('Ouvrir une consultation'), findsOneWidget);
+    });
+
+    testWidgets('ni gratuite, ni Premium, ni crédit -> S’abonner',
+        (t) async {
+      final rig = _rig((req) async {
+        if (req.url.path == '/api/consultation/state') {
+          return _json(_noState(
+              isPremium: false, monthlyLimit: 0, monthlyUsed: 0, earned: 0));
+        }
+        return _json({}, 404);
+      });
+      await rig.controller.refresh();
+      await _pumpWithin(t, rig, const HomeScreen());
+      await t.pumpAndSettle();
+      expect(find.text('S’abonner pour consulter'), findsOneWidget);
+    });
+
+    testWidgets('Premium quota épuisé -> S’abonner', (t) async {
+      final rig = _rig((req) async {
+        if (req.url.path == '/api/consultation/state') {
+          return _json(_noState(monthlyLimit: 4, monthlyUsed: 4));
+        }
+        return _json({}, 404);
+      });
+      await rig.controller.refresh();
+      await _pumpWithin(t, rig, const HomeScreen());
+      await t.pumpAndSettle();
+      expect(find.text('S’abonner pour consulter'), findsOneWidget);
     });
 
     testWidgets('tap CTA -> ouvre ChatScreen sans POST', (t) async {

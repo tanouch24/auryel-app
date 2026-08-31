@@ -17,6 +17,7 @@ class ConsultationBlock extends StatelessWidget {
     required this.advisorName,
     required this.advisorAssetPath,
     this.onStart,
+    this.onSubscribe,
     this.activeResumeLabel,
     this.activeRemainingText,
   });
@@ -28,6 +29,10 @@ class ConsultationBlock extends StatelessWidget {
   /// Callback du CTA principal (F3 : ouvrir le ChatScreen). Injecté par
   /// l'écran hôte plutôt que codé en dur dans le widget.
   final VoidCallback? onStart;
+
+  /// F5-C — CTA de l'état `locked` (« S'abonner pour consulter ») : ouvre
+  /// l'écran Premium. La navigation est gérée par l'écran hôte, pas ici.
+  final VoidCallback? onSubscribe;
 
   /// F4 — libellé du CTA quand une VRAIE session est active (ex.
   /// « Reprendre ma consultation · 1h40 restante »). `null` => libellé par
@@ -54,6 +59,7 @@ class ConsultationBlock extends StatelessWidget {
       name: advisorName,
       assetPath: advisorAssetPath,
       onStart: onStart,
+      onSubscribe: onSubscribe,
     );
   }
 }
@@ -64,16 +70,18 @@ class _StandardCard extends StatelessWidget {
     required this.name,
     required this.assetPath,
     this.onStart,
+    this.onSubscribe,
   });
 
   final ConsultationState state;
   final String name;
   final String assetPath;
   final VoidCallback? onStart;
+  final VoidCallback? onSubscribe;
 
   (String, String) get _copy => switch (state) {
     ConsultationState.firstFree => (
-      'Ta première consultation de 24h est offerte',
+      'Ta première consultation de 2 h est offerte',
       'Commencer ma consultation',
     ),
     ConsultationState.subscriberAvailable => (
@@ -90,6 +98,9 @@ class _StandardCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final (body, cta) = _copy;
+    // L'état `locked` invite à s'abonner -> ouvre l'écran Premium ;
+    // les autres états ouvrent une consultation.
+    final onTap = state == ConsultationState.locked ? onSubscribe : onStart;
     return Container(
       padding: const EdgeInsets.all(20),
       decoration: BoxDecoration(
@@ -128,7 +139,7 @@ class _StandardCard extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 18),
-          _GoldButton(label: cta, onTap: onStart),
+          _GoldButton(label: cta, onTap: onTap),
         ],
       ),
     );
@@ -180,8 +191,7 @@ class _ActiveBanner extends StatelessWidget {
                         height: 1.2,
                       ),
                     ),
-                    if (remainingText != null &&
-                        remainingText!.isNotEmpty) ...[
+                    if (remainingText != null && remainingText!.isNotEmpty) ...[
                       const SizedBox(height: 3),
                       Text(
                         remainingText!,

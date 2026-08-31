@@ -24,7 +24,8 @@ class ConsultationDto {
   final String creditSource;
   final bool openedNow;
 
-  factory ConsultationDto.fromJson(Map<String, dynamic> json) => ConsultationDto(
+  factory ConsultationDto.fromJson(Map<String, dynamic> json) =>
+      ConsultationDto(
         id: (json['id'] ?? '').toString(),
         advisorId: (json['advisor_id'] ?? '').toString(),
         startedAt: _date(json['started_at']),
@@ -45,6 +46,7 @@ class QuotaDto {
     required this.earnedAvailable,
     required this.periodStart,
     required this.periodEnd,
+    this.firstFreeAvailable = false,
   });
 
   final bool isPremium;
@@ -55,15 +57,21 @@ class QuotaDto {
   final DateTime? periodStart;
   final DateTime? periodEnd;
 
+  /// `first_free_available` du backend : `true` tant que la 1re consultation
+  /// offerte (1×/compte, à vie) n'a pas été consommée. Absent des anciennes
+  /// réponses / fixtures -> `false` (comportement sûr : pas de gratuite).
+  final bool firstFreeAvailable;
+
   factory QuotaDto.fromJson(Map<String, dynamic> json) => QuotaDto(
-        isPremium: json['is_premium'] == true,
-        monthlyLimit: _int(json['monthly_limit']),
-        monthlyUsed: _int(json['monthly_used']),
-        monthlyRemaining: _int(json['monthly_remaining']),
-        earnedAvailable: _int(json['earned_available']),
-        periodStart: _date(json['period_start']),
-        periodEnd: _date(json['period_end']),
-      );
+    isPremium: json['is_premium'] == true,
+    monthlyLimit: _int(json['monthly_limit']),
+    monthlyUsed: _int(json['monthly_used']),
+    monthlyRemaining: _int(json['monthly_remaining']),
+    earnedAvailable: _int(json['earned_available']),
+    periodStart: _date(json['period_start']),
+    periodEnd: _date(json['period_end']),
+    firstFreeAvailable: json['first_free_available'] == true,
+  );
 }
 
 /// Réponse 200 de `POST /api/consultation/message`.
@@ -83,8 +91,9 @@ class ConsultationMessageResponse {
     final q = json['quota'];
     return ConsultationMessageResponse(
       reply: (json['reply'] ?? '').toString(),
-      consultation:
-          c is Map<String, dynamic> ? ConsultationDto.fromJson(c) : null,
+      consultation: c is Map<String, dynamic>
+          ? ConsultationDto.fromJson(c)
+          : null,
       quota: q is Map<String, dynamic>
           ? QuotaDto.fromJson(q)
           : const QuotaDto(
@@ -115,8 +124,9 @@ class ConsultationStateResponse {
     final c = json['consultation'];
     final q = json['quota'];
     return ConsultationStateResponse(
-      consultation:
-          c is Map<String, dynamic> ? ConsultationDto.fromJson(c) : null,
+      consultation: c is Map<String, dynamic>
+          ? ConsultationDto.fromJson(c)
+          : null,
       quota: q is Map<String, dynamic>
           ? QuotaDto.fromJson(q)
           : const QuotaDto(

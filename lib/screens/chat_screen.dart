@@ -7,6 +7,7 @@ import '../state/consultation_controller.dart';
 import '../theme/auryel_theme.dart';
 import '../widgets/advisors_carousel.dart';
 import 'onboarding/email_auth_screen.dart';
+import 'premium_screen.dart';
 
 /// Chat réel connecté à `POST /api/consultation/message` (F3 + F4).
 ///
@@ -125,8 +126,10 @@ class _ChatScreenState extends State<ChatScreen> {
         await _goToLogin(auth);
         return;
       }
-      final res =
-          await auth.consultationApi.sendMessage(bearer: token, message: text);
+      final res = await auth.consultationApi.sendMessage(
+        bearer: token,
+        message: text,
+      );
       if (!mounted) return;
       // F4 — l'état renvoyé alimente aussi le state partagé de l'app.
       consultation?.updateFromMessageResponse(res);
@@ -194,21 +197,27 @@ class _ChatScreenState extends State<ChatScreen> {
         ),
         content: Text(
           'Cette conversation ouvrira une consultation de 2 h.',
-          style:
-              AuryelText.body(fontSize: 13.5, color: AuryelColors.textSecondary),
+          style: AuryelText.body(
+            fontSize: 13.5,
+            color: AuryelColors.textSecondary,
+          ),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(false),
-            child: Text('Annuler',
-                style: AuryelText.body(color: AuryelColors.textMuted)),
+            child: Text(
+              'Annuler',
+              style: AuryelText.body(color: AuryelColors.textMuted),
+            ),
           ),
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(true),
             child: Text(
               'Commencer',
               style: AuryelText.body(
-                  color: AuryelColors.goldLight, fontWeight: FontWeight.w600),
+                color: AuryelColors.goldLight,
+                fontWeight: FontWeight.w600,
+              ),
             ),
           ),
         ],
@@ -253,8 +262,9 @@ class _ChatScreenState extends State<ChatScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       body: Container(
-        decoration:
-            const BoxDecoration(gradient: AuryelColors.backgroundGradient),
+        decoration: const BoxDecoration(
+          gradient: AuryelColors.backgroundGradient,
+        ),
         child: SafeArea(
           child: Column(
             children: [
@@ -330,8 +340,11 @@ class _Header extends StatelessWidget {
         children: [
           IconButton(
             onPressed: () => Navigator.of(context).maybePop(),
-            icon: const Icon(Icons.arrow_back_ios_new,
-                size: 18, color: AuryelColors.textMuted),
+            icon: const Icon(
+              Icons.arrow_back_ios_new,
+              size: 18,
+              color: AuryelColors.textMuted,
+            ),
           ),
           Container(
             width: 40,
@@ -353,7 +366,9 @@ class _Header extends StatelessWidget {
                 Text(
                   advisor.name,
                   style: AuryelText.display(
-                      fontSize: 16, fontWeight: FontWeight.w600),
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
                 const SizedBox(height: 2),
                 Text(
@@ -439,7 +454,9 @@ class _TypingIndicator extends StatelessWidget {
           width: 16,
           height: 16,
           child: CircularProgressIndicator(
-              strokeWidth: 2, color: AuryelColors.gold),
+            strokeWidth: 2,
+            color: AuryelColors.gold,
+          ),
         ),
       ),
     );
@@ -486,7 +503,9 @@ class _InputBar extends StatelessWidget {
                     child: Text(
                       error!,
                       style: AuryelText.body(
-                          fontSize: 12, color: AuryelColors.goldLight),
+                        fontSize: 12,
+                        color: AuryelColors.goldLight,
+                      ),
                     ),
                   ),
                   TextButton(
@@ -515,7 +534,9 @@ class _InputBar extends StatelessWidget {
                     maxLines: 4,
                     textInputAction: TextInputAction.send,
                     style: AuryelText.body(
-                        fontSize: 14, color: AuryelColors.textCream),
+                      fontSize: 14,
+                      color: AuryelColors.textCream,
+                    ),
                     cursorColor: AuryelColors.gold,
                     onChanged: (_) => onChanged(),
                     onSubmitted: (_) {
@@ -525,13 +546,17 @@ class _InputBar extends StatelessWidget {
                       isDense: true,
                       hintText: 'Écris ton message…',
                       hintStyle: AuryelText.body(
-                          fontSize: 14, color: AuryelColors.textMuted),
+                        fontSize: 14,
+                        color: AuryelColors.textMuted,
+                      ),
                       enabledBorder: UnderlineInputBorder(
                         borderSide: BorderSide(color: AuryelColors.warmBorder),
                       ),
                       focusedBorder: const UnderlineInputBorder(
-                        borderSide:
-                            BorderSide(color: AuryelColors.gold, width: 1.5),
+                        borderSide: BorderSide(
+                          color: AuryelColors.gold,
+                          width: 1.5,
+                        ),
                       ),
                     ),
                   ),
@@ -579,7 +604,9 @@ class _NoCreditPanel extends StatelessWidget {
             Text(
               'Tu as utilisé tes consultations disponibles.',
               style: AuryelText.display(
-                  fontSize: 17, fontWeight: FontWeight.w600),
+                fontSize: 17,
+                fontWeight: FontWeight.w600,
+              ),
             ),
             const SizedBox(height: 12),
             Text(
@@ -592,26 +619,27 @@ class _NoCreditPanel extends StatelessWidget {
             ),
             const SizedBox(height: 4),
             Text(
-              '10 consultations de 2 h par mois · messages illimités pendant chacune',
+              '4 consultations de 2 h par mois · messages illimités pendant chacune',
               style: AuryelText.body(
-                  fontSize: 13, color: AuryelColors.textMuted),
+                fontSize: 13,
+                color: AuryelColors.textMuted,
+              ),
             ),
             const SizedBox(height: 18),
             Row(
               children: [
                 TextButton(
                   onPressed: onClose,
-                  child: Text('Retour',
-                      style: AuryelText.body(color: AuryelColors.textMuted)),
+                  child: Text(
+                    'Retour',
+                    style: AuryelText.body(color: AuryelColors.textMuted),
+                  ),
                 ),
                 const Spacer(),
                 TextButton(
-                  onPressed: () {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                          content: Text('Premium arrive bientôt.')),
-                    );
-                  },
+                  onPressed: () => Navigator.of(context).push(
+                    MaterialPageRoute(builder: (_) => const PremiumScreen()),
+                  ),
                   child: Text(
                     'Découvrir Premium',
                     style: AuryelText.body(
