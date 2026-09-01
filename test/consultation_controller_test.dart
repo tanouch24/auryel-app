@@ -464,7 +464,7 @@ void main() {
   // D. Accueil
   // =========================================================================
   group('D. Accueil', () {
-    testWidgets('consultation active -> "Reprendre ma consultation · 3 h"',
+    testWidgets('consultation active -> "Reprendre ma consultation" + "3 h disponibles"',
         (t) async {
       final rig = _rig((req) async {
         if (req.url.path == '/api/consultation/state') {
@@ -480,10 +480,11 @@ void main() {
       rig.controller.dispose(); // coupe le Timer.periodic avant les invariants
       await t.pumpAndSettle(); // vide les timers flutter_animate de l'accueil
 
-      expect(find.textContaining('Reprendre ma consultation ·'), findsOneWidget);
-      // TIMER-D.1 — portefeuille d'heures, pas un countdown de session.
-      expect(find.textContaining('3 h'), findsOneWidget);
+      expect(find.text('Reprendre ma consultation'), findsOneWidget);
+      // TIMER-D.2 — portefeuille d'heures « X h disponibles », pas un countdown.
+      expect(find.text('3 h disponibles'), findsOneWidget);
       expect(find.text('Commencer ma consultation'), findsNothing);
+      expect(find.textContaining('consultations'), findsNothing);
     });
 
     testWidgets('aucune session, Premium avec quota restant -> CTA abonné',
@@ -588,7 +589,7 @@ void main() {
       await _pumpWithin(t, rig, const HomeScreen());
       await t.pump();
 
-      await t.tap(find.textContaining('Reprendre ma consultation ·'));
+      await t.tap(find.text('Reprendre ma consultation'));
       await t.pumpAndSettle();
       rig.controller.dispose();
 
@@ -624,7 +625,8 @@ void main() {
       await t.pumpAndSettle();
       rig.controller.dispose();
 
-      expect(find.text('Cette conversation ouvrira une consultation de 2 h.'),
+      expect(find.text('Ce premier message ouvre ta consultation. Le temps se décompte '
+          'ensuite de ton temps disponible.'),
           findsNothing);
       expect(_messagePosts(rig), 1);
     });
@@ -650,7 +652,8 @@ void main() {
       await t.tap(find.byIcon(Icons.send_rounded));
       await t.pumpAndSettle();
 
-      expect(find.text('Cette conversation ouvrira une consultation de 2 h.'),
+      expect(find.text('Ce premier message ouvre ta consultation. Le temps se décompte '
+          'ensuite de ton temps disponible.'),
           findsOneWidget);
       expect(_messagePosts(rig), 0);
     });
@@ -749,9 +752,11 @@ void main() {
       await t.tap(find.text('Commencer'));
       await t.pumpAndSettle();
 
+      // _noCreditBody() est Premium -> mur sobre (titre « disponible épuisé »,
+      // pas de prix, pas de « Découvrir Premium »).
       expect(find.text('Ton temps de consultation disponible est épuisé.'),
           findsOneWidget);
-      expect(find.text('Premium — 7,99 €/mois'), findsOneWidget);
+      expect(find.text('Premium — 7,99 €/mois'), findsNothing);
       expect(rig.controller.active, isNull);
       // TIMER-D.1 — le corps du 402 resynchronise `time` (0) + `quota`.
       expect(rig.controller.time!.totalRemainingSeconds, 0);

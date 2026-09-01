@@ -20,6 +20,7 @@ class ConsultationBlock extends StatelessWidget {
     this.onSubscribe,
     this.activeResumeLabel,
     this.activeRemainingText,
+    this.availableTimeText,
   });
 
   final ConsultationState state;
@@ -34,14 +35,17 @@ class ConsultationBlock extends StatelessWidget {
   /// l'écran Premium. La navigation est gérée par l'écran hôte, pas ici.
   final VoidCallback? onSubscribe;
 
-  /// F4 — libellé du CTA quand une VRAIE session est active (ex.
-  /// « Reprendre ma consultation · 1h40 restante »). `null` => libellé par
-  /// défaut « Continuer ma consultation ».
+  /// F4 — libellé du CTA quand une consultation est reprenable (ex.
+  /// « Reprendre ma consultation »). `null` => « Continuer ma consultation ».
   final String? activeResumeLabel;
 
-  /// F4 — temps restant réel dérivé de `ConsultationController` ; remplace
-  /// l'ancien texte fictif « Encore 22h ». `null` => aucune sous-ligne.
+  /// TIMER-D.2 — sous-ligne « portefeuille de temps » de la bannière active
+  /// (ex. « 7 h 42 min disponibles »). `null` => aucune sous-ligne.
   final String? activeRemainingText;
+
+  /// TIMER-D.2 — sous-texte « temps disponible » de la carte `subscriberAvailable`
+  /// (ex. « 7 h 42 min disponibles »). `null` => texte d'invite générique.
+  final String? availableTimeText;
 
   @override
   Widget build(BuildContext context) {
@@ -60,6 +64,7 @@ class ConsultationBlock extends StatelessWidget {
       assetPath: advisorAssetPath,
       onStart: onStart,
       onSubscribe: onSubscribe,
+      availableTimeText: availableTimeText,
     );
   }
 }
@@ -71,6 +76,7 @@ class _StandardCard extends StatelessWidget {
     required this.assetPath,
     this.onStart,
     this.onSubscribe,
+    this.availableTimeText,
   });
 
   final ConsultationState state;
@@ -78,19 +84,21 @@ class _StandardCard extends StatelessWidget {
   final String assetPath;
   final VoidCallback? onStart;
   final VoidCallback? onSubscribe;
+  final String? availableTimeText;
 
   (String, String) get _copy => switch (state) {
     ConsultationState.firstFree => (
-      // TIMER-D.1 — 1 h offerte, une seule fois par compte.
+      // TIMER-D.1/D.2 — 1 h offerte, une seule fois par compte.
       'Ta première heure de consultation est offerte',
       'Commencer ma consultation',
     ),
     ConsultationState.subscriberAvailable => (
-      'Une question ? Ton conseiller est là pour toi.',
+      // TIMER-D.2 — met en avant le PORTEFEUILLE DE TEMPS quand il est connu.
+      availableTimeText ?? 'Ton conseiller est là quand tu en as besoin.',
       'Ouvrir une consultation',
     ),
     ConsultationState.locked => (
-      'Envie de retrouver ton conseiller ?',
+      'Ton temps de consultation est épuisé.',
       'S’abonner pour consulter',
     ),
     ConsultationState.active => ('', ''), // non utilisé ici

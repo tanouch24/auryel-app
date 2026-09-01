@@ -326,7 +326,8 @@ class _ChatScreenState extends State<ChatScreen> {
           style: AuryelText.display(fontSize: 18, fontWeight: FontWeight.w600),
         ),
         content: Text(
-          'Cette conversation ouvrira une consultation de 2 h.',
+          'Ce premier message ouvre ta consultation. Le temps se décompte '
+          'ensuite de ton temps disponible.',
           style: AuryelText.body(
             fontSize: 13.5,
             color: AuryelColors.textSecondary,
@@ -367,21 +368,29 @@ class _ChatScreenState extends State<ChatScreen> {
     });
   }
 
-  /// TIMER-D.1 — `seconds` = portefeuille de temps TOTAL (`time.total`), pas un
-  /// countdown de session de 2 h.
+  /// TIMER-D.1/D.2 — `seconds` = portefeuille de temps TOTAL (`time.total`).
+  /// « 7 h 42 min disponibles » / « Temps de consultation épuisé ». Jamais de
+  /// countdown seconde par seconde.
   static String formatRemaining(int seconds) {
     if (seconds <= 0) return 'Temps de consultation épuisé';
-    return 'Temps de consultation · ${ConsultationController.formatTotalTime(seconds)}';
+    return '${ConsultationController.formatTotalTime(seconds)} disponibles';
   }
 
+  /// TIMER-D.2 — statut d'en-tête :
+  ///  - fenêtre active  -> « Consultation en cours · X h Y min disponibles »
+  ///  - hors fenêtre    -> « X h Y min disponibles » (jamais « expirée »)
+  ///  - temps épuisé    -> « Temps de consultation épuisé »
+  ///  - pas de consultation -> invite d'ouverture.
   String _statusLine() {
     final c = _consultation;
     if (c == null) return 'Prêt·e à échanger avec ${_headerAdvisor.name}';
-    // Le total vient du contrôleur (bloc `time`) quand il est monté ; sinon
-    // fallback sur `seconds_remaining` de la réponse (déjà le total).
     final controller = ConsultationScope.maybeReadOf(context);
     final total = controller?.time?.totalRemainingSeconds ?? c.secondsRemaining;
-    return formatRemaining(total);
+    final base = formatRemaining(total);
+    if ((controller?.windowActive ?? false) && total > 0) {
+      return 'Consultation en cours · $base';
+    }
+    return base;
   }
 
   @override
@@ -780,6 +789,9 @@ class _NoCreditPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // TIMER-D.2 — panneau « temps épuisé ». Non-Premium : upsell 8 h/mois.
+    // Premium : pas de promesse d'achat d'heure (consommable non câblé).
+    final isPremium = quota?.isPremium == true;
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.fromLTRB(24, 22, 24, 20),
@@ -794,8 +806,7 @@ class _NoCreditPanel extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              // TIMER-D.1 — texte V1 « temps épuisé » (plus « consultations »).
-              quota?.isPremium == true
+              isPremium
                   ? 'Ton temps de consultation disponible est épuisé.'
                   : 'Ton temps de consultation est épuisé.',
               style: AuryelText.display(
@@ -803,23 +814,29 @@ class _NoCreditPanel extends StatelessWidget {
                 fontWeight: FontWeight.w600,
               ),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: 8),
             Text(
-              'Premium — 7,99 €/mois',
-              style: AuryelText.body(
-                fontSize: 14,
-                fontWeight: FontWeight.w600,
-                color: AuryelColors.goldLight,
-              ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              '8 h de consultation par mois · messages illimités pendant chaque consultation',
+              isPremium
+                  ? 'Ta conversation reste enregistrée. Ton temps se '
+                      'renouvellera à la prochaine période.'
+                  : 'Passe à Premium pour continuer, avec 8 h de consultation '
+                      'par mois.',
               style: AuryelText.body(
                 fontSize: 13,
                 color: AuryelColors.textMuted,
               ),
             ),
+            if (!isPremium) ...[
+              const SizedBox(height: 12),
+              Text(
+                'Premium — 7,99 €/mois',
+                style: AuryelText.body(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                  color: AuryelColors.goldLight,
+                ),
+              ),
+            ],
             const SizedBox(height: 18),
             Row(
               children: [
@@ -831,18 +848,19 @@ class _NoCreditPanel extends StatelessWidget {
                   ),
                 ),
                 const Spacer(),
-                TextButton(
-                  onPressed: () => Navigator.of(context).push(
-                    MaterialPageRoute(builder: (_) => const PremiumScreen()),
-                  ),
-                  child: Text(
-                    'Découvrir Premium',
-                    style: AuryelText.body(
-                      fontWeight: FontWeight.w600,
-                      color: AuryelColors.goldLight,
+                if (!isPremium)
+                  TextButton(
+                    onPressed: () => Navigator.of(context).push(
+                      MaterialPageRoute(builder: (_) => const PremiumScreen()),
+                    ),
+                    child: Text(
+                      'Découvrir Premium',
+                      style: AuryelText.body(
+                        fontWeight: FontWeight.w600,
+                        color: AuryelColors.goldLight,
+                      ),
                     ),
                   ),
-                ),
               ],
             ),
           ],

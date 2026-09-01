@@ -207,7 +207,9 @@ Future<void> _tapSend(WidgetTester tester) async {
   await tester.pumpAndSettle();
 }
 
-const _confirmText = 'Cette conversation ouvrira une consultation de 2 h.';
+const _confirmText =
+    'Ce premier message ouvre ta consultation. Le temps se décompte '
+    'ensuite de ton temps disponible.';
 
 void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
@@ -260,8 +262,8 @@ void main() {
   });
 
   test('formatRemaining : portefeuille de temps / épuisé', () {
-    expect(_ChatScreenStateFormat.f(6500), 'Temps de consultation · 1 h 48 min');
-    expect(_ChatScreenStateFormat.f(600), 'Temps de consultation · 10 min');
+    expect(_ChatScreenStateFormat.f(6500), '1 h 48 min disponibles');
+    expect(_ChatScreenStateFormat.f(600), '10 min disponibles');
     expect(_ChatScreenStateFormat.f(0), 'Temps de consultation épuisé');
   });
 
@@ -379,27 +381,57 @@ void main() {
     expect(find.text('deux'), findsOneWidget);
   });
 
-  testWidgets('402 time_exhausted -> mur temps épuisé, aucune fausse réponse',
+  testWidgets('402 time_exhausted (Premium) -> mur sobre, pas d\'upsell prix',
       (t) async {
-    final e = _env((_) async => _json(_noCreditBody, 402));
+    final e = _env((_) async => _json(_noCreditBody, 402)); // is_premium: true
     await _pumpChat(t, auth: e.auth);
     await _type(t, 'coucou');
     await _tapSend(t);
     await t.tap(find.text('Commencer'));
     await t.pumpAndSettle();
 
-    // TIMER-D.1 — texte « temps épuisé » (variante Premium), plus « consultations ».
+    // TIMER-D.2 — Premium : titre « disponible épuisé » + sous-texte
+    // « renouvellement », AUCUN prix, AUCUN « Découvrir Premium ».
     expect(find.text('Ton temps de consultation disponible est épuisé.'),
         findsOneWidget);
-    expect(find.text('Premium — 7,99 €/mois'), findsOneWidget);
-    expect(
-      find.text(
-          '8 h de consultation par mois · messages illimités pendant chaque consultation'),
-      findsOneWidget,
-    );
+    expect(find.textContaining('à la prochaine période'), findsOneWidget);
+    expect(find.text('Premium — 7,99 €/mois'), findsNothing);
+    expect(find.text('Découvrir Premium'), findsNothing);
     expect(find.textContaining('consultations de 2 h'), findsNothing);
+    expect(find.textContaining('4 consultations'), findsNothing);
     expect(find.text('coucou'), findsNothing); // pas de bulle user
     expect(find.byType(TextField), findsNothing); // input remplacé
+  });
+
+  testWidgets('402 time_exhausted (non Premium) -> upsell 8 h/mois + Découvrir Premium',
+      (t) async {
+    const body = {
+      'error': 'time_exhausted',
+      'consultation': null,
+      'time': {
+        'first_free_remaining_seconds': 0,
+        'premium_remaining_seconds': 0,
+        'purchased_remaining_seconds': 0,
+        'total_remaining_seconds': 0,
+        'window_active': false,
+        'window_expires_at': null,
+      },
+      'quota': {'is_premium': false, 'monthly_limit': 8, 'monthly_used': 8},
+    };
+    final e = _env((_) async => _json(body, 402));
+    await _pumpChat(t, auth: e.auth);
+    await _type(t, 'coucou');
+    await _tapSend(t);
+    await t.tap(find.text('Commencer'));
+    await t.pumpAndSettle();
+
+    expect(find.text('Ton temps de consultation est épuisé.'), findsOneWidget);
+    expect(
+        find.textContaining('8 h de consultation par mois'), findsOneWidget);
+    expect(find.text('Premium — 7,99 €/mois'), findsOneWidget);
+    expect(find.text('Découvrir Premium'), findsOneWidget);
+    expect(find.textContaining('4 consultations'), findsNothing);
+    expect(find.textContaining('consultations de 2 h'), findsNothing);
   });
 
   testWidgets('M — 402 ANCIEN "no_credit" (sans bloc time) : mur affiché, pas de crash',
@@ -430,7 +462,13 @@ void main() {
 
   testWidgets('I — "Découvrir Premium" ouvre PremiumScreen (plus de snackbar)',
       (t) async {
-    final e = _env((_) async => _json(_noCreditBody, 402));
+    // non-Premium : le CTA « Découvrir Premium » est présent.
+    const body = {
+      'error': 'time_exhausted',
+      'consultation': null,
+      'quota': {'is_premium': false, 'monthly_limit': 8, 'monthly_used': 8},
+    };
+    final e = _env((_) async => _json(body, 402));
     await _pumpChat(t, auth: e.auth, purchase: _stubPurchase(e.auth));
     await _type(t, 'coucou');
     await _tapSend(t);

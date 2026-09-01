@@ -79,9 +79,9 @@ class _AdvisorDetailScreenState extends State<AdvisorDetailScreen> {
             style: AuryelText.cardTitle(),
           ),
           content: Text(
-            'Ta consultation avec $activeName reste ouverte jusqu’à sa '
-            'fin.\n\n${_advisor.name} deviendra ton conseiller pour ta '
-            'prochaine consultation.',
+            'Ta consultation avec $activeName reste accessible.\n\n'
+            '${_advisor.name} deviendra ton conseiller pour ta prochaine '
+            'consultation.',
             style: AuryelText.bodySecondary(color: AuryelColors.textSecondary),
           ),
           actions: [

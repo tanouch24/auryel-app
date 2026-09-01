@@ -79,9 +79,15 @@ class HomeScreen extends StatelessWidget {
     return ConsultationState.locked;
   }
 
-  /// F4/F5-C — bloc consultation piloté par l'état partagé. Session active ET
-  /// non expirée => bannière « Reprendre ma consultation · XhXX restante ».
-  /// Sinon, CTA dérivé du quota (offerte / abonné / locked).
+  /// TIMER-D.2 — « 7 h 42 min disponibles » (accord singulier pour « < 1 min »
+  /// / « 1 h » gardé au pluriel : c'est le portefeuille qui est « disponible »).
+  static String _availableLabel(ConsultationController c) =>
+      '${ConsultationController.formatTotalTime(c.remaining.inSeconds)} disponibles';
+
+  /// F4/F5-C / TIMER-D.2 — bloc consultation piloté par l'état partagé.
+  /// Consultation reprenable + temps dispo => bannière « Reprendre ma
+  /// consultation » + « X h Y min disponibles ». Sinon CTA dérivé du TEMPS
+  /// (offerte / temps dispo / épuisé).
   Widget _buildConsultationBlock(
     BuildContext context,
     ConsultationController consultation,
@@ -91,22 +97,23 @@ class HomeScreen extends StatelessWidget {
       final session = consultation.active!;
       // Le conseiller backend prime pendant la session (figé si fenêtre active).
       final advisor = advisorByGuideKey(session.advisorId) ?? fallbackAdvisor;
-      // TIMER-D.1 — portefeuille de temps total, pas un countdown de session.
-      final remaining = ConsultationController.formatTotalTime(
-        consultation.remaining.inSeconds,
-      );
       return ConsultationBlock(
         state: ConsultationState.active,
         advisorName: advisor.name,
         advisorAssetPath: advisor.assetPath,
-        activeResumeLabel: 'Reprendre ma consultation · $remaining',
+        activeResumeLabel: 'Reprendre ma consultation',
+        activeRemainingText: _availableLabel(consultation),
         onStart: () => _openChat(context, advisor),
       );
     }
+    final derived = _deriveState(consultation);
     return ConsultationBlock(
-      state: _deriveState(consultation),
+      state: derived,
       advisorName: fallbackAdvisor.name,
       advisorAssetPath: fallbackAdvisor.assetPath,
+      availableTimeText: derived == ConsultationState.subscriberAvailable
+          ? _availableLabel(consultation)
+          : null,
       onStart: () => _openChat(context, fallbackAdvisor),
       onSubscribe: () => _openPremium(context),
     );
