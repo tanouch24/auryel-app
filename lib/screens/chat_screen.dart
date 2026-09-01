@@ -58,7 +58,6 @@ class _ChatScreenState extends State<ChatScreen> {
 
   final List<_ChatMessage> _messages = [];
   ConsultationDto? _consultation;
-  QuotaDto? _quota;
 
   bool _sending = false;
   bool _firstMessageConfirmed = false;
@@ -104,13 +103,15 @@ class _ChatScreenState extends State<ChatScreen> {
     super.didChangeDependencies();
     if (_seeded) return;
     _seeded = true;
-    // F4 — reprise d'une session déjà ouverte : on part du state partagé,
-    // pas d'un écran vierge. Lecture seule (sans abonnement), aucun POST.
+    // F4 / TIMER-D.1 — reprise d'une consultation LOGIQUE déjà ouverte : on
+    // part du state partagé, pas d'un écran vierge. `hasResumableConsultation`
+    // (et non `hasActiveSession`) : l'historique reste visible même hors
+    // fenêtre de 5 min et même si le portefeuille de temps est bas. Lecture
+    // seule, aucun POST.
     final controller = ConsultationScope.maybeReadOf(context);
-    if (controller != null && controller.hasActiveSession) {
+    if (controller != null && controller.hasResumableConsultation) {
       _consultation = controller.active;
-      _quota = controller.quota;
-      _firstMessageConfirmed = true; // session en cours -> pas de confirmation
+      _firstMessageConfirmed = true; // consultation existante -> pas de confirmation
       _auth = AuthScope.maybeOf(context);
       _loadHistory();
     }
@@ -247,7 +248,6 @@ class _ChatScreenState extends State<ChatScreen> {
         _messages.add(_ChatMessage(fromUser: true, text: _pending!));
         _messages.add(_ChatMessage(fromUser: false, text: res.reply));
         _consultation = res.consultation ?? _consultation;
-        _quota = res.quota;
         _pending = null;
         _sending = false;
         // T3 — le tirage a été rattaché : plus jamais renvoyé sur cette session.
@@ -258,9 +258,12 @@ class _ChatScreenState extends State<ChatScreen> {
       await _goToLogin(auth);
     } on ApiNoCreditException catch (e) {
       if (!mounted) return;
+      // TIMER-D.1 — 402 : cas principal `time_exhausted` (l'ancien `no_credit`
+      // reste supporté, même chemin HTTP). On resynchronise `time` + `quota`
+      // depuis le corps SANS fabriquer de session.
       final quota = _quotaFrom(e.body);
-      // F4 — resynchro du quota (aucune session fabriquée).
-      consultation?.applyNoCredit(quota);
+      final time = ConsultationTimeState.maybeFromJson(e.body['time']);
+      consultation?.applyExhausted(time: time, quota: quota);
       setState(() {
         _sending = false;
         _pending = null; // le message N'est PAS parti : pas de bulle
@@ -364,25 +367,21 @@ class _ChatScreenState extends State<ChatScreen> {
     });
   }
 
+  /// TIMER-D.1 — `seconds` = portefeuille de temps TOTAL (`time.total`), pas un
+  /// countdown de session de 2 h.
   static String formatRemaining(int seconds) {
-    if (seconds <= 0) return 'Consultation terminée';
-    final h = seconds ~/ 3600;
-    final m = (seconds % 3600) ~/ 60;
-    if (h > 0) {
-      return 'Consultation ouverte · $h h ${m.toString().padLeft(2, '0')} restantes';
-    }
-    return 'Consultation ouverte · $m min restantes';
+    if (seconds <= 0) return 'Temps de consultation épuisé';
+    return 'Temps de consultation · ${ConsultationController.formatTotalTime(seconds)}';
   }
 
   String _statusLine() {
     final c = _consultation;
     if (c == null) return 'Prêt·e à échanger avec ${_headerAdvisor.name}';
-    final base = formatRemaining(c.secondsRemaining);
-    final q = _quota;
-    if (q != null && q.isPremium) {
-      return '$base · ${q.monthlyRemaining}/${q.monthlyLimit} ce mois';
-    }
-    return base;
+    // Le total vient du contrôleur (bloc `time`) quand il est monté ; sinon
+    // fallback sur `seconds_remaining` de la réponse (déjà le total).
+    final controller = ConsultationScope.maybeReadOf(context);
+    final total = controller?.time?.totalRemainingSeconds ?? c.secondsRemaining;
+    return formatRemaining(total);
   }
 
   @override
@@ -795,7 +794,10 @@ class _NoCreditPanel extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Tu as utilisé tes consultations disponibles.',
+              // TIMER-D.1 — texte V1 « temps épuisé » (plus « consultations »).
+              quota?.isPremium == true
+                  ? 'Ton temps de consultation disponible est épuisé.'
+                  : 'Ton temps de consultation est épuisé.',
               style: AuryelText.display(
                 fontSize: 17,
                 fontWeight: FontWeight.w600,
@@ -812,7 +814,7 @@ class _NoCreditPanel extends StatelessWidget {
             ),
             const SizedBox(height: 4),
             Text(
-              '4 consultations de 2 h par mois · messages illimités pendant chacune',
+              '8 h de consultation par mois · messages illimités pendant chaque consultation',
               style: AuryelText.body(
                 fontSize: 13,
                 color: AuryelColors.textMuted,

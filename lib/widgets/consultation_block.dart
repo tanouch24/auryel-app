@@ -81,7 +81,8 @@ class _StandardCard extends StatelessWidget {
 
   (String, String) get _copy => switch (state) {
     ConsultationState.firstFree => (
-      'Ta première consultation de 2 h est offerte',
+      // TIMER-D.1 — 1 h offerte, une seule fois par compte.
+      'Ta première heure de consultation est offerte',
       'Commencer ma consultation',
     ),
     ConsultationState.subscriberAvailable => (

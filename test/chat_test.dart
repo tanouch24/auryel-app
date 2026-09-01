@@ -72,6 +72,22 @@ http.Response _json(Map<String, dynamic> body, [int status = 200]) =>
     http.Response(jsonEncode(body), status,
         headers: {'content-type': 'application/json'});
 
+Map<String, dynamic> _time({
+  int firstFree = 0,
+  int premium = 6500,
+  int purchased = 0,
+  bool windowActive = true,
+}) =>
+    {
+      'first_free_remaining_seconds': firstFree,
+      'premium_remaining_seconds': premium,
+      'purchased_remaining_seconds': purchased,
+      'total_remaining_seconds': firstFree + premium + purchased,
+      'window_active': windowActive,
+      'window_expires_at':
+          windowActive ? '2999-01-01T00:05:00Z' : null,
+    };
+
 Map<String, dynamic> _okBody({
   String reply = 'Je te vois clairement.',
   String advisorId = 'maia',
@@ -86,29 +102,40 @@ Map<String, dynamic> _okBody({
         'started_at': '2026-08-27T10:00:00Z',
         'expires_at': '2026-08-27T12:00:00Z',
         'seconds_remaining': secondsRemaining,
-        'credit_source': 'monthly',
+        'credit_source': 'time',
         'opened_now': openedNow,
       },
+      'time': _time(premium: secondsRemaining),
       'quota': {
         'is_premium': true,
-        'monthly_limit': 4,
+        'monthly_limit': 8,
         'monthly_used': 1,
-        'monthly_remaining': 3,
+        'monthly_remaining': 7,
         'earned_available': 0,
+        'first_free_available': false,
         'period_start': '2026-08-01T00:00:00Z',
         'period_end': '2026-09-01T00:00:00Z',
       },
     };
 
 const _noCreditBody = {
-  'error': 'no_credit',
+  'error': 'time_exhausted',
   'consultation': null,
+  'time': {
+    'first_free_remaining_seconds': 0,
+    'premium_remaining_seconds': 0,
+    'purchased_remaining_seconds': 0,
+    'total_remaining_seconds': 0,
+    'window_active': false,
+    'window_expires_at': null,
+  },
   'quota': {
     'is_premium': true,
-    'monthly_limit': 4,
-    'monthly_used': 4,
+    'monthly_limit': 8,
+    'monthly_used': 8,
     'monthly_remaining': 0,
     'earned_available': 0,
+    'first_free_available': false,
     'period_start': '2026-08-01T00:00:00Z',
     'period_end': '2026-09-01T00:00:00Z',
   },
@@ -195,14 +222,19 @@ void main() {
     expect(r.consultation!.id, 'c-1');
     expect(r.consultation!.advisorId, 'maia');
     expect(r.consultation!.secondsRemaining, 6500);
-    expect(r.consultation!.creditSource, 'monthly');
+    expect(r.consultation!.creditSource, 'time');
     expect(r.consultation!.openedNow, isTrue);
     expect(r.consultation!.startedAt, isA<DateTime>());
     expect(r.consultation!.expiresAt, isA<DateTime>());
+    // TIMER-D.1 — bloc `time` parsé, source de vérité.
+    expect(r.time, isNotNull);
+    expect(r.time!.totalRemainingSeconds, 6500);
+    expect(r.time!.premiumRemainingSeconds, 6500);
+    expect(r.time!.windowActive, isTrue);
     expect(r.quota.isPremium, isTrue);
-    expect(r.quota.monthlyLimit, 4);
+    expect(r.quota.monthlyLimit, 8);
     expect(r.quota.monthlyUsed, 1);
-    expect(r.quota.monthlyRemaining, 3);
+    expect(r.quota.monthlyRemaining, 7);
     expect(r.quota.earnedAvailable, 0);
     expect(r.quota.periodStart, isA<DateTime>());
   });
@@ -227,10 +259,10 @@ void main() {
     expect(r.quota.monthlyUsed, 0);
   });
 
-  test('formatRemaining : h/min/terminé', () {
-    expect(_ChatScreenStateFormat.f(6500), 'Consultation ouverte · 1 h 48 restantes');
-    expect(_ChatScreenStateFormat.f(600), 'Consultation ouverte · 10 min restantes');
-    expect(_ChatScreenStateFormat.f(0), 'Consultation terminée');
+  test('formatRemaining : portefeuille de temps / épuisé', () {
+    expect(_ChatScreenStateFormat.f(6500), 'Temps de consultation · 1 h 48 min');
+    expect(_ChatScreenStateFormat.f(600), 'Temps de consultation · 10 min');
+    expect(_ChatScreenStateFormat.f(0), 'Temps de consultation épuisé');
   });
 
   // =========================================================================
@@ -347,7 +379,8 @@ void main() {
     expect(find.text('deux'), findsOneWidget);
   });
 
-  testWidgets('402 -> écran no_credit, aucune fausse réponse', (t) async {
+  testWidgets('402 time_exhausted -> mur temps épuisé, aucune fausse réponse',
+      (t) async {
     final e = _env((_) async => _json(_noCreditBody, 402));
     await _pumpChat(t, auth: e.auth);
     await _type(t, 'coucou');
@@ -355,16 +388,44 @@ void main() {
     await t.tap(find.text('Commencer'));
     await t.pumpAndSettle();
 
-    expect(find.text('Tu as utilisé tes consultations disponibles.'), findsOneWidget);
+    // TIMER-D.1 — texte « temps épuisé » (variante Premium), plus « consultations ».
+    expect(find.text('Ton temps de consultation disponible est épuisé.'),
+        findsOneWidget);
     expect(find.text('Premium — 7,99 €/mois'), findsOneWidget);
     expect(
       find.text(
-          '4 consultations de 2 h par mois · messages illimités pendant chacune'),
+          '8 h de consultation par mois · messages illimités pendant chaque consultation'),
       findsOneWidget,
     );
-    expect(find.textContaining('10 consultations'), findsNothing);
+    expect(find.textContaining('consultations de 2 h'), findsNothing);
     expect(find.text('coucou'), findsNothing); // pas de bulle user
     expect(find.byType(TextField), findsNothing); // input remplacé
+  });
+
+  testWidgets('M — 402 ANCIEN "no_credit" (sans bloc time) : mur affiché, pas de crash',
+      (t) async {
+    const legacyBody = {
+      'error': 'no_credit',
+      'consultation': null,
+      'quota': {
+        'is_premium': false,
+        'monthly_limit': 4,
+        'monthly_used': 4,
+        'monthly_remaining': 0,
+        'earned_available': 0,
+      },
+    };
+    final e = _env((_) async => _json(legacyBody, 402));
+    await _pumpChat(t, auth: e.auth);
+    await _type(t, 'coucou');
+    await _tapSend(t);
+    await t.tap(find.text('Commencer'));
+    await t.pumpAndSettle();
+
+    // fallback : variante non-Premium du texte V1.
+    expect(find.text('Ton temps de consultation est épuisé.'), findsOneWidget);
+    expect(find.text('coucou'), findsNothing);
+    expect(find.byType(TextField), findsNothing);
   });
 
   testWidgets('I — "Découvrir Premium" ouvre PremiumScreen (plus de snackbar)',

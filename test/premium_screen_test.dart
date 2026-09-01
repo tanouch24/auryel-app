@@ -184,7 +184,7 @@ void main() {
     await t.pump();
 
     expect(find.text('Auryel Premium'), findsOneWidget);
-    expect(find.text('4 consultations de 2 h par mois'), findsOneWidget);
+    expect(find.text('8 h de consultation par mois'), findsOneWidget);
     expect(find.text('7,99 €'), findsOneWidget); // prix du store
     expect(find.text('S’abonner'), findsOneWidget);
     expect(find.text('Restaurer mes achats'), findsOneWidget);

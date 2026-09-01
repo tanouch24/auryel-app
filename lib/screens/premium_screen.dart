@@ -71,7 +71,9 @@ class _Body extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 18),
-          const _OfferLine('4 consultations de 2 h par mois'),
+          // TIMER-D.1 — 8 h de temps de consultation / mois (portefeuille),
+          // plus « 4 consultations » : le backend facture au temps réel.
+          const _OfferLine('8 h de consultation par mois'),
           const SizedBox(height: 10),
           const _OfferLine('Messages illimités pendant chaque consultation'),
           const SizedBox(height: 22),

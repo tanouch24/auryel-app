@@ -323,4 +323,53 @@ void main() {
     });
     e.consultation.dispose();
   });
+
+  // =========================================================================
+  // TIMER-D.1 — §11 : l'historique ne disparaît PAS quand `expires_at` est
+  // dépassé ou quand `window_active == false`.
+  // =========================================================================
+  testWidgets('H. expires_at PASSÉ + fenêtre inactive -> historique quand même chargé',
+      (t) async {
+    final e = _env((_) async => _json(_history('c-live', [
+          ('user', 'question d\'il y a longtemps'),
+          ('assistant', 'réponse d\'il y a longtemps'),
+        ])));
+    // On remplace l'état injecté par une consultation « ancienne » :
+    // expires_at très dans le passé, bloc time présent avec window_active=false
+    // mais du temps restant (portefeuille non vide).
+    e.consultation.updateFromMessageResponse(
+      ConsultationMessageResponse.fromJson({
+        'reply': 'x',
+        'consultation': {
+          'id': 'c-live',
+          'advisor_id': 'maia',
+          'started_at': '2020-01-01T10:00:00Z',
+          'expires_at': '2020-01-01T12:00:00Z', // largement dépassé
+          'seconds_remaining': 12000,
+          'credit_source': 'time',
+        },
+        'time': {
+          'first_free_remaining_seconds': 0,
+          'premium_remaining_seconds': 12000,
+          'purchased_remaining_seconds': 0,
+          'total_remaining_seconds': 12000,
+          'window_active': false,
+          'window_expires_at': null,
+        },
+        'quota': {'is_premium': true, 'monthly_limit': 8},
+      }),
+    );
+
+    expect(e.consultation.windowActive, isFalse);
+    expect(e.consultation.hasResumableConsultation, isTrue);
+
+    await _pumpChat(t, e);
+    await t.pump();
+    await t.pump();
+
+    expect(e.getMessagesCalls.length, 1); // l'historique EST demandé
+    expect(find.text('question d\'il y a longtemps'), findsOneWidget);
+    expect(find.text('réponse d\'il y a longtemps'), findsOneWidget);
+    e.consultation.dispose();
+  });
 }

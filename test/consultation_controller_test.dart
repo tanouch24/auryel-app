@@ -50,28 +50,53 @@ Map<String, dynamic> _quota({
       'period_end': '2026-09-01T00:00:00Z',
     };
 
-/// Corps `GET /state` (ou `POST /message`) avec une session active. Le champ
-/// `seconds_remaining` est volontairement absurde : il ne doit JAMAIS servir
-/// de source de vérité (le restant se dérive de `expires_at`).
+/// Bloc `time` (TIMER-D.1) — SOURCE DE VÉRITÉ du temps disponible.
+Map<String, dynamic> _time({
+  int firstFree = 0,
+  int premium = 28800,
+  int purchased = 0,
+  int? total,
+  bool windowActive = true,
+  Duration windowRemaining = const Duration(minutes: 5),
+}) {
+  final now = DateTime.now().toUtc();
+  return {
+    'first_free_remaining_seconds': firstFree,
+    'premium_remaining_seconds': premium,
+    'purchased_remaining_seconds': purchased,
+    'total_remaining_seconds': total ?? (firstFree + premium + purchased),
+    'window_active': windowActive,
+    'window_expires_at':
+        windowActive ? now.add(windowRemaining).toIso8601String() : null,
+  };
+}
+
+/// Corps `GET /state` (ou `POST /message`) avec une consultation active.
+/// `remaining` mappe le PORTEFEUILLE DE TEMPS total (bloc `time`). `expires_at`
+/// est renvoyé pour compat mais n'est JAMAIS un cutoff.
 Map<String, dynamic> _activeState({
   String advisorId = 'maia',
   Duration remaining = const Duration(hours: 2),
   int monthlyLimit = 10,
   int monthlyUsed = 1,
-  int secondsRemainingField = 999999,
+  bool windowActive = true,
+  bool includeTime = true,
 }) {
   final now = DateTime.now().toUtc();
+  final totalSeconds = remaining.inSeconds;
   return {
     'consultation': {
       'id': 'c-1',
       'advisor_id': advisorId,
       'started_at':
           now.subtract(const Duration(minutes: 5)).toIso8601String(),
-      'expires_at': now.add(remaining).toIso8601String(),
-      'seconds_remaining': secondsRemainingField,
-      'credit_source': 'monthly',
+      'expires_at': now.add(const Duration(hours: 2)).toIso8601String(),
+      'seconds_remaining': totalSeconds,
+      'credit_source': 'time',
       'opened_now': false,
     },
+    if (includeTime)
+      'time': _time(premium: totalSeconds, windowActive: windowActive),
     'quota': _quota(monthlyLimit: monthlyLimit, monthlyUsed: monthlyUsed),
   };
 }
@@ -82,9 +107,15 @@ Map<String, dynamic> _noState({
   bool isPremium = true,
   bool firstFree = false,
   int earned = 0,
+  int? timeTotal,
 }) =>
     {
       'consultation': null,
+      'time': _time(
+        premium: timeTotal ?? (isPremium ? 28800 : 0),
+        firstFree: firstFree ? 3600 : 0,
+        windowActive: false,
+      ),
       'quota': _quota(
         monthlyLimit: monthlyLimit,
         monthlyUsed: monthlyUsed,
@@ -94,10 +125,11 @@ Map<String, dynamic> _noState({
       ),
     };
 
-Map<String, dynamic> _noCreditBody({int monthlyUsed = 10}) => {
-      'error': 'no_credit',
+Map<String, dynamic> _noCreditBody({int monthlyUsed = 8}) => {
+      'error': 'time_exhausted',
       'consultation': null,
-      'quota': _quota(monthlyLimit: 10, monthlyUsed: monthlyUsed),
+      'time': _time(premium: 0, windowActive: false),
+      'quota': _quota(monthlyLimit: 8, monthlyUsed: monthlyUsed),
     };
 
 typedef _Rig = ({
@@ -243,51 +275,84 @@ void main() {
       expect(rig.controller.quota!.monthlyLimit, 10);
     });
 
-    test('remaining dérivé de expiresAt, pas de seconds_remaining', () async {
+    test('remaining dérivé de time.total, jamais de expiresAt', () async {
       final rig = _rig((_) async => _json(_activeState(
-            remaining: const Duration(minutes: 90),
-            secondsRemainingField: 999999,
+            remaining: const Duration(minutes: 90), // -> time.total = 5400
           )));
       await rig.controller.refresh();
-      expect(rig.controller.remaining.inMinutes, closeTo(90, 1));
-      expect(rig.controller.remaining.inSeconds, lessThan(999999));
+      expect(rig.controller.remaining.inSeconds, 5400);
+      // expiresAt du fixture = now + 2 h ; ignoré (sinon on lirait ~7200 s).
+      expect(rig.controller.remaining.inMinutes, 90);
     });
 
-    test('formatRemaining : XhMM', () {
-      expect(
-          ConsultationController.formatRemaining(
-              const Duration(hours: 1, minutes: 40)),
-          '1h40');
-      expect(ConsultationController.formatRemaining(const Duration(hours: 2)),
-          '2h00');
-      expect(ConsultationController.formatRemaining(const Duration(minutes: 5)),
-          '0h05');
-      expect(
-          ConsultationController.formatRemaining(const Duration(seconds: -30)),
-          '0h00');
+    test('backend SANS bloc time : fallback sur consultation.secondsRemaining',
+        () async {
+      final rig = _rig((_) async => _json(_activeState(
+            remaining: const Duration(minutes: 42),
+            includeTime: false, // simule un backend distant ancien
+          )));
+      await rig.controller.refresh();
+      expect(rig.controller.time, isNull);
+      expect(rig.controller.remaining.inSeconds, 42 * 60);
+      expect(rig.controller.hasActiveSession, isTrue);
     });
 
-    test('expiration locale : isExpired vrai, hasActiveSession faux', () async {
-      final rig = _rig((_) async =>
-          _json(_activeState(remaining: const Duration(seconds: -5))));
+    test('formatTotalTime : portefeuille d\'heures', () {
+      expect(ConsultationController.formatTotalTime(28800), '8 h');
+      expect(ConsultationController.formatTotalTime(27720), '7 h 42 min');
+      expect(ConsultationController.formatTotalTime(3600), '1 h');
+      expect(ConsultationController.formatTotalTime(3900), '1 h 05 min');
+      expect(ConsultationController.formatTotalTime(3300), '55 min');
+      expect(ConsultationController.formatTotalTime(30), '< 1 min');
+      expect(ConsultationController.formatTotalTime(0), '0 min');
+      expect(ConsultationController.formatTotalTime(-30), '0 min');
+      // compat : ancienne signature Duration
+      expect(
+          ConsultationController.formatRemaining(const Duration(hours: 1, minutes: 40)),
+          '1 h 40 min');
+    });
+
+    test('temps épuisé : isExpired vrai, hasActiveSession faux', () async {
+      final rig = _rig((_) async => _json(_activeState(
+            remaining: const Duration(seconds: 0), // time.total = 0
+          )));
       await rig.controller.refresh();
       expect(rig.controller.isExpired, isTrue);
       expect(rig.controller.hasActiveSession, isFalse);
+      // ...mais la consultation reste RÉSUMABLE (historique visible).
+      expect(rig.controller.hasResumableConsultation, isTrue);
       expect(rig.controller.remaining, Duration.zero);
     });
 
-    test('le tick 1s notifie mais ne touche jamais expiresAt/seconds_remaining',
+    test('le tick 1s ne tourne QUE fenêtre active, sans muter aucune donnée',
         () async {
-      final rig = _rig((_) async =>
-          _json(_activeState(remaining: const Duration(hours: 1))));
+      final rig = _rig((_) async => _json(_activeState(
+            remaining: const Duration(hours: 1),
+          ))); // windowActive = true par défaut
       await rig.controller.refresh();
       final exp = rig.controller.active!.expiresAt;
+      final sec = rig.controller.active!.secondsRemaining;
       var notifs = 0;
       rig.controller.addListener(() => notifs++);
       await Future<void>.delayed(const Duration(milliseconds: 1100));
       expect(rig.controller.active!.expiresAt, exp);
-      expect(rig.controller.active!.secondsRemaining, 999999);
+      expect(rig.controller.active!.secondsRemaining, sec);
+      expect(rig.controller.remaining.inSeconds, 3600);
       expect(notifs, greaterThanOrEqualTo(1));
+    });
+
+    test('fenêtre inactive : aucun tick', () async {
+      final rig = _rig((_) async => _json(_activeState(
+            remaining: const Duration(hours: 1),
+            windowActive: false,
+          )));
+      await rig.controller.refresh();
+      var notifs = 0;
+      rig.controller.addListener(() => notifs++);
+      await Future<void>.delayed(const Duration(milliseconds: 1100));
+      expect(notifs, 0);
+      // consultation toujours résumable + du temps dispo.
+      expect(rig.controller.hasActiveSession, isTrue);
     });
 
     test('erreur réseau : état connu conservé + refreshError', () async {
@@ -399,7 +464,7 @@ void main() {
   // D. Accueil
   // =========================================================================
   group('D. Accueil', () {
-    testWidgets('session active -> "Reprendre ma consultation · XhXX restante"',
+    testWidgets('consultation active -> "Reprendre ma consultation · 3 h"',
         (t) async {
       final rig = _rig((req) async {
         if (req.url.path == '/api/consultation/state') {
@@ -416,7 +481,8 @@ void main() {
       await t.pumpAndSettle(); // vide les timers flutter_animate de l'accueil
 
       expect(find.textContaining('Reprendre ma consultation ·'), findsOneWidget);
-      expect(find.textContaining('restante'), findsOneWidget);
+      // TIMER-D.1 — portefeuille d'heures, pas un countdown de session.
+      expect(find.textContaining('3 h'), findsOneWidget);
       expect(find.text('Commencer ma consultation'), findsNothing);
     });
 
@@ -454,25 +520,11 @@ void main() {
       expect(find.textContaining('offerte'), findsOneWidget);
     });
 
-    testWidgets('crédit gagné (non Premium) -> CTA abonné', (t) async {
+    testWidgets('TIMER-D.1 : crédit gagné SANS temps -> S’abonner (l\'earned ne '
+        'déverrouille plus l\'accès)', (t) async {
       final rig = _rig((req) async {
         if (req.url.path == '/api/consultation/state') {
-          return _json(_noState(isPremium: false, earned: 1));
-        }
-        return _json({}, 404);
-      });
-      await rig.controller.refresh();
-      await _pumpWithin(t, rig, const HomeScreen());
-      await t.pumpAndSettle();
-      expect(find.text('Ouvrir une consultation'), findsOneWidget);
-    });
-
-    testWidgets('ni gratuite, ni Premium, ni crédit -> S’abonner',
-        (t) async {
-      final rig = _rig((req) async {
-        if (req.url.path == '/api/consultation/state') {
-          return _json(_noState(
-              isPremium: false, monthlyLimit: 0, monthlyUsed: 0, earned: 0));
+          return _json(_noState(isPremium: false, earned: 1, timeTotal: 0));
         }
         return _json({}, 404);
       });
@@ -482,10 +534,38 @@ void main() {
       expect(find.text('S’abonner pour consulter'), findsOneWidget);
     });
 
-    testWidgets('Premium quota épuisé -> S’abonner', (t) async {
+    testWidgets('temps disponible -> CTA "Ouvrir une consultation"', (t) async {
       final rig = _rig((req) async {
         if (req.url.path == '/api/consultation/state') {
-          return _json(_noState(monthlyLimit: 4, monthlyUsed: 4));
+          return _json(_noState(timeTotal: 12000)); // ~3 h 20
+        }
+        return _json({}, 404);
+      });
+      await rig.controller.refresh();
+      await _pumpWithin(t, rig, const HomeScreen());
+      await t.pumpAndSettle();
+      expect(find.text('Ouvrir une consultation'), findsOneWidget);
+    });
+
+    testWidgets('ni gratuite, ni temps -> S’abonner', (t) async {
+      final rig = _rig((req) async {
+        if (req.url.path == '/api/consultation/state') {
+          return _json(_noState(
+              isPremium: false, monthlyLimit: 0, monthlyUsed: 0, earned: 0,
+              timeTotal: 0));
+        }
+        return _json({}, 404);
+      });
+      await rig.controller.refresh();
+      await _pumpWithin(t, rig, const HomeScreen());
+      await t.pumpAndSettle();
+      expect(find.text('S’abonner pour consulter'), findsOneWidget);
+    });
+
+    testWidgets('Premium SANS temps restant -> S’abonner', (t) async {
+      final rig = _rig((req) async {
+        if (req.url.path == '/api/consultation/state') {
+          return _json(_noState(timeTotal: 0)); // Premium mais time.total = 0
         }
         return _json({}, 404);
       });
@@ -645,7 +725,7 @@ void main() {
       expect(rig.controller.active, isNull);
     });
 
-    testWidgets('402 -> mur Premium inchangé + quota resynchronisé, pas de session',
+    testWidgets('402 time_exhausted -> mur Premium + time/quota resync, pas de session',
         (t) async {
       final rig = _rig((req) async {
         if (req.url.path == '/api/consultation/state') {
@@ -669,10 +749,12 @@ void main() {
       await t.tap(find.text('Commencer'));
       await t.pumpAndSettle();
 
-      expect(find.text('Tu as utilisé tes consultations disponibles.'),
+      expect(find.text('Ton temps de consultation disponible est épuisé.'),
           findsOneWidget);
       expect(find.text('Premium — 7,99 €/mois'), findsOneWidget);
       expect(rig.controller.active, isNull);
+      // TIMER-D.1 — le corps du 402 resynchronise `time` (0) + `quota`.
+      expect(rig.controller.time!.totalRemainingSeconds, 0);
       expect(rig.controller.quota!.monthlyUsed, 10);
     });
 

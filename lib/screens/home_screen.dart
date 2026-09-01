@@ -61,8 +61,17 @@ class HomeScreen extends StatelessWidget {
   static ConsultationState _deriveState(ConsultationController c) {
     if (c.hasActiveSession) return ConsultationState.active;
     final q = c.quota;
+    if (q?.firstFreeAvailable == true) return ConsultationState.firstFree;
+    // TIMER-D.1 — l'accès dépend du PORTEFEUILLE DE TEMPS, pas du nombre de
+    // consultations. `time` présent => on tranche dessus.
+    final t = c.time;
+    if (t != null) {
+      return t.hasTime
+          ? ConsultationState.subscriberAvailable
+          : ConsultationState.locked;
+    }
+    // Fallback backend ancien (pas de bloc `time`) : logique quota historique.
     if (q == null) return ConsultationState.firstFree;
-    if (q.firstFreeAvailable) return ConsultationState.firstFree;
     if (q.isPremium && q.monthlyRemaining > 0) {
       return ConsultationState.subscriberAvailable;
     }
@@ -80,16 +89,17 @@ class HomeScreen extends StatelessWidget {
   ) {
     if (consultation.hasActiveSession) {
       final session = consultation.active!;
-      // Le conseiller backend prime pendant la session.
+      // Le conseiller backend prime pendant la session (figé si fenêtre active).
       final advisor = advisorByGuideKey(session.advisorId) ?? fallbackAdvisor;
-      final remaining = ConsultationController.formatRemaining(
-        consultation.remaining,
+      // TIMER-D.1 — portefeuille de temps total, pas un countdown de session.
+      final remaining = ConsultationController.formatTotalTime(
+        consultation.remaining.inSeconds,
       );
       return ConsultationBlock(
         state: ConsultationState.active,
         advisorName: advisor.name,
         advisorAssetPath: advisor.assetPath,
-        activeResumeLabel: 'Reprendre ma consultation · $remaining restante',
+        activeResumeLabel: 'Reprendre ma consultation · $remaining',
         onStart: () => _openChat(context, advisor),
       );
     }

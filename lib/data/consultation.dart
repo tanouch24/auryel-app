@@ -1,4 +1,83 @@
-/// DTO d'une consultation 2 h renvoyée par `POST /api/consultation/message`.
+/// Portefeuille de temps de consultation renvoyé par le backend (bloc `time`
+/// de `GET /api/consultation/state`, `POST /api/consultation/message` et du
+/// corps d'un 402 `time_exhausted`).
+///
+/// TIMER-D.1 — c'est désormais LA SOURCE DE VÉRITÉ du temps disponible :
+///   - `totalRemainingSeconds` = temps total exploitable (somme des 3 buckets)
+///   - `firstFree/premium/purchased` = détail par bucket (1 h offerte / 8 h
+///     Premium par période / heures achetées)
+///   - `windowActive` / `windowExpiresAt` = fenêtre d'activité de 5 min (le
+///     backend facture le temps par tranche de 5 min ; cette fenêtre ne
+///     détermine PAS si la consultation est « finie »).
+///
+/// On ne dérive JAMAIS le temps de `expiresAt - now` : `expiresAt` n'est plus
+/// qu'une valeur de compat backend.
+class ConsultationTimeState {
+  const ConsultationTimeState({
+    required this.firstFreeRemainingSeconds,
+    required this.premiumRemainingSeconds,
+    required this.purchasedRemainingSeconds,
+    required this.totalRemainingSeconds,
+    required this.windowActive,
+    required this.windowExpiresAt,
+  });
+
+  final int firstFreeRemainingSeconds;
+  final int premiumRemainingSeconds;
+  final int purchasedRemainingSeconds;
+  final int totalRemainingSeconds;
+  final bool windowActive;
+  final DateTime? windowExpiresAt;
+
+  /// État « aucun temps » (utilisé pour un 402 `time_exhausted` sans bloc
+  /// `time` exploitable, ou comme valeur neutre).
+  static const empty = ConsultationTimeState(
+    firstFreeRemainingSeconds: 0,
+    premiumRemainingSeconds: 0,
+    purchasedRemainingSeconds: 0,
+    totalRemainingSeconds: 0,
+    windowActive: false,
+    windowExpiresAt: null,
+  );
+
+  bool get hasTime => totalRemainingSeconds > 0;
+
+  /// Somme des 3 buckets — filet si le backend n'envoie pas `total`.
+  int get bucketSum =>
+      firstFreeRemainingSeconds +
+      premiumRemainingSeconds +
+      purchasedRemainingSeconds;
+
+  factory ConsultationTimeState.fromJson(Map<String, dynamic> json) {
+    final ff = _clampPos(_int(json['first_free_remaining_seconds']));
+    final pr = _clampPos(_int(json['premium_remaining_seconds']));
+    final pu = _clampPos(_int(json['purchased_remaining_seconds']));
+    final total = json.containsKey('total_remaining_seconds')
+        ? _clampPos(_int(json['total_remaining_seconds']))
+        : ff + pr + pu;
+    return ConsultationTimeState(
+      firstFreeRemainingSeconds: ff,
+      premiumRemainingSeconds: pr,
+      purchasedRemainingSeconds: pu,
+      totalRemainingSeconds: total,
+      windowActive: json['window_active'] == true,
+      windowExpiresAt: _date(json['window_expires_at']),
+    );
+  }
+
+  /// `null` quand la clé `time` est absente / n'est pas un objet : le backend
+  /// distant peut être ANCIEN (avant le déploiement coordonné du modèle
+  /// temps). L'appelant applique alors son fallback legacy — il ne doit PAS
+  /// interpréter ça comme « 0 seconde ». Après le déploiement coordonné, le
+  /// bloc `time` est toujours présent.
+  static ConsultationTimeState? maybeFromJson(Object? raw) =>
+      raw is Map<String, dynamic>
+          ? ConsultationTimeState.fromJson(raw)
+          : null;
+}
+
+/// DTO d'une consultation renvoyée par `POST /api/consultation/message` /
+/// `GET /api/consultation/state`.
 class ConsultationDto {
   const ConsultationDto({
     required this.id,
@@ -13,14 +92,24 @@ class ConsultationDto {
   final String id;
 
   /// Clé conseiller backend (`selena`…`raphael`) — SOURCE DE VÉRITÉ du header
-  /// pendant la session, prime sur le conseiller du profil.
+  /// pendant la session, prime sur le conseiller du profil. Pendant une
+  /// fenêtre d'activité, le backend FIGE ce conseiller même si le préféré
+  /// local a changé : ne jamais présumer que c'est le préféré local.
   final String advisorId;
   final DateTime? startedAt;
+
+  /// TIMER-D.1 — COMPAT UNIQUEMENT. Le backend renvoie encore `expires_at`
+  /// (colonne NOT NULL, valeur = `started_at + 2 h`) mais elle n'est PLUS un
+  /// cutoff : ne jamais l'utiliser pour décider si la consultation est active
+  /// ni pour calculer le temps restant.
   final DateTime? expiresAt;
 
-  /// Secondes restantes telles qu'envoyées par le serveur (F3 ne fait pas de
-  /// décompte local seconde par seconde — c'est F4).
+  /// TIMER-D.1 — vaut désormais `time.total_remaining_seconds` (portefeuille
+  /// de temps TOTAL, tous buckets), et non plus `expiresAt - now`. Pas de
+  /// décompte local seconde par seconde sur ce total.
   final int secondsRemaining;
+
+  /// `"time"` pour une consultation ouverte par le moteur temps.
   final String creditSource;
   final bool openedNow;
 
@@ -113,6 +202,20 @@ class QuotaDto {
   /// réponses / fixtures -> `false` (comportement sûr : pas de gratuite).
   final bool firstFreeAvailable;
 
+  /// SHIM DE COMPAT UI. `monthlyLimit` vaut 8 = HEURES Premium / mois, PAS un
+  /// nombre de consultations. `monthlyRemaining` / `monthlyUsed` ne pilotent
+  /// PLUS l'accès au chat (c'est `ConsultationTimeState.totalRemainingSeconds`
+  /// qui décide). Gardé parsé pour les écrans existants uniquement.
+  static const empty = QuotaDto(
+    isPremium: false,
+    monthlyLimit: 0,
+    monthlyUsed: 0,
+    monthlyRemaining: 0,
+    earnedAvailable: 0,
+    periodStart: null,
+    periodEnd: null,
+  );
+
   factory QuotaDto.fromJson(Map<String, dynamic> json) => QuotaDto(
     isPremium: json['is_premium'] == true,
     monthlyLimit: _int(json['monthly_limit']),
@@ -131,11 +234,16 @@ class ConsultationMessageResponse {
     required this.reply,
     required this.consultation,
     required this.quota,
+    this.time,
   });
 
   final String reply;
   final ConsultationDto? consultation;
   final QuotaDto quota;
+
+  /// TIMER-D.1 — bloc `time` (source de vérité). `null` si le backend distant
+  /// est encore ancien (fallback legacy côté contrôleur).
+  final ConsultationTimeState? time;
 
   factory ConsultationMessageResponse.fromJson(Map<String, dynamic> json) {
     final c = json['consultation'];
@@ -145,17 +253,8 @@ class ConsultationMessageResponse {
       consultation: c is Map<String, dynamic>
           ? ConsultationDto.fromJson(c)
           : null,
-      quota: q is Map<String, dynamic>
-          ? QuotaDto.fromJson(q)
-          : const QuotaDto(
-              isPremium: false,
-              monthlyLimit: 0,
-              monthlyUsed: 0,
-              monthlyRemaining: 0,
-              earnedAvailable: 0,
-              periodStart: null,
-              periodEnd: null,
-            ),
+      quota: q is Map<String, dynamic> ? QuotaDto.fromJson(q) : QuotaDto.empty,
+      time: ConsultationTimeState.maybeFromJson(json['time']),
     );
   }
 }
@@ -166,10 +265,14 @@ class ConsultationStateResponse {
   const ConsultationStateResponse({
     required this.consultation,
     required this.quota,
+    this.time,
   });
 
   final ConsultationDto? consultation;
   final QuotaDto quota;
+
+  /// TIMER-D.1 — bloc `time` (source de vérité). `null` si backend ancien.
+  final ConsultationTimeState? time;
 
   factory ConsultationStateResponse.fromJson(Map<String, dynamic> json) {
     final c = json['consultation'];
@@ -178,17 +281,8 @@ class ConsultationStateResponse {
       consultation: c is Map<String, dynamic>
           ? ConsultationDto.fromJson(c)
           : null,
-      quota: q is Map<String, dynamic>
-          ? QuotaDto.fromJson(q)
-          : const QuotaDto(
-              isPremium: false,
-              monthlyLimit: 0,
-              monthlyUsed: 0,
-              monthlyRemaining: 0,
-              earnedAvailable: 0,
-              periodStart: null,
-              periodEnd: null,
-            ),
+      quota: q is Map<String, dynamic> ? QuotaDto.fromJson(q) : QuotaDto.empty,
+      time: ConsultationTimeState.maybeFromJson(json['time']),
     );
   }
 }
@@ -198,6 +292,8 @@ int _int(Object? v) {
   if (v is num) return v.toInt();
   return int.tryParse(v?.toString() ?? '') ?? 0;
 }
+
+int _clampPos(int v) => v < 0 ? 0 : v;
 
 DateTime? _date(Object? v) =>
     (v is String && v.isNotEmpty) ? DateTime.tryParse(v) : null;

@@ -7,7 +7,7 @@ import 'package:auryel/widgets/consultation_block.dart';
 
 void main() {
   group('J — ConsultationBlock (F5-C)', () {
-    testWidgets('firstFree affiche "2 h" et plus "24h"', (t) async {
+    testWidgets('firstFree affiche "1 h offerte" et plus "24h"', (t) async {
       await t.pumpWidget(
         MaterialApp(
           home: Scaffold(
@@ -21,7 +21,7 @@ void main() {
         ),
       );
       expect(
-        find.text('Ta première consultation de 2 h est offerte'),
+        find.text('Ta première heure de consultation est offerte'),
         findsOneWidget,
       );
       expect(find.textContaining('24h'), findsNothing);
