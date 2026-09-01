@@ -14,6 +14,7 @@ import '../state/consultation_controller.dart';
 import '../theme/auryel_theme.dart';
 import '../widgets/advisors_carousel.dart';
 import '../widgets/gold_button.dart';
+import '../widgets/tarot_fan.dart';
 
 /// Onglet « Tirage » — l'utilisateur choisit LUI-MÊME 3 cartes parmi les 22
 /// arcanes majeurs, mélangés une fois à l'ouverture. Aucune carte n'est servie
@@ -186,34 +187,63 @@ class _TirageScreenState extends State<TirageScreen> {
             letterSpacing: 1,
           ),
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: 8),
+        // UX-B §9-§12 — les 22 arcanes ENSEMBLE en éventail, sans scroll
+        // horizontal. Chaque carte est tapable (indices 0 et 21 compris).
         Expanded(
-          child: Center(
-            child: SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 24),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.center,
-                children: [
-                  for (var i = 0; i < _deck.length; i++)
-                    Padding(
-                      padding: EdgeInsets.only(
-                        right: i == _deck.length - 1 ? 0 : 10,
-                      ),
-                      child: _SelectableBack(
-                        key: ValueKey('tarot-back-$i'),
-                        selectionNumber: _selectionNumber(i),
-                        onTap: () => _select(i),
-                      ).animate().fadeIn(delay: (18 * i).ms, duration: 350.ms),
-                    ),
-                ],
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+            child: Opacity(
+              opacity: count == _maxCards ? 0.72 : 1,
+              child: TarotFan(
+                count: _deck.length,
+                selectionNumberFor: _selectionNumber,
+                onTap: _select,
+                enabled:
+                    !_revealed &&
+                    _save != _SaveState.saving &&
+                    count < _maxCards,
               ),
             ),
           ),
         ),
+        if (count == _maxCards) _buildChosenSummary(),
         if (count == _maxCards) _buildSaveArea(),
         const SizedBox(height: 16),
       ],
+    );
+  }
+
+  /// UX-B §13 — une fois les 3 cartes choisies : on les met clairement en
+  /// avant (Carte 1 / 2 / 3), TOUJOURS dos visible avant révélation.
+  Widget _buildChosenSummary() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(28, 2, 28, 2),
+      child: Column(
+        children: [
+          Text(
+            'Tes 3 cartes sont choisies',
+            style: AuryelText.body(
+              fontSize: 13.5,
+              fontWeight: FontWeight.w600,
+              color: AuryelColors.goldLight,
+            ),
+          ),
+          const SizedBox(height: 10),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              for (var pos = 0; pos < _selectedIndexes.length; pos++)
+                Padding(
+                  padding: EdgeInsets.only(
+                    right: pos == _selectedIndexes.length - 1 ? 0 : 16,
+                  ),
+                  child: _ChosenMiniBack(number: pos + 1),
+                ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 
@@ -457,112 +487,83 @@ class _TirageScreenState extends State<TirageScreen> {
   }
 }
 
-/// Dos de carte tapable — motif or sur `surfaceLight`. Quand la carte est
-/// sélectionnée : bordure or vive, léger soulèvement et pastille numérotée.
-class _SelectableBack extends StatelessWidget {
-  const _SelectableBack({
-    super.key,
-    required this.selectionNumber,
-    required this.onTap,
-  });
+/// UX-B §13 — mini dos de carte numéroté (1/2/3) du récapitulatif « Tes 3
+/// cartes sont choisies ». DOS visible, jamais de face avant ici.
+class _ChosenMiniBack extends StatelessWidget {
+  const _ChosenMiniBack({required this.number});
 
-  final int? selectionNumber;
-  final VoidCallback onTap;
-
-  static const double _w = 66;
-  static const double _h = 100;
+  final int number;
 
   @override
   Widget build(BuildContext context) {
-    final selected = selectionNumber != null;
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        borderRadius: BorderRadius.circular(10),
-        onTap: onTap,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 200),
-          curve: Curves.easeOutCubic,
-          transform: Matrix4.translationValues(0, selected ? -14 : 0, 0),
-          width: _w,
-          height: _h + 16,
-          alignment: Alignment.bottomCenter,
-          child: Stack(
-            clipBehavior: Clip.none,
-            alignment: Alignment.topCenter,
-            children: [
-              Container(
-                width: _w,
-                height: _h,
-                padding: const EdgeInsets.all(3),
-                decoration: BoxDecoration(
-                  color: AuryelColors.surfaceLight,
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(
-                    color: AuryelColors.gold.withValues(
-                      alpha: selected ? 0.95 : 0.5,
-                    ),
-                    width: selected ? 1.6 : 1,
-                  ),
-                  boxShadow: [
-                    BoxShadow(
-                      color: selected
-                          ? AuryelColors.gold.withValues(alpha: 0.28)
-                          : AuryelColors.backgroundDeep.withValues(alpha: 0.5),
-                      blurRadius: selected ? 16 : 8,
-                      spreadRadius: selected ? 1 : 0,
-                      offset: const Offset(0, 4),
-                    ),
-                  ],
-                ),
+    return Stack(
+      clipBehavior: Clip.none,
+      alignment: Alignment.topCenter,
+      children: [
+        Container(
+          width: 46,
+          height: 70,
+          padding: const EdgeInsets.all(3),
+          decoration: BoxDecoration(
+            color: AuryelColors.surfaceLight,
+            borderRadius: BorderRadius.circular(9),
+            border: Border.all(
+              color: AuryelColors.gold.withValues(alpha: 0.9),
+              width: 1.4,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: AuryelColors.gold.withValues(alpha: 0.22),
+                blurRadius: 14,
+                spreadRadius: 1,
+                offset: const Offset(0, 3),
+              ),
+            ],
+          ),
+          child: Container(
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(6),
+              border: Border.all(
+                color: AuryelColors.gold.withValues(alpha: 0.3),
+                width: 0.6,
+              ),
+            ),
+            child: Center(
+              child: Transform.rotate(
+                angle: 0.785398,
                 child: Container(
+                  width: 8,
+                  height: 8,
                   decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(7),
-                    border: Border.all(
-                      color: AuryelColors.gold.withValues(alpha: 0.3),
-                      width: 0.6,
-                    ),
-                  ),
-                  child: Center(
-                    child: Transform.rotate(
-                      angle: 0.785398,
-                      child: Container(
-                        width: 9,
-                        height: 9,
-                        decoration: BoxDecoration(
-                          gradient: AuryelColors.goldGradient,
-                          borderRadius: BorderRadius.circular(2),
-                        ),
-                      ),
-                    ),
+                    gradient: AuryelColors.goldGradient,
+                    borderRadius: BorderRadius.circular(2),
                   ),
                 ),
               ),
-              if (selected)
-                Positioned(
-                  top: -10,
-                  child: Container(
-                    width: 22,
-                    height: 22,
-                    alignment: Alignment.center,
-                    decoration: const BoxDecoration(
-                      shape: BoxShape.circle,
-                      gradient: AuryelColors.goldGradient,
-                    ),
-                    child: Text(
-                      '$selectionNumber',
-                      style: AuryelText.body(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w700,
-                        color: AuryelColors.backgroundDeep,
-                      ),
-                    ),
-                  ),
-                ),
-            ],
+            ),
           ),
         ),
-      ),
+        Positioned(
+          top: -10,
+          child: Container(
+            width: 20,
+            height: 20,
+            alignment: Alignment.center,
+            decoration: const BoxDecoration(
+              shape: BoxShape.circle,
+              gradient: AuryelColors.goldGradient,
+            ),
+            child: Text(
+              '$number',
+              style: AuryelText.body(
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+                color: AuryelColors.backgroundDeep,
+              ),
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

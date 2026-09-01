@@ -2,12 +2,20 @@ import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
 import 'package:phosphor_icons/phosphor_icons.dart';
 
+import '../state/auryel_state.dart';
+import '../state/consultation_controller.dart';
 import '../theme/auryel_theme.dart';
 import '../widgets/advisors_carousel.dart';
+import 'chat_screen.dart';
 
 /// Fiche complète d'un conseiller : portrait, présentation, vocal, CTA.
 /// Même identité premium noir/or que le reste de l'appli.
-class AdvisorDetailScreen extends StatelessWidget {
+///
+/// UX-B §6 — le CTA du bas est branché :
+///   * conseiller déjà préféré  -> « Commencer ma consultation » (ouvre le chat)
+///   * autre conseiller         -> « Choisir ce conseiller » (change le préféré,
+///     synchro backend `guide` seul, aucun crédit, aucune consultation créée).
+class AdvisorDetailScreen extends StatefulWidget {
   const AdvisorDetailScreen({
     super.key,
     required this.advisor,
@@ -15,11 +23,130 @@ class AdvisorDetailScreen extends StatelessWidget {
   });
 
   final AdvisorInfo advisor;
+
+  /// Nom du conseiller préféré au moment de l'ouverture — sert au rendu initial.
+  /// L'action lit toujours l'état LIVE via [AuryelStateScope].
   final String? selectedAdvisorName;
 
   @override
+  State<AdvisorDetailScreen> createState() => _AdvisorDetailScreenState();
+}
+
+class _AdvisorDetailScreenState extends State<AdvisorDetailScreen> {
+  bool _busy = false;
+
+  AdvisorInfo get _advisor => widget.advisor;
+
+  Future<void> _onCta() async {
+    if (_busy) return;
+    final state = AuryelStateScope.of(context);
+    final isSelected = _advisor.name == state.selectedAdvisor;
+
+    if (isSelected) {
+      Navigator.of(context).push(
+        MaterialPageRoute(builder: (_) => ChatScreen(advisor: _advisor)),
+      );
+      return;
+    }
+    await _choose(state);
+  }
+
+  Future<void> _choose(AuryelState state) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final navigator = Navigator.of(context);
+    final consultation = ConsultationScope.maybeReadOf(context);
+
+    // UX-B §7 — une consultation active avec un AUTRE conseiller n'est pas une
+    // erreur : elle continue, seul le préféré (prochaine consultation) change.
+    final activeOtherId =
+        (consultation != null &&
+            consultation.hasActiveSession &&
+            consultation.active?.advisorId != null &&
+            consultation.active!.advisorId.isNotEmpty &&
+            consultation.active!.advisorId != _advisor.guideKey)
+        ? consultation.active!.advisorId
+        : null;
+
+    if (activeOtherId != null) {
+      final activeName =
+          advisorByGuideKey(activeOtherId)?.name ?? 'ton conseiller';
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          backgroundColor: AuryelColors.surface,
+          title: Text(
+            'Ta consultation en cours continue',
+            style: AuryelText.cardTitle(),
+          ),
+          content: Text(
+            'Ta consultation avec $activeName reste ouverte jusqu’à sa '
+            'fin.\n\n${_advisor.name} deviendra ton conseiller pour ta '
+            'prochaine consultation.',
+            style: AuryelText.bodySecondary(color: AuryelColors.textSecondary),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(false),
+              child: Text(
+                'Annuler',
+                style: AuryelText.body(color: AuryelColors.textMuted),
+              ),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(true),
+              child: Text(
+                'Choisir ${_advisor.name}',
+                style: AuryelText.body(
+                  color: AuryelColors.goldLight,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+      if (confirmed != true || !mounted) return;
+    }
+
+    setState(() => _busy = true);
+    final outcome = await state.changeAdvisor(_advisor.name, _advisor.guideKey);
+    if (!mounted) return;
+    setState(() => _busy = false);
+
+    switch (outcome) {
+      case AdvisorChangeOutcome.synced:
+      case AdvisorChangeOutcome.localOnly:
+        messenger.showSnackBar(
+          SnackBar(
+            content: Text('${_advisor.name} est maintenant ton conseiller.'),
+          ),
+        );
+        navigator.popUntil((r) => r.isFirst);
+      case AdvisorChangeOutcome.unchanged:
+        navigator.popUntil((r) => r.isFirst);
+      case AdvisorChangeOutcome.networkFailed:
+        messenger.showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Connexion impossible — ton conseiller n’a pas été changé. '
+              'Réessaie.',
+            ),
+          ),
+        );
+      case AdvisorChangeOutcome.unauthorized:
+        messenger.showSnackBar(
+          const SnackBar(
+            content: Text('Ta session a expiré. Reconnecte-toi.'),
+          ),
+        );
+        navigator.popUntil((r) => r.isFirst);
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final isSelected = advisor.name == selectedAdvisorName;
+    final selectedName = AuryelStateScope.of(context).selectedAdvisor;
+    final isSelected = _advisor.name == selectedName;
     return Scaffold(
       body: Container(
         decoration: const BoxDecoration(
@@ -57,44 +184,29 @@ class AdvisorDetailScreen extends StatelessWidget {
                         ),
                         child: ClipOval(
                           child: Image.asset(
-                            advisor.assetPath,
+                            _advisor.assetPath,
                             fit: BoxFit.cover,
                           ),
                         ),
                       ),
                       const SizedBox(height: 20),
-                      Text(
-                        advisor.name,
-                        style: AuryelText.display(
-                          fontSize: 28,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
+                      Text(_advisor.name, style: AuryelText.screenTitle()),
                       const SizedBox(height: 6),
                       Text(
-                        advisor.specialty,
+                        _advisor.specialty,
                         textAlign: TextAlign.center,
-                        style: AuryelText.body(
-                          fontSize: 11.5,
-                          fontWeight: FontWeight.w600,
-                          color: AuryelColors.gold,
-                          letterSpacing: 1.4,
-                        ),
+                        style: AuryelText.overline(color: AuryelColors.gold),
                       ),
                       const SizedBox(height: 28),
                       _VoicePlayer(
-                        advisorName: advisor.name,
-                        voicePath: advisor.voicePath,
+                        advisorName: _advisor.name,
+                        voicePath: _advisor.voicePath,
                       ),
                       const SizedBox(height: 28),
                       Text(
-                        advisor.bio,
+                        _advisor.bio,
                         textAlign: TextAlign.left,
-                        style: AuryelText.body(
-                          fontSize: 14.5,
-                          height: 1.55,
-                          color: AuryelColors.textSecondary,
-                        ),
+                        style: AuryelText.bodyText(),
                       ),
                     ],
                   ),
@@ -106,7 +218,8 @@ class AdvisorDetailScreen extends StatelessWidget {
                   label: isSelected
                       ? 'Commencer ma consultation'
                       : 'Choisir ce conseiller',
-                  onTap: () {},
+                  busy: _busy,
+                  onTap: _onCta,
                 ),
               ),
             ],
@@ -118,10 +231,11 @@ class AdvisorDetailScreen extends StatelessWidget {
 }
 
 class _GoldCta extends StatelessWidget {
-  const _GoldCta({required this.label, required this.onTap});
+  const _GoldCta({required this.label, required this.onTap, this.busy = false});
 
   final String label;
   final VoidCallback onTap;
+  final bool busy;
 
   @override
   Widget build(BuildContext context) {
@@ -137,20 +251,26 @@ class _GoldCta extends StatelessWidget {
           ),
           child: InkWell(
             borderRadius: BorderRadius.circular(16),
-            onTap: onTap,
+            onTap: busy ? null : onTap,
             child: Padding(
               padding: const EdgeInsets.symmetric(vertical: 15),
               child: Center(
-                child: Text(
-                  label,
-                  textAlign: TextAlign.center,
-                  style: AuryelText.body(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                    color: AuryelColors.backgroundDeep,
-                    letterSpacing: 0.4,
-                  ),
-                ),
+                child: busy
+                    ? const SizedBox(
+                        height: 18,
+                        width: 18,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          valueColor: AlwaysStoppedAnimation(
+                            AuryelColors.backgroundDeep,
+                          ),
+                        ),
+                      )
+                    : Text(
+                        label,
+                        textAlign: TextAlign.center,
+                        style: AuryelText.button(),
+                      ),
               ),
             ),
           ),
@@ -265,12 +385,7 @@ class _VoicePlayerState extends State<_VoicePlayer> {
               children: [
                 Text(
                   'PRÉSENTATION VOCALE',
-                  style: AuryelText.body(
-                    fontSize: 9.5,
-                    fontWeight: FontWeight.w600,
-                    color: AuryelColors.textMuted,
-                    letterSpacing: 1.2,
-                  ),
+                  style: AuryelText.overline(),
                 ),
                 const SizedBox(height: 8),
                 ClipRRect(

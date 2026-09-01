@@ -24,7 +24,6 @@ void main() async {
 
   final repository = LocalOnboardingRepository();
   final record = await repository.load();
-  final state = AuryelState(repository: repository, initial: record);
 
   final apiClient = ApiClient();
   final consultationApi = ConsultationApi(apiClient);
@@ -38,6 +37,14 @@ void main() async {
     profileApi: ProfileApi(apiClient),
     consultationApi: consultationApi,
     tirageApi: tirageApi,
+  );
+
+  // UX-B §6 — changement de conseiller préféré : synchro `guide` seul via
+  // l'`AuthController` existant (aucun second client HTTP).
+  final state = AuryelState(
+    repository: repository,
+    initial: record,
+    guideSync: (guideKey) => auth.syncGuide(guide: guideKey),
   );
   final consultation = ConsultationController(api: consultationApi, auth: auth);
   final purchase = PurchaseController(

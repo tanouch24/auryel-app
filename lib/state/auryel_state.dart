@@ -4,22 +4,54 @@ import 'package:flutter/widgets.dart';
 
 import '../data/onboarding_record.dart';
 import '../data/onboarding_repository.dart';
+import 'auth_controller.dart' show ProfileSyncOutcome;
+
+/// Synchronise le conseiller préféré côté backend (`PATCH /api/app/profile`,
+/// champ `guide` seul). Injecté depuis `main()` (branché sur
+/// `AuthController.syncGuide`) ; `null` dans les tests / avant l'auth.
+typedef GuideSyncFn = Future<ProfileSyncOutcome> Function(String guideKey);
+
+/// Issue d'un [AuryelState.changeAdvisor].
+enum AdvisorChangeOutcome {
+  /// Le conseiller demandé est déjà le conseiller préféré — aucun appel, rien
+  /// à faire.
+  unchanged,
+
+  /// Backend mis à jour PUIS persistance locale : local et serveur alignés.
+  synced,
+
+  /// Aucune synchro backend branchée (tests) : changement local + persistance.
+  localOnly,
+
+  /// `PATCH` en échec réseau / 5xx : RIEN n'a changé (ni local, ni serveur) —
+  /// aucun état incohérent, l'utilisateur peut réessayer.
+  networkFailed,
+
+  /// `PATCH` rejeté en 401 : session invalidée, aucun changement local.
+  unauthorized,
+}
 
 /// État partagé de l'appli — identité + progression onboarding. Le
 /// `userId` est `null` tant que le compte (mock) n'a pas été "créé" ; ce
 /// n'est jamais l'email qui sert d'identité technique, seulement ce
 /// `userId` interne (le futur backend utilisera un `user_id` Auryel réel).
 class AuryelState extends ChangeNotifier {
-  AuryelState({required this.repository, OnboardingRecord? initial})
-    : userId = initial?.userId,
-      selectedAdvisor = initial?.selectedAdvisor,
-      firstName = initial?.firstName,
-      birthDate = initial?.birthDate,
-      portraitData = initial?.portraitData,
-      portraitFeedback = initial?.portraitFeedback,
-      onboardingCompleted = initial?.onboardingCompleted ?? false;
+  AuryelState({
+    required this.repository,
+    OnboardingRecord? initial,
+    this.guideSync,
+  }) : userId = initial?.userId,
+       selectedAdvisor = initial?.selectedAdvisor,
+       firstName = initial?.firstName,
+       birthDate = initial?.birthDate,
+       portraitData = initial?.portraitData,
+       portraitFeedback = initial?.portraitFeedback,
+       onboardingCompleted = initial?.onboardingCompleted ?? false;
 
   final OnboardingRepository repository;
+
+  /// Cf. [GuideSyncFn]. `null` => pas de synchro backend (mode test / pré-auth).
+  final GuideSyncFn? guideSync;
 
   String? userId;
   String? selectedAdvisor;
@@ -29,9 +61,52 @@ class AuryelState extends ChangeNotifier {
   String? portraitFeedback;
   bool onboardingCompleted;
 
+  /// Onboarding uniquement — sélection en cours de parcours. La persistance a
+  /// lieu plus tard, à [completeOnboarding]. Pour un changement APRÈS
+  /// l'onboarding, utiliser [changeAdvisor] (persiste + synchronise).
   void selectAdvisor(String advisorName) {
     selectedAdvisor = advisorName;
     notifyListeners();
+  }
+
+  /// UX-B §4-§8 — change le conseiller PRÉFÉRÉ après l'onboarding.
+  ///
+  /// Stratégie retenue (sûre, sans divergence local/serveur) : on synchronise
+  /// le backend D'ABORD (`PATCH /api/app/profile { guide }`), et on ne touche
+  /// l'état local + `SharedPreferences` QU'APRÈS un succès. En cas d'échec
+  /// réseau / 401, rien ne bouge — l'appelant affiche un message et
+  /// l'utilisateur peut réessayer.
+  ///
+  /// N'ouvre AUCUNE consultation, ne consomme AUCUN crédit, ne modifie JAMAIS
+  /// l'`advisor_id` d'une consultation active : ce changement ne concerne que
+  /// la PROCHAINE consultation.
+  Future<AdvisorChangeOutcome> changeAdvisor(
+    String advisorName,
+    String guideKey,
+  ) async {
+    if (advisorName == selectedAdvisor) {
+      return AdvisorChangeOutcome.unchanged;
+    }
+
+    final sync = guideSync;
+    if (sync != null) {
+      final outcome = await sync(guideKey);
+      switch (outcome) {
+        case ProfileSyncOutcome.unauthorized:
+          return AdvisorChangeOutcome.unauthorized;
+        case ProfileSyncOutcome.retryable:
+          return AdvisorChangeOutcome.networkFailed;
+        case ProfileSyncOutcome.ok:
+          break;
+      }
+    }
+
+    selectedAdvisor = advisorName;
+    notifyListeners();
+    await repository.save(_toRecord());
+    return sync == null
+        ? AdvisorChangeOutcome.localOnly
+        : AdvisorChangeOutcome.synced;
   }
 
   void setFirstName(String name) {

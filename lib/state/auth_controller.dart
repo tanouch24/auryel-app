@@ -150,6 +150,32 @@ class AuthController extends ChangeNotifier {
     }
   }
 
+  /// UX-B §6/§8 — change UNIQUEMENT le conseiller préféré côté backend
+  /// (`PATCH /api/app/profile { guide }`). Aucun autre champ n'est renvoyé :
+  /// pas besoin de re-transmettre prénom / date de naissance. Ne consomme
+  /// aucun crédit, ne crée aucune consultation (endpoint profil pur).
+  ///
+  /// Mêmes règles 401 que le reste de l'auth (purge + sessionExpired).
+  Future<ProfileSyncOutcome> syncGuide({required String guide}) async {
+    final token = await _repo.currentToken();
+    if (token == null || token.isEmpty) {
+      _set(AuthStatus.signedOut, null);
+      return ProfileSyncOutcome.unauthorized;
+    }
+    try {
+      await _profileApi.patchProfile(token, guide: guide);
+      return ProfileSyncOutcome.ok;
+    } on ApiUnauthorizedException {
+      await _repo.clearSession();
+      _set(AuthStatus.sessionExpired, null);
+      return ProfileSyncOutcome.unauthorized;
+    } on ApiNetworkException {
+      return ProfileSyncOutcome.retryable;
+    } on ApiException {
+      return ProfileSyncOutcome.retryable;
+    }
+  }
+
   Future<void> logout() async {
     await _repo.logout();
     _set(AuthStatus.signedOut, null);

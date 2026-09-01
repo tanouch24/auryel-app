@@ -10,6 +10,7 @@ import '../state/consultation_controller.dart';
 import '../theme/auryel_theme.dart';
 import '../widgets/advisors_carousel.dart';
 import '../widgets/consultation_block.dart';
+import 'advisor_chooser_screen.dart';
 import 'chat_screen.dart';
 import 'placeholder_screen.dart';
 import 'premium_screen.dart';
@@ -239,6 +240,11 @@ class HomeScreen extends StatelessWidget {
                               end: 0,
                               curve: Curves.easeOutCubic,
                             ),
+                        const SizedBox(height: 12),
+                        const _ChangeAdvisorLink().animate().fadeIn(
+                          delay: 720.ms,
+                          duration: 600.ms,
+                        ),
                       ],
                     ),
                   ),
@@ -394,6 +400,48 @@ class _TapToRead extends StatelessWidget {
           color: AuryelColors.textMuted,
         ),
       ],
+    );
+  }
+}
+
+/// UX-B §5 — point d'entrée discret « Changer de conseiller », posé juste sous
+/// le bloc consultation (près du conseiller préféré). Ouvre la liste des 10.
+class _ChangeAdvisorLink extends StatelessWidget {
+  const _ChangeAdvisorLink();
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(14),
+        onTap: () => Navigator.of(context).push(
+          MaterialPageRoute(builder: (_) => const AdvisorChooserScreen()),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              PhosphorIcon(
+                PhosphorIconsRegular.arrowsLeftRight,
+                size: 14,
+                color: AuryelColors.textMuted,
+              ),
+              const SizedBox(width: 8),
+              Text(
+                'Changer de conseiller',
+                style: AuryelText.body(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w500,
+                  color: AuryelColors.textMuted,
+                  letterSpacing: 0.2,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
     );
   }
 }
