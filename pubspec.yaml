@@ -69,6 +69,8 @@ flutter:
     - assets/conseillers/
     - assets/vocaux/
     - assets/images/tarot/
+    - assets/images/tarot_card_back.png
+    - assets/images/tarot_table_blank.png
 
   # Typographie Auryel — Inter, EMBARQUÉE (aucun chargement réseau au runtime).
   # Fichiers : rsms/inter v4.1 · SIL Open Font License 1.1 (usage commercial /

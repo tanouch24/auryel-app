@@ -119,6 +119,9 @@ void main() {
           findsOneWidget);
       expect(find.textContaining('2 h'), findsNothing);
       expect(find.textContaining('consultations'), findsNothing);
+      // B8.1 §3 — bandeau « TEMPS DISPONIBLE » bien visible + valeur brute.
+      expect(find.text('TEMPS DISPONIBLE'), findsOneWidget);
+      expect(find.text('1 h offerte'), findsOneWidget);
     });
 
     testWidgets('B/E. Premium avec temps -> "7 h 42 min disponibles"',
@@ -135,6 +138,9 @@ void main() {
       expect(find.text('Ouvrir une consultation'), findsOneWidget);
       expect(find.textContaining('/8'), findsNothing);
       expect(find.textContaining('consultations restantes'), findsNothing);
+      // B8.1 §3 — bandeau « TEMPS DISPONIBLE » + valeur brute « 7 h 42 min ».
+      expect(find.text('TEMPS DISPONIBLE'), findsOneWidget);
+      expect(find.text('7 h 42 min'), findsOneWidget);
     });
 
     testWidgets('J. 0 temps -> "S’abonner pour consulter"', (t) async {
@@ -148,6 +154,9 @@ void main() {
       await t.pumpAndSettle();
       expect(find.text('S’abonner pour consulter'), findsOneWidget);
       expect(find.text('Ton temps de consultation est épuisé.'), findsOneWidget);
+      // B8.1 §3 — bandeau « TEMPS DISPONIBLE » = « 0 min » avant le CTA Premium.
+      expect(find.text('TEMPS DISPONIBLE'), findsOneWidget);
+      expect(find.text('0 min'), findsOneWidget);
     });
 
     testWidgets('reprise -> "Reprendre ma consultation" + "X disponibles"',

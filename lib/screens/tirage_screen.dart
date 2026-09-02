@@ -2,8 +2,10 @@ import 'dart:math';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:phosphor_icons/phosphor_icons.dart';
 
 import '../api/api_client.dart';
+import '../data/daily_like_store.dart';
 import '../data/tarot_deck.dart';
 import '../data/tirage.dart';
 import '../screens/chat_screen.dart';
@@ -14,6 +16,7 @@ import '../state/consultation_controller.dart';
 import '../theme/auryel_theme.dart';
 import '../widgets/advisors_carousel.dart';
 import '../widgets/gold_button.dart';
+import '../widgets/tarot_card_back.dart';
 import '../widgets/tarot_fan.dart';
 
 /// Onglet « Tirage » — l'utilisateur choisit LUI-MÊME 3 cartes parmi les 22
@@ -145,15 +148,82 @@ class _TirageScreenState extends State<TirageScreen> {
     }
   }
 
+  /// Chemins des faces (ordre serveur = ordre de sélection), ou `null` avant
+  /// révélation.
+  List<String?> get _slotFaces {
+    if (!_revealed || _result == null) {
+      return const [null, null, null];
+    }
+    final cards = _result!.cards.isNotEmpty
+        ? _result!.cards.map((c) => c.key).toList()
+        : _result!.cardKeys;
+    return [
+      for (var i = 0; i < 3; i++)
+        i < cards.length ? tarotArcanaByKey(cards[i])?.assetPath : null,
+    ];
+  }
+
   @override
   Widget build(BuildContext context) {
+    // B8.4 — fond = TAPIS VIDE fourni (`tarot_table_blank.png`), 3 emplacements
+    // centraux libres. UNE seule représentation des cartes choisies : la carte
+    // dos (`tarot_card_back.png`) posée sur l'emplacement, qui se retourne sur
+    // place à la révélation. Aucun récap, aucune 2e rangée d'images.
     return Scaffold(
       body: Container(
         decoration: const BoxDecoration(
           gradient: AuryelColors.backgroundGradient,
         ),
-        child: SafeArea(
-          child: _revealed ? _buildReveal(context) : _buildSelection(context),
+        child: Stack(
+          children: [
+            Positioned.fill(
+              child: Image.asset(
+                'assets/images/tarot_table_blank.png',
+                fit: BoxFit.cover,
+                alignment: Alignment.topCenter,
+              ),
+            ),
+            const Positioned.fill(
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      Color(0xE6120E17),
+                      Color(0x73120E17),
+                      Color(0x8C120E17),
+                      Color(0xF2120E17),
+                    ],
+                    stops: [0.0, 0.34, 0.66, 1.0],
+                  ),
+                ),
+              ),
+            ),
+            // LA représentation unique des cartes choisies (dos -> face sur
+            // place). En dessous du contenu : la lecture, en phase révélée,
+            // occupe un panneau bas qui ne recouvre jamais les cartes.
+            Positioned.fill(
+              child: IgnorePointer(
+                child: _TapisCards(
+                  count: _selectedIndexes.length,
+                  revealed: _revealed,
+                  faces: _slotFaces,
+                ),
+              ),
+            ),
+            SafeArea(
+              child: _revealed
+                  ? _buildReveal(context)
+                  : _buildSelection(context),
+            ),
+            // Cœur « j'aime » local du tirage (inchangé).
+            const Positioned(
+              top: 4,
+              right: 6,
+              child: SafeArea(child: _TirageLikeButton()),
+            ),
+          ],
         ),
       ),
     );
@@ -188,62 +258,34 @@ class _TirageScreenState extends State<TirageScreen> {
           ),
         ),
         const SizedBox(height: 8),
-        // UX-B §9-§12 — les 22 arcanes ENSEMBLE en éventail, sans scroll
-        // horizontal. Chaque carte est tapable (indices 0 et 21 compris).
+        // Éventail des 22 arcanes en haut (inchangé). Les cartes choisies se
+        // POSENT sur les emplacements du tapis (overlay `_TapisCards`) — pas de
+        // récap ailleurs.
         Expanded(
           child: Padding(
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-            child: Opacity(
-              opacity: count == _maxCards ? 0.72 : 1,
-              child: TarotFan(
-                count: _deck.length,
-                selectionNumberFor: _selectionNumber,
-                onTap: _select,
-                enabled:
-                    !_revealed &&
-                    _save != _SaveState.saving &&
-                    count < _maxCards,
+            child: Align(
+              alignment: Alignment.topCenter,
+              child: FractionallySizedBox(
+                heightFactor: 0.62,
+                child: Opacity(
+                  opacity: count == _maxCards ? 0.72 : 1,
+                  child: TarotFan(
+                    count: _deck.length,
+                    selectionNumberFor: _selectionNumber,
+                    onTap: _select,
+                    enabled: !_revealed &&
+                        _save != _SaveState.saving &&
+                        count < _maxCards,
+                  ),
+                ),
               ),
             ),
           ),
         ),
-        if (count == _maxCards) _buildChosenSummary(),
         if (count == _maxCards) _buildSaveArea(),
         const SizedBox(height: 16),
       ],
-    );
-  }
-
-  /// UX-B §13 — une fois les 3 cartes choisies : on les met clairement en
-  /// avant (Carte 1 / 2 / 3), TOUJOURS dos visible avant révélation.
-  Widget _buildChosenSummary() {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(28, 2, 28, 2),
-      child: Column(
-        children: [
-          Text(
-            'Tes 3 cartes sont choisies',
-            style: AuryelText.body(
-              fontSize: 13.5,
-              fontWeight: FontWeight.w600,
-              color: AuryelColors.goldLight,
-            ),
-          ),
-          const SizedBox(height: 10),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              for (var pos = 0; pos < _selectedIndexes.length; pos++)
-                Padding(
-                  padding: EdgeInsets.only(
-                    right: pos == _selectedIndexes.length - 1 ? 0 : 16,
-                  ),
-                  child: _ChosenMiniBack(number: pos + 1),
-                ),
-            ],
-          ),
-        ],
-      ),
     );
   }
 
@@ -385,180 +427,77 @@ class _TirageScreenState extends State<TirageScreen> {
               TirageCardDto(key: k, name: k, interpretation: ''),
           ];
 
-    return SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(24, 24, 24, 32),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Center(
-            child: Text(
-              'Ton tirage',
-              style: AuryelText.display(
-                fontSize: 26,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ),
-          const SizedBox(height: 4),
-          Center(
-            child: Text(
-              'Ton tirage est prêt.',
-              style: AuryelText.body(
-                fontSize: 13,
-                color: AuryelColors.textMuted,
-              ),
-            ),
-          ),
-          const SizedBox(height: 22),
-
-          // 3 mini cartes côte à côte, dans l'ordre serveur.
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              for (var i = 0; i < cards.length; i++)
-                Padding(
-                  padding: EdgeInsets.only(
-                    right: i == cards.length - 1 ? 0 : 12,
-                  ),
-                  child: _MiniCard(
-                    key: ValueKey('tarot-reveal-$i'),
-                    assetPath: tarotArcanaByKey(cards[i].key)?.assetPath,
-                    order: i,
-                  ),
-                ),
-            ],
-          ),
-          const SizedBox(height: 28),
-
-          // Détail carte par carte — nom + interprétation SERVEUR.
-          for (var i = 0; i < cards.length; i++) ...[
-            _CardDetail(index: i, card: cards[i]),
-            const SizedBox(height: 18),
-          ],
-
-          const SizedBox(height: 6),
-          Divider(color: AuryelColors.warmBorder, height: 1),
-          const SizedBox(height: 20),
-
-          Text(
-            'Lecture de ton tirage',
-            style: AuryelText.display(
-              fontSize: 19,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-          const SizedBox(height: 10),
-          Text(
-            result.combinedInterpretation,
-            style: AuryelText.body(
-              fontSize: 13.5,
-              height: 1.6,
-              color: AuryelColors.textSecondary,
-            ),
-          ),
-          const SizedBox(height: 26),
-
-          if (advisor != null)
-            AuryelGoldButton(
-              label: 'En parler avec ${advisor.name}',
-              // Le clic ouvre une confirmation ; « Commencer » / « Continuer »
-              // fait ensuite une SIMPLE navigation vers ChatScreen avec le
-              // tirage_id en mémoire. Aucune consultation ouverte, aucun crédit
-              // consommé ici — le crédit reste débité au PREMIER message.
-              onTap: () =>
-                  _confirmAndOpenChat(context, advisor, result.tirageId),
-            ),
-          const SizedBox(height: 14),
-          Center(
-            child: TextButton(
-              onPressed: _restart,
-              child: Text(
-                'Recommencer le tirage',
-                style: AuryelText.body(
-                  fontSize: 12.5,
-                  color: AuryelColors.textMuted,
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-/// UX-B §13 — mini dos de carte numéroté (1/2/3) du récapitulatif « Tes 3
-/// cartes sont choisies ». DOS visible, jamais de face avant ici.
-class _ChosenMiniBack extends StatelessWidget {
-  const _ChosenMiniBack({required this.number});
-
-  final int number;
-
-  @override
-  Widget build(BuildContext context) {
-    return Stack(
-      clipBehavior: Clip.none,
-      alignment: Alignment.topCenter,
+    // B8.4 §17-18 — AUCUNE nouvelle rangée d'images : ce sont les 3 cartes
+    // POSÉES SUR LE TAPIS (overlay `_TapisCards`) qui se retournent. Ici, sous
+    // les cartes, uniquement la LECTURE, dans un panneau bas scrollable.
+    return Column(
       children: [
-        Container(
-          width: 46,
-          height: 70,
-          padding: const EdgeInsets.all(3),
-          decoration: BoxDecoration(
-            color: AuryelColors.surfaceLight,
-            borderRadius: BorderRadius.circular(9),
-            border: Border.all(
-              color: AuryelColors.gold.withValues(alpha: 0.9),
-              width: 1.4,
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: AuryelColors.gold.withValues(alpha: 0.22),
-                blurRadius: 14,
-                spreadRadius: 1,
-                offset: const Offset(0, 3),
-              ),
-            ],
-          ),
-          child: Container(
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(6),
-              border: Border.all(
-                color: AuryelColors.gold.withValues(alpha: 0.3),
-                width: 0.6,
-              ),
-            ),
-            child: Center(
-              child: Transform.rotate(
-                angle: 0.785398,
-                child: Container(
-                  width: 8,
-                  height: 8,
-                  decoration: BoxDecoration(
-                    gradient: AuryelColors.goldGradient,
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-              ),
-            ),
-          ),
+        const SizedBox(height: 10),
+        Text(
+          'Ton tirage est prêt.',
+          style: AuryelText.body(fontSize: 13, color: AuryelColors.textMuted),
         ),
-        Positioned(
-          top: -10,
-          child: Container(
-            width: 20,
-            height: 20,
-            alignment: Alignment.center,
+        const Spacer(flex: 62),
+        Expanded(
+          flex: 38,
+          child: DecoratedBox(
             decoration: const BoxDecoration(
-              shape: BoxShape.circle,
-              gradient: AuryelColors.goldGradient,
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                colors: [Color(0x00120E17), Color(0xF2120E17)],
+                stops: [0.0, 0.14],
+              ),
             ),
-            child: Text(
-              '$number',
-              style: AuryelText.body(
-                fontSize: 11,
-                fontWeight: FontWeight.w700,
-                color: AuryelColors.backgroundDeep,
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.fromLTRB(24, 24, 24, 28),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  for (var i = 0; i < cards.length; i++) ...[
+                    _CardDetail(index: i, card: cards[i]),
+                    const SizedBox(height: 18),
+                  ],
+                  const SizedBox(height: 4),
+                  Divider(color: AuryelColors.warmBorder, height: 1),
+                  const SizedBox(height: 18),
+                  Text(
+                    'Lecture de ton tirage',
+                    style: AuryelText.display(
+                      fontSize: 19,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Text(
+                    result.combinedInterpretation,
+                    style: AuryelText.body(
+                      fontSize: 13.5,
+                      height: 1.6,
+                      color: AuryelColors.textSecondary,
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  if (advisor != null)
+                    AuryelGoldButton(
+                      label: 'En parler avec ${advisor.name}',
+                      onTap: () =>
+                          _confirmAndOpenChat(context, advisor, result.tirageId),
+                    ),
+                  const SizedBox(height: 12),
+                  Center(
+                    child: TextButton(
+                      onPressed: _restart,
+                      child: Text(
+                        'Recommencer le tirage',
+                        style: AuryelText.body(
+                          fontSize: 12.5,
+                          color: AuryelColors.textMuted,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
           ),
@@ -568,71 +507,201 @@ class _ChosenMiniBack extends StatelessWidget {
   }
 }
 
-/// Mini carte révélée. Image réelle si l'`assetPath` local existe pour la clé
-/// serveur, sinon un placeholder visuel contrôlé (jamais de crash).
-class _MiniCard extends StatelessWidget {
-  const _MiniCard({super.key, required this.assetPath, required this.order});
+/// B8.4 §12-18 — LA représentation unique des cartes choisies : jusqu'à 3
+/// cartes DOS (`tarot_card_back.png`) posées sur les 3 emplacements CENTRAUX du
+/// tapis vide, qui se retournent SUR PLACE (même position, même taille) à la
+/// révélation. Overlay `IgnorePointer` : les taps passent vers l'éventail / les
+/// boutons.
+class _TapisCards extends StatelessWidget {
+  const _TapisCards({
+    required this.count,
+    required this.revealed,
+    required this.faces,
+  });
 
-  final String? assetPath;
-  final int order;
+  final int count;
+  final bool revealed;
+  final List<String?> faces;
+
+  // Emplacements des 3 cartes au CENTRE du TAPIS VIDE (fractions d'écran),
+  // calibrés sur tarot_table_blank.png : sous l'éventail, sans chevauchement,
+  // sans dépasser. Identiques en sélection ET après révélation.
+  static const List<double> _cx = [0.255, 0.500, 0.745];
+  static const double _cy = 0.545;
+  static const double _cardHFrac = 0.165; // hauteur carte / hauteur écran
+  static const double _ratio = 781 / 1312; // w/h de tarot_card_back.png
 
   @override
   Widget build(BuildContext context) {
-    final delay = (order * 250).ms;
-    final Widget face = assetPath != null
-        ? Image.asset(assetPath!, width: 88, fit: BoxFit.contain)
-        : Container(
-            width: 88,
-            height: 88 * 379 / 215,
-            alignment: Alignment.center,
-            color: AuryelColors.surfaceLight,
-            child: Transform.rotate(
-              angle: 0.785398,
-              child: Container(
-                width: 12,
-                height: 12,
-                decoration: BoxDecoration(
-                  gradient: AuryelColors.goldGradient,
-                  borderRadius: BorderRadius.circular(2),
+    return LayoutBuilder(
+      builder: (context, c) {
+        final w = c.maxWidth;
+        final h = c.maxHeight;
+        final cardH = h * _cardHFrac;
+        final cardW = cardH * _ratio;
+        return Stack(
+          clipBehavior: Clip.none,
+          children: [
+            for (var i = 0; i < 3; i++)
+              if (revealed || i < count)
+                Positioned(
+                  left: w * _cx[i] - cardW / 2,
+                  top: h * _cy - cardH / 2,
+                  width: cardW,
+                  height: cardH,
+                  child: _Slot(
+                    index: i,
+                    revealed: revealed,
+                    facePath: faces.length > i ? faces[i] : null,
+                  ),
                 ),
-              ),
-            ),
-          );
-    return Container(
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(
-              color: AuryelColors.gold.withValues(alpha: 0.55),
-              width: 1.2,
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: AuryelColors.gold.withValues(alpha: 0.12),
-                blurRadius: 16,
-                spreadRadius: 1,
-              ),
-            ],
-          ),
-          clipBehavior: Clip.antiAlias,
-          child: face,
-        )
-        .animate()
-        .fadeIn(delay: delay, duration: 350.ms)
-        .flip(
-          direction: Axis.horizontal,
-          begin: -0.5,
-          end: 0,
-          delay: delay,
-          duration: 500.ms,
-          curve: Curves.easeOut,
-        )
-        .scaleXY(
-          begin: 0.85,
-          end: 1,
-          delay: delay,
-          duration: 450.ms,
-          curve: Curves.easeOutCubic,
+          ],
         );
+      },
+    );
+  }
+}
+
+class _Slot extends StatelessWidget {
+  const _Slot({
+    required this.index,
+    required this.revealed,
+    required this.facePath,
+  });
+
+  final int index;
+  final bool revealed;
+  final String? facePath;
+
+  @override
+  Widget build(BuildContext context) {
+    final showFace = revealed && facePath != null;
+    final Widget child = showFace
+        ? ClipRRect(
+            key: ValueKey('tarot-reveal-$index'),
+            borderRadius: BorderRadius.circular(10),
+            child: Image.asset(facePath!, fit: BoxFit.contain),
+          )
+        : Stack(
+            key: const ValueKey('back'),
+            clipBehavior: Clip.none,
+            alignment: Alignment.topCenter,
+            children: [
+              const Positioned.fill(child: TarotCardBack(selected: true)),
+              Positioned(top: -10, child: _NumberPastille(number: index + 1)),
+            ],
+          );
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 420),
+      switchInCurve: Curves.easeOutCubic,
+      transitionBuilder: (w, anim) {
+        // Retournement Y simple.
+        final rotate = Tween<double>(begin: 3.1416 / 2, end: 0).animate(anim);
+        return AnimatedBuilder(
+          animation: rotate,
+          child: w,
+          builder: (_, ch) => Transform(
+            alignment: Alignment.center,
+            transform: Matrix4.identity()
+              ..setEntry(3, 2, 0.001)
+              ..rotateY(rotate.value),
+            child: Opacity(opacity: anim.value, child: ch),
+          ),
+        );
+      },
+      child: child,
+    );
+  }
+}
+
+/// Pastille or numérotée (1/2/3) posée sur le coin d'une carte de l'emplacement.
+class _NumberPastille extends StatelessWidget {
+  const _NumberPastille({required this.number});
+
+  final int number;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 22,
+      height: 22,
+      alignment: Alignment.center,
+      decoration: const BoxDecoration(
+        shape: BoxShape.circle,
+        gradient: AuryelColors.goldGradient,
+      ),
+      child: Text(
+        '$number',
+        style: AuryelText.body(
+          fontSize: 12,
+          fontWeight: FontWeight.w700,
+          color: AuryelColors.backgroundDeep,
+        ),
+      ),
+    );
+  }
+}
+
+/// B8.3 §4-D — cœur « j'aime » local du tirage du jour (bucket `tarot`).
+class _TirageLikeButton extends StatefulWidget {
+  const _TirageLikeButton();
+
+  @override
+  State<_TirageLikeButton> createState() => _TirageLikeButtonState();
+}
+
+class _TirageLikeButtonState extends State<_TirageLikeButton> {
+  final DailyLikeStore _store = DailyLikeStore(bucket: 'tarot');
+  bool _liked = false;
+  bool _busy = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    try {
+      final v = await _store.isLikedToday();
+      if (mounted) setState(() => _liked = v);
+    } catch (_) {/* défaut : non aimé */}
+  }
+
+  Future<void> _toggle() async {
+    if (_busy) return;
+    _busy = true;
+    setState(() => _liked = !_liked);
+    try {
+      final v = await _store.toggleToday();
+      if (mounted && v != _liked) setState(() => _liked = v);
+    } catch (_) {/* garde l'état optimiste */} finally {
+      _busy = false;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      button: true,
+      label: _liked ? 'Retirer le tirage des favoris' : 'Ajouter le tirage aux favoris',
+      child: Material(
+        color: Colors.transparent,
+        shape: const CircleBorder(),
+        child: InkWell(
+          customBorder: const CircleBorder(),
+          onTap: _toggle,
+          child: Padding(
+            padding: const EdgeInsets.all(10),
+            child: PhosphorIcon(
+              _liked ? PhosphorIconsFill.heart : PhosphorIconsRegular.heart,
+              size: 20,
+              color: _liked ? AuryelColors.goldLight : AuryelColors.textMuted,
+            ),
+          ),
+        ),
+      ),
+    );
   }
 }
 

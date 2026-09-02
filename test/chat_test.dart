@@ -549,6 +549,7 @@ void main() {
     );
     await t.pumpAndSettle();
 
+    await t.ensureVisible(find.text('Commencer ma consultation'));
     await t.tap(find.text('Commencer ma consultation'));
     await t.pumpAndSettle();
 

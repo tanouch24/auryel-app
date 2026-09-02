@@ -21,11 +21,17 @@ class ConsultationBlock extends StatelessWidget {
     this.activeResumeLabel,
     this.activeRemainingText,
     this.availableTimeText,
+    this.availableTimeValue,
   });
 
   final ConsultationState state;
   final String advisorName;
   final String advisorAssetPath;
+
+  /// B8.1 §3 — valeur BRUTE du temps disponible mise en avant (« 3 h 20 min »,
+  /// « 1 h offerte », « 0 min »), affichée sous un libellé « TEMPS DISPONIBLE »
+  /// bien visible en tête du bloc. `null` => pas de bandeau temps.
+  final String? availableTimeValue;
 
   /// Callback du CTA principal (F3 : ouvrir le ChatScreen). Injecté par
   /// l'écran hôte plutôt que codé en dur dans le widget.
@@ -56,6 +62,7 @@ class ConsultationBlock extends StatelessWidget {
         onStart: onStart,
         resumeLabel: activeResumeLabel,
         remainingText: activeRemainingText,
+        timeValue: availableTimeValue,
       );
     }
     return _StandardCard(
@@ -65,6 +72,7 @@ class ConsultationBlock extends StatelessWidget {
       onStart: onStart,
       onSubscribe: onSubscribe,
       availableTimeText: availableTimeText,
+      timeValue: availableTimeValue,
     );
   }
 }
@@ -77,6 +85,7 @@ class _StandardCard extends StatelessWidget {
     this.onStart,
     this.onSubscribe,
     this.availableTimeText,
+    this.timeValue,
   });
 
   final ConsultationState state;
@@ -85,6 +94,7 @@ class _StandardCard extends StatelessWidget {
   final VoidCallback? onStart;
   final VoidCallback? onSubscribe;
   final String? availableTimeText;
+  final String? timeValue;
 
   (String, String) get _copy => switch (state) {
     ConsultationState.firstFree => (
@@ -111,18 +121,25 @@ class _StandardCard extends StatelessWidget {
     // les autres états ouvrent une consultation.
     final onTap = state == ConsultationState.locked ? onSubscribe : onStart;
     return Container(
-      padding: const EdgeInsets.all(20),
+      // B8.3 §2-C — bloc consultation plus compact (padding + tailles internes
+      // resserrés) pour laisser « Découvre nos conseillers » remonter dans
+      // l'écran, sans perdre en lisibilité ni casser la DA.
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
       decoration: BoxDecoration(
         color: AuryelColors.surface,
-        borderRadius: BorderRadius.circular(22),
+        borderRadius: BorderRadius.circular(20),
         border: Border.all(color: AuryelColors.warmBorder, width: 1),
       ),
       child: Column(
         children: [
+          if (timeValue != null) ...[
+            _TimeAvailable(value: timeValue!),
+            const SizedBox(height: 10),
+          ],
           Row(
             children: [
-              _Portrait(assetPath: assetPath, size: 68),
-              const SizedBox(width: 22),
+              _Portrait(assetPath: assetPath, size: 52),
+              const SizedBox(width: 14),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -130,15 +147,16 @@ class _StandardCard extends StatelessWidget {
                     Text(
                       name,
                       style: AuryelText.display(
-                        fontSize: 19,
+                        fontSize: 17,
                         fontWeight: FontWeight.w600,
                       ),
                     ),
-                    const SizedBox(height: 4),
+                    const SizedBox(height: 3),
                     Text(
                       body,
                       style: AuryelText.body(
-                        fontSize: 12.5,
+                        fontSize: 12,
+                        height: 1.3,
                         color: AuryelColors.textMuted,
                       ),
                     ),
@@ -147,7 +165,7 @@ class _StandardCard extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 18),
+          const SizedBox(height: 12),
           _GoldButton(label: cta, onTap: onTap),
         ],
       ),
@@ -162,6 +180,7 @@ class _ActiveBanner extends StatelessWidget {
     this.onStart,
     this.resumeLabel,
     this.remainingText,
+    this.timeValue,
   });
 
   final String name;
@@ -169,14 +188,15 @@ class _ActiveBanner extends StatelessWidget {
   final VoidCallback? onStart;
   final String? resumeLabel;
   final String? remainingText;
+  final String? timeValue;
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(18),
+      padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
       decoration: BoxDecoration(
         color: AuryelColors.surfaceLight,
-        borderRadius: BorderRadius.circular(22),
+        borderRadius: BorderRadius.circular(20),
         border: Border.all(
           color: AuryelColors.gold.withValues(alpha: 0.5),
           width: 1,
@@ -184,10 +204,14 @@ class _ActiveBanner extends StatelessWidget {
       ),
       child: Column(
         children: [
+          if (timeValue != null) ...[
+            _TimeAvailable(value: timeValue!),
+            const SizedBox(height: 10),
+          ],
           Row(
             children: [
-              _Portrait(assetPath: assetPath, size: 52),
-              const SizedBox(width: 14),
+              _Portrait(assetPath: assetPath, size: 46),
+              const SizedBox(width: 13),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -217,13 +241,50 @@ class _ActiveBanner extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 12),
           _GoldButton(
             label: resumeLabel ?? 'Continuer ma consultation',
             onTap: onStart,
           ),
         ],
       ),
+    );
+  }
+}
+
+/// B8.1 §3 — bandeau « TEMPS DISPONIBLE » en tête du bloc consultation : le
+/// portefeuille de temps du modèle TIMER doit se lire d'un coup d'œil sur
+/// l'accueil (constat réel : la valeur était noyée en sous-texte).
+class _TimeAvailable extends StatelessWidget {
+  const _TimeAvailable({required this.value});
+
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'TEMPS DISPONIBLE',
+          style: AuryelText.body(
+            fontSize: 10.5,
+            fontWeight: FontWeight.w600,
+            color: AuryelColors.textMuted,
+            letterSpacing: 2,
+          ),
+        ),
+        const SizedBox(height: 3),
+        Text(
+          value,
+          style: AuryelText.display(
+            fontSize: 23,
+            fontWeight: FontWeight.w600,
+            color: AuryelColors.goldLight,
+            height: 1.1,
+          ),
+        ),
+      ],
     );
   }
 }
@@ -272,7 +333,7 @@ class _GoldButton extends StatelessWidget {
             borderRadius: BorderRadius.circular(16),
             onTap: onTap,
             child: Padding(
-              padding: const EdgeInsets.symmetric(vertical: 14),
+              padding: const EdgeInsets.symmetric(vertical: 12),
               child: Center(
                 child: Text(
                   label,

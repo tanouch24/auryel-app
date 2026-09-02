@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:phosphor_icons/phosphor_icons.dart';
 
 import '../screens/advisor_detail_screen.dart';
 import '../theme/auryel_theme.dart';
@@ -161,10 +162,45 @@ AdvisorInfo? advisorByGuideKey(String? guideKey) {
 
 /// Section "Découvre nos conseillers" — carrousel horizontal des 10 conseillers.
 /// Un tap sur une carte ouvre la fiche complète du conseiller.
-class AdvisorsCarousel extends StatelessWidget {
+///
+/// B8.4 §6 — une flèche au bord DROIT (hauteur des cartes) invite au swipe
+/// horizontal ; tap = défilement ; elle disparaît une fois au bout.
+class AdvisorsCarousel extends StatefulWidget {
   const AdvisorsCarousel({super.key, this.selectedAdvisorName});
 
   final String? selectedAdvisorName;
+
+  @override
+  State<AdvisorsCarousel> createState() => _AdvisorsCarouselState();
+}
+
+class _AdvisorsCarouselState extends State<AdvisorsCarousel> {
+  final ScrollController _controller = ScrollController();
+  bool _atEnd = false;
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  void _onScroll() {
+    if (!_controller.hasClients) return;
+    final end =
+        _controller.offset >= _controller.position.maxScrollExtent - 4;
+    if (end != _atEnd) setState(() => _atEnd = end);
+  }
+
+  void _scrollForward() {
+    if (!_controller.hasClients) return;
+    final target = (_controller.offset + 200)
+        .clamp(0.0, _controller.position.maxScrollExtent);
+    _controller.animateTo(
+      target,
+      duration: const Duration(milliseconds: 320),
+      curve: Curves.easeOutCubic,
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -184,22 +220,93 @@ class AdvisorsCarousel extends StatelessWidget {
         const SizedBox(height: 16),
         SizedBox(
           height: 248,
-          child: ListView.separated(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: 28),
-            itemCount: kAdvisors.length,
-            separatorBuilder: (_, _) => const SizedBox(width: 12),
-            itemBuilder: (context, index) {
-              final advisor = kAdvisors[index];
-              return _AdvisorCard(
-                advisor: advisor,
-                isSelected: advisor.name == selectedAdvisorName,
-                selectedAdvisorName: selectedAdvisorName,
-              );
-            },
+          child: Stack(
+            children: [
+              NotificationListener<ScrollNotification>(
+                onNotification: (_) {
+                  _onScroll();
+                  return false;
+                },
+                child: ListView.separated(
+                  controller: _controller,
+                  scrollDirection: Axis.horizontal,
+                  padding: const EdgeInsets.symmetric(horizontal: 28),
+                  itemCount: kAdvisors.length,
+                  separatorBuilder: (_, _) => const SizedBox(width: 12),
+                  itemBuilder: (context, index) {
+                    final advisor = kAdvisors[index];
+                    return _AdvisorCard(
+                      advisor: advisor,
+                      isSelected: advisor.name == widget.selectedAdvisorName,
+                      selectedAdvisorName: widget.selectedAdvisorName,
+                    );
+                  },
+                ),
+              ),
+              Positioned(
+                right: 0,
+                top: 0,
+                bottom: 0,
+                child: IgnorePointer(
+                  ignoring: _atEnd,
+                  child: AnimatedOpacity(
+                    duration: const Duration(milliseconds: 200),
+                    opacity: _atEnd ? 0 : 1,
+                    child: _CarouselEdgeArrow(onTap: _scrollForward),
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
       ],
+    );
+  }
+}
+
+/// Flèche d'invitation au swipe, collée au bord droit du carrousel. Léger fond
+/// dégradé pour la détacher des cartes, jamais dans une carte.
+class _CarouselEdgeArrow extends StatelessWidget {
+  const _CarouselEdgeArrow({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: onTap,
+      child: Container(
+        width: 46,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.centerLeft,
+            end: Alignment.centerRight,
+            colors: [
+              AuryelColors.backgroundDeep.withValues(alpha: 0.0),
+              AuryelColors.backgroundDeep.withValues(alpha: 0.72),
+            ],
+          ),
+        ),
+        child: Container(
+          width: 30,
+          height: 30,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: AuryelColors.surface,
+            border: Border.all(
+              color: AuryelColors.gold.withValues(alpha: 0.5),
+            ),
+          ),
+          child: const PhosphorIcon(
+            PhosphorIconsBold.caretRight,
+            size: 15,
+            color: AuryelColors.goldLight,
+          ),
+        ),
+      ),
     );
   }
 }
@@ -284,6 +391,8 @@ class _AdvisorCard extends StatelessWidget {
               const SizedBox(height: 8),
               Text(
                 advisor.name,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
                 style: AuryelText.display(
                   fontSize: 15,
                   fontWeight: FontWeight.w600,

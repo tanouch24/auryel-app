@@ -1,25 +1,27 @@
+import 'dart:math' as math;
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:phosphor_icons/phosphor_icons.dart';
-import 'package:share_plus/share_plus.dart';
 
+import '../data/daily_like_store.dart';
+import '../data/daily_message.dart';
 import '../screens/splash_screen.dart';
 import '../state/auryel_state.dart';
 import '../state/consultation_controller.dart';
 import '../theme/auryel_theme.dart';
 import '../widgets/advisors_carousel.dart';
 import '../widgets/consultation_block.dart';
+import '../widgets/daily_message_sheet.dart';
 import 'advisor_chooser_screen.dart';
 import 'chat_screen.dart';
-import 'placeholder_screen.dart';
+import 'dashboard_screen.dart';
 import 'premium_screen.dart';
 
-// La phrase du jour, en dur pour l'instant — factorisée pour que l'affichage
-// (RichText) et le partage restent synchronisés sans dupliquer le texte.
-const _dailyPhraseLead = 'Ce que tu n’oses pas regarder ';
-const _dailyPhraseAccent = 'te dirige.';
-const _dailyPhrase = '$_dailyPhraseLead$_dailyPhraseAccent';
+// Message du jour — désormais porté par [DailyMessage] (texte + interprétation +
+// date), un seul point à rebrancher sur l'API contenu du jour plus tard.
+const _daily = DailyMessage.today;
 
 /// Reset DEBUG uniquement (geste caché — appui long sur l'icône profil,
 /// visible seulement en `kDebugMode`) : efface les données mock
@@ -84,6 +86,18 @@ class HomeScreen extends StatelessWidget {
   static String _availableLabel(ConsultationController c) =>
       '${ConsultationController.formatTotalTime(c.remaining.inSeconds)} disponibles';
 
+  /// B8.1 §3 — valeur BRUTE pour le bandeau « TEMPS DISPONIBLE » du bloc
+  /// consultation. « 1 h offerte » pour la 1re heure gratuite, « 0 min » quand
+  /// le portefeuille est épuisé, sinon le portefeuille formaté (« 3 h 20 min »).
+  static String _timeValueFor(
+    ConsultationState state,
+    ConsultationController c,
+  ) {
+    if (state == ConsultationState.firstFree) return '1 h offerte';
+    if (state == ConsultationState.locked) return '0 min';
+    return ConsultationController.formatTotalTime(c.remaining.inSeconds);
+  }
+
   /// F4/F5-C / TIMER-D.2 — bloc consultation piloté par l'état partagé.
   /// Consultation reprenable + temps dispo => bannière « Reprendre ma
   /// consultation » + « X h Y min disponibles ». Sinon CTA dérivé du TEMPS
@@ -103,6 +117,10 @@ class HomeScreen extends StatelessWidget {
         advisorAssetPath: advisor.assetPath,
         activeResumeLabel: 'Reprendre ma consultation',
         activeRemainingText: _availableLabel(consultation),
+        availableTimeValue: _timeValueFor(
+          ConsultationState.active,
+          consultation,
+        ),
         onStart: () => _openChat(context, advisor),
       );
     }
@@ -114,6 +132,7 @@ class HomeScreen extends StatelessWidget {
       availableTimeText: derived == ConsultationState.subscriberAvailable
           ? _availableLabel(consultation)
           : null,
+      availableTimeValue: _timeValueFor(derived, consultation),
       onStart: () => _openChat(context, fallbackAdvisor),
       onSubscribe: () => _openPremium(context),
     );
@@ -127,6 +146,9 @@ class HomeScreen extends StatelessWidget {
     // consultation via un ListenableBuilder (l'accueil animé ne se
     // reconstruit pas à chaque tick). `null` = écran monté hors scope (tests).
     final consultation = ConsultationScope.maybeReadOf(context);
+    // Le halo est décoratif : borné à la largeur de l'écran pour ne jamais
+    // déborder sur les côtés (Galaxy A07 ~360 dp et en dessous).
+    final haloSize = math.min(360.0, MediaQuery.sizeOf(context).width);
     return Container(
       decoration: const BoxDecoration(
         gradient: AuryelColors.backgroundGradient,
@@ -141,8 +163,8 @@ class HomeScreen extends StatelessWidget {
             child: IgnorePointer(
               child: Center(
                 child: Container(
-                  width: 360,
-                  height: 360,
+                  width: haloSize,
+                  height: haloSize,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     gradient: RadialGradient(
@@ -164,11 +186,11 @@ class HomeScreen extends StatelessWidget {
                     padding: const EdgeInsets.symmetric(horizontal: 28),
                     child: Column(
                       children: [
-                        const SizedBox(height: 56),
+                        const SizedBox(height: 38),
                         const _Wordmark().animate().fadeIn(duration: 600.ms),
                         const SizedBox(height: 10),
                         Text(
-                          'MARDI 25 AOÛT · ESPACE PRIVÉ',
+                          '${_daily.dateLabel} · ESPACE PRIVÉ',
                           textAlign: TextAlign.center,
                           style: AuryelText.body(
                             fontSize: 11,
@@ -177,67 +199,25 @@ class HomeScreen extends StatelessWidget {
                             letterSpacing: 2.4,
                           ),
                         ).animate().fadeIn(delay: 150.ms, duration: 600.ms),
-                        const SizedBox(height: 56),
+                        const SizedBox(height: 26),
                         const _Ornament().animate().fadeIn(
                           delay: 250.ms,
                           duration: 600.ms,
                         ),
-                        const SizedBox(height: 22),
-                        RichText(
-                              textAlign: TextAlign.center,
-                              text: TextSpan(
-                                style: AuryelText.display(
-                                  fontSize: 30,
-                                  fontWeight: FontWeight.w500,
-                                  height: 1.32,
-                                ),
-                                children: [
-                                  const TextSpan(text: _dailyPhraseLead),
-                                  TextSpan(
-                                    text: _dailyPhraseAccent,
-                                    style: AuryelText.display(
-                                      fontSize: 30,
-                                      fontWeight: FontWeight.w500,
-                                      fontStyle: FontStyle.italic,
-                                      color: AuryelColors.goldLight,
-                                      height: 1.32,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            )
-                            .animate()
-                            .fadeIn(delay: 350.ms, duration: 700.ms)
-                            .slideY(
-                              begin: 0.08,
-                              end: 0,
-                              curve: Curves.easeOutCubic,
-                            ),
-                        const SizedBox(height: 28),
-                        _TapToRead().animate().fadeIn(
-                          delay: 550.ms,
-                          duration: 600.ms,
-                        ),
-                        const SizedBox(height: 26),
-                        Text(
-                          'Ce message te fait penser à quelqu’un ?',
-                          textAlign: TextAlign.center,
-                          style: AuryelText.body(
-                            fontSize: 13,
-                            color: AuryelColors.textSecondary,
-                          ),
-                        ).animate().fadeIn(delay: 580.ms, duration: 600.ms),
-                        const SizedBox(height: 12),
-                        const _ShareButton().animate().fadeIn(
-                          delay: 600.ms,
-                          duration: 600.ms,
-                        ),
-                        const SizedBox(height: 32),
+                        const SizedBox(height: 18),
+                        // B8.3 §2-A/§2-B — phrase du jour d'abord, puis
+                        // « Voir l'interprétation » + cœur juste en dessous.
+                        _DailyMessageZone(
+                          onSeeInterpretation: () =>
+                              showDailyMessageSheet(context),
+                        ).animate().fadeIn(delay: 500.ms, duration: 600.ms),
+                        const SizedBox(height: 24),
                         (consultation == null
                                 ? ConsultationBlock(
                                     state: ConsultationState.firstFree,
                                     advisorName: advisor.name,
                                     advisorAssetPath: advisor.assetPath,
+                                    availableTimeValue: '1 h offerte',
                                     onStart: () => _openChat(context, advisor),
                                     onSubscribe: () => _openPremium(context),
                                   )
@@ -257,7 +237,7 @@ class HomeScreen extends StatelessWidget {
                               end: 0,
                               curve: Curves.easeOutCubic,
                             ),
-                        const SizedBox(height: 12),
+                        const SizedBox(height: 10),
                         const _ChangeAdvisorLink().animate().fadeIn(
                           delay: 720.ms,
                           duration: 600.ms,
@@ -265,7 +245,7 @@ class HomeScreen extends StatelessWidget {
                       ],
                     ),
                   ),
-                  const SizedBox(height: 40),
+                  const SizedBox(height: 18),
                   AdvisorsCarousel(selectedAdvisorName: state.selectedAdvisor)
                       .animate()
                       .fadeIn(delay: 700.ms, duration: 600.ms),
@@ -295,11 +275,7 @@ class HomeScreen extends StatelessWidget {
                     child: IconButton(
                       onPressed: () => Navigator.of(context).push(
                         MaterialPageRoute(
-                          builder: (_) => const PlaceholderScreen(
-                            title: 'Mon espace',
-                            icon: PhosphorIconsRegular.userCircle,
-                            subtitle: 'Bientôt, ton espace personnel.',
-                          ),
+                          builder: (_) => const DashboardScreen(),
                         ),
                       ),
                       icon: PhosphorIcon(
@@ -396,27 +372,185 @@ class _Ornament extends StatelessWidget {
   }
 }
 
-class _TapToRead extends StatelessWidget {
+/// B8.3 §2-A/§2-B — zone message du jour de l'accueil.
+/// 1) la PHRASE du jour (visible en premier).
+/// 2) JUSTE EN DESSOUS : « Voir l'interprétation » (+ caret) et un cœur discret.
+/// Aucun bouton « Partager » ici (le partage vit dans la feuille).
+class _DailyMessageZone extends StatelessWidget {
+  const _DailyMessageZone({required this.onSeeInterpretation});
+
+  final VoidCallback onSeeInterpretation;
+
   @override
   Widget build(BuildContext context) {
     return Column(
+      mainAxisSize: MainAxisSize.min,
       children: [
-        Text(
-          'Découvrir le message du jour',
-          style: AuryelText.body(
-            fontSize: 11,
-            fontWeight: FontWeight.w500,
-            color: AuryelColors.textMuted,
-            letterSpacing: 0.3,
+        RichText(
+          textAlign: TextAlign.center,
+          text: TextSpan(
+            style: AuryelText.body(
+              fontSize: 21,
+              fontWeight: FontWeight.w400,
+              color: AuryelColors.textSecondary,
+              height: 1.34,
+            ),
+            children: [
+              TextSpan(text: _daily.leadText),
+              TextSpan(
+                text: _daily.accentText,
+                style: AuryelText.body(
+                  fontSize: 21,
+                  fontWeight: FontWeight.w400,
+                  color: AuryelColors.goldLight,
+                  height: 1.34,
+                ).copyWith(fontStyle: FontStyle.italic),
+              ),
+            ],
           ),
         ),
-        const SizedBox(height: 6),
-        PhosphorIcon(
-          PhosphorIconsThin.caretDown,
-          size: 16,
-          color: AuryelColors.textMuted,
+        const SizedBox(height: 10),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _SeeInterpretationCta(onTap: onSeeInterpretation),
+            const SizedBox(width: 2),
+            const _DailyLikeButton(),
+          ],
         ),
       ],
+    );
+  }
+}
+
+/// B8.4 §4 — CTA « Voir l'interprétation » : immédiatement identifiable comme
+/// tappable. Texte plus grand + gras, underline dorée discrète, zone tactile
+/// ≥ 44 dp. Reste élégant (pas de gros bouton jaune).
+class _SeeInterpretationCta extends StatelessWidget {
+  const _SeeInterpretationCta({required this.onTap});
+
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      borderRadius: BorderRadius.circular(14),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(14),
+        onTap: onTap,
+        child: Container(
+          constraints: const BoxConstraints(minHeight: 44),
+          padding: const EdgeInsets.fromLTRB(14, 8, 12, 8),
+          alignment: Alignment.center,
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                decoration: const BoxDecoration(
+                  border: Border(
+                    bottom: BorderSide(
+                      color: AuryelColors.goldLight,
+                      width: 1.4,
+                    ),
+                  ),
+                ),
+                padding: const EdgeInsets.only(bottom: 3),
+                child: Text(
+                  'Voir l’interprétation',
+                  style: AuryelText.body(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
+                    color: AuryelColors.goldLight,
+                    letterSpacing: 0.3,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 7),
+              PhosphorIcon(
+                PhosphorIconsBold.caretDown,
+                size: 15,
+                color: AuryelColors.goldLight,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Cœur discret : « j'aime » LOCAL du message du jour (état par jour, persisté
+/// via [DailyLikeStore] -> `SharedPreferences`). Aucun backend, aucune
+/// récompense. Les tests injectent l'état via `SharedPreferences.setMockInitialValues`.
+class _DailyLikeButton extends StatefulWidget {
+  const _DailyLikeButton();
+
+  @override
+  State<_DailyLikeButton> createState() => _DailyLikeButtonState();
+}
+
+class _DailyLikeButtonState extends State<_DailyLikeButton> {
+  final DailyLikeStore _store = DailyLikeStore();
+  bool _liked = false;
+  bool _busy = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    try {
+      final v = await _store.isLikedToday();
+      if (mounted) setState(() => _liked = v);
+    } catch (_) {
+      /* état par défaut : non aimé */
+    }
+  }
+
+  Future<void> _toggle() async {
+    if (_busy) return;
+    _busy = true;
+    // Optimiste : bascule tout de suite, persiste ensuite.
+    setState(() => _liked = !_liked);
+    try {
+      final persisted = await _store.toggleToday();
+      if (mounted && persisted != _liked) setState(() => _liked = persisted);
+    } catch (_) {
+      /* on garde l'état optimiste */
+    } finally {
+      _busy = false;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      button: true,
+      label: _liked ? 'Retirer des favoris' : 'Ajouter aux favoris',
+      child: Material(
+        color: Colors.transparent,
+        shape: const CircleBorder(),
+        child: InkWell(
+          customBorder: const CircleBorder(),
+          onTap: _toggle,
+          child: Padding(
+            padding: const EdgeInsets.all(8),
+            child: PhosphorIcon(
+              _liked
+                  ? PhosphorIconsFill.heart
+                  : PhosphorIconsRegular.heart,
+              size: 17,
+              color: _liked
+                  ? AuryelColors.goldLight
+                  : AuryelColors.textMuted,
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
@@ -453,52 +587,6 @@ class _ChangeAdvisorLink extends StatelessWidget {
                   fontWeight: FontWeight.w500,
                   color: AuryelColors.textMuted,
                   letterSpacing: 0.2,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _ShareButton extends StatelessWidget {
-  const _ShareButton();
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        borderRadius: BorderRadius.circular(20),
-        onTap: () => SharePlus.instance.share(
-          ShareParams(text: '$_dailyPhrase\n\n— Auryel'),
-        ),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 9),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(
-              color: AuryelColors.gold.withValues(alpha: 0.35),
-            ),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              PhosphorIcon(
-                PhosphorIconsRegular.shareNetwork,
-                size: 15,
-                color: AuryelColors.goldLight,
-              ),
-              const SizedBox(width: 8),
-              Text(
-                'Partager',
-                style: AuryelText.body(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w500,
-                  color: AuryelColors.goldLight,
-                  letterSpacing: 1.6,
                 ),
               ),
             ],

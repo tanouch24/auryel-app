@@ -167,7 +167,7 @@ Future<void> _enterCodeAndValidate(WidgetTester tester) async {
 }
 
 const _emailScreenMarker = 'Ton adresse email';
-const _homeMarker = 'Découvrir le message du jour';
+const _homeMarker = 'Voir l’interprétation';
 const _syncRetryMarker = 'Réessayer';
 const _syncBlockedMarker = 'Revenir en arrière';
 

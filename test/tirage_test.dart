@@ -138,6 +138,16 @@ Future<void> _reveal(WidgetTester tester) async {
   await tester.pumpAndSettle();
 }
 
+/// B8.2 — l'écran Tirage a désormais un fond « tapis » (assets/images/tarot_table_blank.png,
+/// 1 Image d'ambiance). Ce finder ne compte QUE les FACES de cartes
+/// (`assets/images/tarot/<slug>.png`), pour garder l'intention des tests.
+final _cardFaceImages = find.byWidgetPredicate(
+  (w) =>
+      w is Image &&
+      w.image is AssetImage &&
+      (w.image as AssetImage).assetName.contains('images/tarot/'),
+);
+
 void main() {
   // -------------------------------------------------------------------------
   // A. choix des 3 cartes — comportement T2 inchangé
@@ -151,8 +161,17 @@ void main() {
     expect(find.text('Ton tirage'), findsOneWidget);
     expect(find.text('Choisis trois cartes.'), findsOneWidget);
     expect(find.text('0 / 3'), findsOneWidget);
-    expect(find.byType(Image), findsNothing);
+    expect(_cardFaceImages, findsNothing);
     expect(find.text('Révéler mon tirage'), findsNothing);
+    // B8.2 §E — le « tapis » de fond réutilisé des publications est bien posé.
+    expect(
+      find.byWidgetPredicate((w) =>
+          w is Image &&
+          w.image is AssetImage &&
+          (w.image as AssetImage).assetName ==
+              'assets/images/tarot_table_blank.png'),
+      findsOneWidget,
+    );
 
     final deck = List<String>.from(_st(tester).debugDeckKeys);
     await _tap(tester, 4);
@@ -199,7 +218,7 @@ void main() {
       await _selectThree(tester, indexes: [0, 1, 2]);
       await _reveal(tester);
 
-      expect(find.byType(Image), findsNWidgets(3));
+      expect(_cardFaceImages, findsNWidgets(3));
       expect(find.byKey(const ValueKey('tarot-reveal-0')), findsOneWidget);
       expect(find.byKey(const ValueKey('tarot-reveal-2')), findsOneWidget);
 
@@ -483,7 +502,7 @@ void main() {
 
     expect(find.text('Choisis trois cartes.'), findsOneWidget);
     expect(find.text('0 / 3'), findsOneWidget);
-    expect(find.byType(Image), findsNothing);
+    expect(_cardFaceImages, findsNothing);
     expect((_st(tester).debugSelectionKeys as List), isEmpty);
   });
 

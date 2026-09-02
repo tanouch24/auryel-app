@@ -150,6 +150,41 @@ class AuthController extends ChangeNotifier {
     }
   }
 
+  /// B10.1 — édition d'un ou plusieurs champs de profil depuis « Mon espace »
+  /// (`prenom`, `date_naissance`). PATCH PARTIEL : seuls les champs non nuls
+  /// sont transmis. Mêmes règles 401 que le reste de l'auth (purge +
+  /// sessionExpired). N'ouvre aucune consultation, ne consomme aucun crédit.
+  ///
+  /// L'appelant ne met à jour l'état local QU'APRÈS un [ProfileSyncOutcome.ok]
+  /// — aucune divergence local/serveur, aucun faux succès.
+  Future<ProfileSyncOutcome> syncProfileFields({
+    String? prenom,
+    String? dateNaissance,
+  }) async {
+    if (prenom == null && dateNaissance == null) return ProfileSyncOutcome.ok;
+    final token = await _repo.currentToken();
+    if (token == null || token.isEmpty) {
+      _set(AuthStatus.signedOut, null);
+      return ProfileSyncOutcome.unauthorized;
+    }
+    try {
+      await _profileApi.patchProfile(
+        token,
+        prenom: prenom,
+        dateNaissance: dateNaissance,
+      );
+      return ProfileSyncOutcome.ok;
+    } on ApiUnauthorizedException {
+      await _repo.clearSession();
+      _set(AuthStatus.sessionExpired, null);
+      return ProfileSyncOutcome.unauthorized;
+    } on ApiNetworkException {
+      return ProfileSyncOutcome.retryable;
+    } on ApiException {
+      return ProfileSyncOutcome.retryable;
+    }
+  }
+
   /// UX-B §6/§8 — change UNIQUEMENT le conseiller préféré côté backend
   /// (`PATCH /api/app/profile { guide }`). Aucun autre champ n'est renvoyé :
   /// pas besoin de re-transmettre prénom / date de naissance. Ne consomme

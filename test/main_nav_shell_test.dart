@@ -91,7 +91,7 @@ void main() {
 
     // Onglet initial : Accueil.
     expect(find.byType(HomeScreen), findsOneWidget);
-    expect(find.text('Découvrir le message du jour'), findsOneWidget);
+    expect(find.text('Voir l’interprétation'), findsOneWidget);
 
     // Tirage.
     await tester.tap(_tab('Tirage'));
@@ -117,6 +117,6 @@ void main() {
     // Retour Accueil.
     await tester.tap(_tab('Accueil'));
     await tester.pumpAndSettle();
-    expect(find.text('Découvrir le message du jour'), findsOneWidget);
+    expect(find.text('Voir l’interprétation'), findsOneWidget);
   });
 }

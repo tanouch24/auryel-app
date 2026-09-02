@@ -114,6 +114,17 @@ class AuryelState extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// B10.1 — applique une édition de prénom / date de naissance faite depuis
+  /// « Mon espace ». À n'appeler QU'APRÈS un PATCH backend réussi
+  /// (`AuthController.syncProfileFields` -> `ProfileSyncOutcome.ok`) : local et
+  /// serveur restent alignés. Persiste l'instantané via le repository.
+  Future<void> applyIdentityEdit({String? firstName, DateTime? birthDate}) async {
+    if (firstName != null) this.firstName = firstName;
+    if (birthDate != null) this.birthDate = birthDate;
+    notifyListeners();
+    await repository.save(_toRecord());
+  }
+
   void setBirthDate(DateTime date) {
     birthDate = date;
     notifyListeners();

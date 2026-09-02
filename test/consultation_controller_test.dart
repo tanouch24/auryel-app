@@ -518,7 +518,10 @@ void main() {
       await _pumpWithin(t, rig, const HomeScreen());
       await t.pumpAndSettle();
       expect(find.text('Commencer ma consultation'), findsOneWidget);
-      expect(find.textContaining('offerte'), findsOneWidget);
+      expect(find.text('Ta première heure de consultation est offerte'),
+          findsOneWidget);
+      // B8.1 §3 — bandeau « TEMPS DISPONIBLE » : valeur mise en avant.
+      expect(find.text('1 h offerte'), findsOneWidget);
     });
 
     testWidgets('TIMER-D.1 : crédit gagné SANS temps -> S’abonner (l\'earned ne '
@@ -589,6 +592,7 @@ void main() {
       await _pumpWithin(t, rig, const HomeScreen());
       await t.pump();
 
+      await t.ensureVisible(find.text('Reprendre ma consultation'));
       await t.tap(find.text('Reprendre ma consultation'));
       await t.pumpAndSettle();
       rig.controller.dispose();
