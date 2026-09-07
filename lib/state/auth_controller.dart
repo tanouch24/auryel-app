@@ -8,6 +8,7 @@ import '../api/profile_api.dart';
 import '../api/rewards_api.dart';
 import '../api/tirage_api.dart';
 import '../data/account.dart';
+import '../data/app_profile.dart';
 import '../data/auth_repository.dart';
 import '../data/installation_id_store.dart';
 import '../data/local_user_data.dart';
@@ -44,6 +45,31 @@ enum AccountDeletionOutcome {
   /// Réseau / 5xx : RIEN touché, session conservée, réessai possible.
   retryable,
 }
+
+/// Issue d'une récupération du profil serveur réel (`GET /api/app/profile`)
+/// pour un compte déjà authentifié — restauration multi-appareil / changement
+/// de compte / profil local perdu.
+enum ProfileRestoreOutcome {
+  /// Profil serveur récupéré. Peut être PARTIEL (prénom / date / guide vides) —
+  /// l'appelant ne remplace jamais une valeur locale par un vide serveur.
+  ok,
+
+  /// 401 pendant le GET : jeton mort — session purgée + `sessionExpired`
+  /// (politique 401 UNIQUE, identique au reste de l'auth). L'appelant renvoie
+  /// au login.
+  unauthorized,
+
+  /// Réseau KO / 5xx / 404 / jeton absent : session CONSERVÉE, l'appelant
+  /// garde le profil local existant du même compte (ou un profil vide honnête).
+  retryable,
+}
+
+/// Retour de [AuthController.fetchServerProfile] : l'issue + le profil (non
+/// `null` uniquement sur [ProfileRestoreOutcome.ok]).
+typedef ProfileRestoreResult = ({
+  ProfileRestoreOutcome outcome,
+  AppProfile? profile,
+});
 
 /// Résultat de la synchro du profil onboarding vers le backend (B4.3).
 enum ProfileSyncOutcome {
@@ -279,6 +305,42 @@ class AuthController extends ChangeNotifier {
       return ProfileSyncOutcome.retryable;
     } on ApiException {
       return ProfileSyncOutcome.retryable;
+    }
+  }
+
+  /// PROFIL MULTI-APPAREIL — récupère le profil serveur réel (prénom, date de
+  /// naissance, conseiller préféré) d'un compte connecté, via
+  /// `GET /api/app/profile` et le jeton courant.
+  ///
+  /// À appeler APRÈS un login réussi, et au démarrage quand le profil local est
+  /// absent / incomplet / rattaché à un autre `userId`. Aucune consultation
+  /// ouverte, aucun crédit consommé (endpoint profil pur).
+  ///
+  /// - 401  -> purge + `sessionExpired` (politique 401 unique) ->
+  ///   [ProfileRestoreOutcome.unauthorized].
+  /// - réseau / 5xx / 404 / jeton absent -> session CONSERVÉE ->
+  ///   [ProfileRestoreOutcome.retryable] (l'appelant garde le profil local).
+  /// - succès -> [ProfileRestoreOutcome.ok] + [AppProfile] (éventuellement
+  ///   partiel).
+  ///
+  /// Ne touche PAS au quota / Premium / temps de consultation / historique /
+  /// Billing : ces données ont leurs propres sources serveur.
+  Future<ProfileRestoreResult> fetchServerProfile() async {
+    final token = await _repo.currentToken();
+    if (token == null || token.isEmpty) {
+      return (outcome: ProfileRestoreOutcome.retryable, profile: null);
+    }
+    try {
+      final profile = await _profileApi.getProfile(token);
+      return (outcome: ProfileRestoreOutcome.ok, profile: profile);
+    } on ApiUnauthorizedException {
+      await _repo.clearSession();
+      _set(AuthStatus.sessionExpired, null);
+      return (outcome: ProfileRestoreOutcome.unauthorized, profile: null);
+    } on ApiNetworkException {
+      return (outcome: ProfileRestoreOutcome.retryable, profile: null);
+    } on ApiException {
+      return (outcome: ProfileRestoreOutcome.retryable, profile: null);
     }
   }
 

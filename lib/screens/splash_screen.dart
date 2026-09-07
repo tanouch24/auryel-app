@@ -7,6 +7,8 @@ import '../data/intro_video_store.dart';
 import '../state/auryel_state.dart';
 import '../state/auth_controller.dart';
 import '../state/consultation_controller.dart';
+import '../state/profile_restore.dart';
+import '../state/session_profile_gate.dart';
 import '../theme/auryel_theme.dart';
 import '../widgets/main_nav_shell.dart';
 import 'intro_video_screen.dart';
@@ -48,7 +50,53 @@ class _SplashScreenState extends State<SplashScreen> {
     if (auth.isSignedIn) {
       unawaited(consultation.refresh());
     }
+    // MULTI-APPAREIL — au démarrage avec session valide, si le profil local est
+    // absent / incomplet / rattaché à un autre compte, on récupère le profil
+    // serveur réel avant d'entrer dans l'app.
+    await _maybeRestoreProfile(auth);
+    if (!mounted) return;
     _goToNext(auth, introSeen: introSeen);
+  }
+
+  /// Récupère le profil serveur AU DÉMARRAGE uniquement si nécessaire — un
+  /// profil local complet et du bon `userId` évite tout appel réseau (démarrage
+  /// rapide). Ne déconnecte jamais sur erreur réseau/5xx ; sur 401,
+  /// `AuthController` bascule en `sessionExpired` et [_goToNext] route vers le
+  /// login. Aucune donnée d'un autre compte n'est affichée (oubli local avant
+  /// fetch si `userId` diffère).
+  Future<void> _maybeRestoreProfile(AuthController auth) async {
+    // Pas de fetch en mode dégradé (networkError) : démarrage hors ligne, on
+    // s'appuie sur le dernier profil local valide.
+    if (auth.status != AuthStatus.signedIn) return;
+    final account = auth.account;
+    if (account == null || account.userId.isEmpty) return;
+    final state = AuryelStateScope.of(context);
+
+    // Profil local complet ET du bon compte -> démarrage direct, aucun appel.
+    if (SessionProfileGate.localProfileUsableAsIs(
+      accountUserId: account.userId,
+      localUserId: state.userId,
+      firstName: state.firstName,
+      birthDate: state.birthDate,
+      selectedAdvisor: state.selectedAdvisor,
+    )) {
+      return;
+    }
+
+    if (SessionProfileGate.mustForgetLocalIdentity(
+      accountUserId: account.userId,
+      localUserId: state.userId,
+    )) {
+      await state.forgetLocalIdentity();
+      if (!mounted) return;
+    }
+
+    final restore = await auth.fetchServerProfile();
+    if (!mounted) return;
+    final profile = restore.profile;
+    if (profile != null) {
+      await applyServerProfileToState(state, profile);
+    }
   }
 
   static Route<void> _fadeRoute(Widget page) => PageRouteBuilder<void>(

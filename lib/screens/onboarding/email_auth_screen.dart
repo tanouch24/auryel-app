@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import '../../api/api_client.dart';
 import '../../state/auryel_state.dart';
 import '../../state/auth_controller.dart';
+import '../../state/profile_restore.dart';
+import '../../state/session_profile_gate.dart';
 import '../../theme/auryel_theme.dart';
 import '../../widgets/auth_fields.dart';
 import '../../widgets/main_nav_shell.dart';
@@ -71,14 +73,34 @@ class _EmailAuthScreenState extends State<EmailAuthScreen> {
       // locale de l'utilisateur précédent (prénom / conseiller / DOB) — jamais
       // affichée au nouvel utilisateur. Même utilisateur -> on conserve.
       final newUserId = auth.account?.userId;
-      final oldUserId = state.userId;
-      if (newUserId != null &&
-          oldUserId != null &&
-          oldUserId != newUserId &&
-          !oldUserId.startsWith('temp_')) {
+      if (SessionProfileGate.mustForgetLocalIdentity(
+        accountUserId: newUserId ?? '',
+        localUserId: state.userId,
+      )) {
         await state.forgetLocalIdentity();
         if (!mounted) return;
       }
+
+      // MULTI-APPAREIL — récupère le profil serveur réel (prénom / date de
+      // naissance / conseiller). Sur 401 : session déjà purgée -> retour login.
+      // Sur réseau KO / 5xx / 404 : session CONSERVÉE, on garde ce qu'on a
+      // (profil local du même compte, ou vide honnête après un changement de
+      // compte) — jamais les données de l'ancien compte.
+      final restore = await auth.fetchServerProfile();
+      if (!mounted) return;
+      if (restore.outcome == ProfileRestoreOutcome.unauthorized) {
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute(builder: (_) => const EmailAuthScreen()),
+          (route) => false,
+        );
+        return;
+      }
+      final profile = restore.profile;
+      if (profile != null) {
+        await applyServerProfileToState(state, profile);
+        if (!mounted) return;
+      }
+
       await state.completeOnboarding(userId: newUserId);
       if (!mounted) return;
       Navigator.of(context).pushAndRemoveUntil(

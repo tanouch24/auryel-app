@@ -20,6 +20,19 @@ class AppProfile {
   final String cheminDeVie;
   final String signeZodiaque;
 
+  /// [dateNaissance] converti en [DateTime] normalisé à minuit (heure locale),
+  /// ou `null` si absent / non ISO. Parsing STRICT ISO (`DateTime.tryParse`) :
+  /// on ne réutilise pas `parseBirthDate` (saisie libre JJ/MM/AAAA) qui
+  /// interpréterait `2000-05-17` à l'envers.
+  DateTime? get birthDateOrNull {
+    final raw = dateNaissance;
+    if (raw == null || raw.isEmpty) return null;
+    final parsed = DateTime.tryParse(raw);
+    return parsed == null
+        ? null
+        : DateTime(parsed.year, parsed.month, parsed.day);
+  }
+
   factory AppProfile.fromJson(Map<String, dynamic> json) {
     final dn = json['date_naissance'];
     return AppProfile(
