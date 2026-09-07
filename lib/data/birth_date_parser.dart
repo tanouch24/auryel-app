@@ -47,13 +47,32 @@ const List<String> _frMonthLabels = [
 ];
 
 const Map<String, String> _accentFolding = {
-  'à': 'a', 'á': 'a', 'â': 'a', 'ä': 'a', 'ã': 'a',
+  'à': 'a',
+  'á': 'a',
+  'â': 'a',
+  'ä': 'a',
+  'ã': 'a',
   'ç': 'c',
-  'é': 'e', 'è': 'e', 'ê': 'e', 'ë': 'e',
-  'í': 'i', 'ì': 'i', 'î': 'i', 'ï': 'i',
-  'ó': 'o', 'ò': 'o', 'ô': 'o', 'ö': 'o', 'õ': 'o',
-  'ú': 'u', 'ù': 'u', 'û': 'u', 'ü': 'u',
-  'ý': 'y', 'ÿ': 'y', 'ñ': 'n',
+  'é': 'e',
+  'è': 'e',
+  'ê': 'e',
+  'ë': 'e',
+  'í': 'i',
+  'ì': 'i',
+  'î': 'i',
+  'ï': 'i',
+  'ó': 'o',
+  'ò': 'o',
+  'ô': 'o',
+  'ö': 'o',
+  'õ': 'o',
+  'ú': 'u',
+  'ù': 'u',
+  'û': 'u',
+  'ü': 'u',
+  'ý': 'y',
+  'ÿ': 'y',
+  'ñ': 'n',
 };
 
 String _foldAccents(String input) {
@@ -88,7 +107,10 @@ DateTime? parseBirthDate(String raw, {DateTime? now}) {
     (_) => ' ',
   );
   // Uniformise les séparateurs autorisés ( / - . espace ) en espace simple.
-  s = s.replaceAll(RegExp(r'[/.\-]'), ' ').replaceAll(RegExp(r'\s+'), ' ').trim();
+  s = s
+      .replaceAll(RegExp(r'[/.\-]'), ' ')
+      .replaceAll(RegExp(r'\s+'), ' ')
+      .trim();
 
   int? day;
   int? month;
@@ -130,3 +152,37 @@ DateTime? parseBirthDate(String raw, {DateTime? now}) {
 /// préremplissage d'une valeur déjà connue.
 String formatBirthDateFr(DateTime d) =>
     '${d.day} ${_frMonthLabels[d.month - 1]} ${d.year}';
+
+/// Âge MINIMUM requis pour utiliser Auryel (décision produit J2).
+///
+/// SOURCE UNIQUE — ne jamais réécrire « 18 » ailleurs : importer cette
+/// constante. La règle est appliquée à l'onboarding (saisie de la date) et à
+/// toute édition ultérieure de la date de naissance ; elle N'EST PAS rejouée
+/// sur la restauration d'une session déjà authentifiée (cf. rapport J2 §4).
+const int kMinimumUserAge = 18;
+
+/// Message neutre (non culpabilisant) affiché quand la personne a moins de
+/// [kMinimumUserAge] ans. SOURCE UNIQUE du wording côté UI.
+const String kMinimumAgeMessage =
+    'Auryel est réservé aux personnes âgées de 18 ans ou plus.';
+
+/// Âge révolu (années complètes) à la date [now] pour une naissance
+/// [birthDate]. Calcul JOUR/MOIS/ANNÉE : l'anniversaire de l'année courante
+/// doit être atteint pour compter l'année (pas un simple `annéeCourante -
+/// annéeNaissance`). Une date dans le futur donne un âge négatif.
+int computeAge(DateTime birthDate, {DateTime? now}) {
+  final today = _dateOnly(now ?? DateTime.now());
+  final birth = _dateOnly(birthDate);
+  var age = today.year - birth.year;
+  final beforeBirthdayThisYear =
+      today.month < birth.month ||
+      (today.month == birth.month && today.day < birth.day);
+  if (beforeBirthdayThisYear) age -= 1;
+  return age;
+}
+
+/// `true` si [birthDate] correspond à un âge ≥ [kMinimumUserAge] à la date
+/// [now]. Une date dans le futur ou trop récente -> `false` (refus propre,
+/// jamais d'exception).
+bool meetsMinimumAge(DateTime birthDate, {DateTime? now}) =>
+    computeAge(birthDate, now: now) >= kMinimumUserAge;

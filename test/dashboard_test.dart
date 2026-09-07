@@ -11,6 +11,7 @@ import 'package:auryel/api/api_client.dart';
 import 'package:auryel/api/auth_api.dart';
 import 'package:auryel/api/consultation_api.dart';
 import 'package:auryel/api/profile_api.dart';
+import 'package:auryel/api/rewards_api.dart';
 import 'package:auryel/api/tirage_api.dart';
 import 'package:auryel/data/auth_repository.dart';
 import 'package:auryel/data/consultation.dart';
@@ -109,6 +110,7 @@ AuthController _auth(MockClient client, {String? token = 'tok'}) {
     profileApi: ProfileApi(api),
     consultationApi: ConsultationApi(api),
     tirageApi: TirageApi(api),
+    rewardsApi: RewardsApi(api),
   );
   addTearDown(auth.dispose);
   return auth;
@@ -283,17 +285,64 @@ void main() {
     expect(find.text('Partager ma pensée du jour'), findsOneWidget);
   });
 
+  testWidgets('J2 — progression partage : le SERVEUR fait autorité quand '
+      'GET share-progress répond', (t) async {
+    final prefs = await SharedPreferences.getInstance();
+    final tracker = DailyShareTracker(prefs: prefs);
+    await tracker.recordShareAttempt(now: DateTime(2026, 9, 1)); // local = 1
+    var hit = false;
+    final auth = _auth(
+      MockClient((req) async {
+        if (req.url.path == '/api/app/rewards/share-progress') {
+          hit = true;
+          return http.Response(
+            jsonEncode({'count': 12, 'target': 30, 'credited': false}),
+            200,
+            headers: {'content-type': 'application/json'},
+          );
+        }
+        return http.Response('{}', 404);
+      }),
+    );
+
+    await t.pumpWidget(_dash(auth: auth));
+    await t.pump();
+    await t.pump(const Duration(milliseconds: 50));
+
+    expect(hit, isTrue, reason: 'GET share-progress réellement appelé');
+    expect(find.text('12 / 30 jours'), findsOneWidget); // serveur
+    expect(find.text('1 / 30 jours'), findsNothing); // pas le cache local
+  });
+
+  testWidgets('J2 — progression partage : endpoint indisponible -> repli sur '
+      'le cache local, aucun crash', (t) async {
+    final prefs = await SharedPreferences.getInstance();
+    final tracker = DailyShareTracker(prefs: prefs);
+    await tracker.recordShareAttempt(now: DateTime(2026, 9, 1));
+    await tracker.recordShareAttempt(now: DateTime(2026, 9, 2)); // local = 2
+    final auth = _auth(MockClient((_) async => http.Response('{}', 503)));
+
+    await t.pumpWidget(_dash(auth: auth));
+    await t.pump();
+    await t.pump(const Duration(milliseconds: 50));
+
+    expect(find.text('2 / 30 jours'), findsOneWidget);
+    expect(t.takeException(), isNull);
+  });
+
   testWidgets('M/P — aucune heure attribuée, suppression = 2 confirmations', (
     t,
   ) async {
     await t.pumpWidget(_dash());
     await t.pump();
     await t.pump(const Duration(milliseconds: 50));
-    // récompense NON attribuée : mention discrète, aucun crédit
+    // récompense : mention honnête (le crédit est décidé par le serveur), aucun
+    // crédit local. L'ancien hedge « en cours d'activation » a été retiré (J2).
     expect(
-      find.textContaining('Récompense en cours d’activation'),
+      find.textContaining('le crédit de l’heure sont gérés par nos serveurs'),
       findsOneWidget,
     );
+    expect(find.textContaining('en cours d’activation'), findsNothing);
 
     // suppression : 1re confirmation (texte irréversible) -> 2e confirmation
     // (saisie « SUPPRIMER »). On annule : rien n'est touché.
@@ -553,6 +602,50 @@ void main() {
 
     expect(patched.single['date_naissance'], '1994-03-12');
     expect(find.text('Date de naissance mise à jour.'), findsOneWidget);
+  });
+
+  testWidgets('J2 — édition date de naissance : < 18 ans -> refus, aucun PATCH, '
+      'état local intact', (t) async {
+    final patched = <Map<String, dynamic>>[];
+    final auth = _auth(
+      MockClient((req) async {
+        if (req.method == 'PATCH' && req.url.path == '/api/app/profile') {
+          patched.add(jsonDecode(req.body) as Map<String, dynamic>);
+        }
+        return http.Response('{}', 404);
+      }),
+    );
+    // État avec une date de naissance déjà mineure -> le picker s'ouvre dessus,
+    // « OK » renvoie cette date < 18.
+    final minorState = AuryelState(
+      repository: LocalOnboardingRepository(),
+      initial: OnboardingRecord(
+        userId: 'u',
+        selectedAdvisor: 'Séléna',
+        firstName: 'Nathanyel',
+        birthDate: DateTime(DateTime.now().year - 10, 1, 1),
+        portraitData: 'x',
+        portraitFeedback: 'y',
+        onboardingCompleted: true,
+      ),
+    );
+
+    await t.pumpWidget(_dash(auth: auth, state: minorState));
+    await t.pump();
+
+    await t.ensureVisible(find.byTooltip('Modifier').last);
+    await t.tap(find.byTooltip('Modifier').last);
+    await t.pumpAndSettle();
+    await t.tap(find.text('OK'));
+    await t.pumpAndSettle();
+
+    expect(
+      find.text('Auryel est réservé aux personnes âgées de 18 ans ou plus.'),
+      findsOneWidget,
+    );
+    expect(find.text('Date de naissance mise à jour.'), findsNothing);
+    expect(patched, isEmpty, reason: 'aucun PATCH envoyé pour un âge < 18');
+    expect(minorState.birthDate, DateTime(DateTime.now().year - 10, 1, 1));
   });
 
   testWidgets('B10.1 F — email affiché mais NON modifiable', (t) async {

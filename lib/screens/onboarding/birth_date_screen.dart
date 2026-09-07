@@ -19,6 +19,11 @@ const _mockPortraitText =
 /// Le champ texte est le mode principal ; le calendrier reste accessible en
 /// option secondaire (petite icône), jamais imposé. La normalisation est
 /// déléguée à [parseBirthDate] (testé à part).
+///
+/// RÈGLE 18+ (J2) : Auryel est réservé aux 18 ans ou plus. C'est ICI que la
+/// règle est appliquée à la création de compte — une date valide mais < 18 ans
+/// ([meetsMinimumAge] == false) laisse « Continuer » désactivé et affiche
+/// [kMinimumAgeMessage] ; l'onboarding ne peut pas se terminer.
 class BirthDateScreen extends StatefulWidget {
   const BirthDateScreen({super.key});
 
@@ -54,6 +59,10 @@ class _BirthDateScreenState extends State<BirthDateScreen> {
     setState(() => _parsed = parseBirthDate(value));
   }
 
+  /// Date valide MAIS âge < 18 : on distingue ce cas de « date illisible » pour
+  /// afficher le bon message.
+  bool get _tooYoung => _parsed != null && !meetsMinimumAge(_parsed!);
+
   Future<void> _pickFromCalendar() async {
     final now = DateTime.now();
     final result = await showDatePicker(
@@ -87,7 +96,9 @@ class _BirthDateScreenState extends State<BirthDateScreen> {
 
   void _continue() {
     final date = _parsed;
-    if (date == null) return;
+    // Refus propre : date absente/illisible OU âge < 18 ans. On n'écrit rien
+    // dans l'état, on ne navigue pas -> l'onboarding ne peut pas se terminer.
+    if (date == null || !meetsMinimumAge(date)) return;
     final state = AuryelStateScope.of(context);
     state.setBirthDate(date);
     // Texte simulé — stocké dans portraitData, pas codé en dur dans l'écran
@@ -111,7 +122,7 @@ class _BirthDateScreenState extends State<BirthDateScreen> {
       title: 'Quelle est ta date de naissance ?',
       subtitle: 'Écris-la comme tu veux, par exemple 17 mai 2000.',
       ctaLabel: 'Continuer',
-      ctaEnabled: _parsed != null,
+      ctaEnabled: _parsed != null && !_tooYoung,
       onCta: _continue,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -163,7 +174,16 @@ class _BirthDateScreenState extends State<BirthDateScreen> {
             ],
           ),
           const SizedBox(height: 14),
-          if (_parsed != null)
+          if (_tooYoung)
+            Text(
+              kMinimumAgeMessage,
+              style: AuryelText.body(
+                fontSize: 13,
+                height: 1.4,
+                color: AuryelColors.textSecondary,
+              ),
+            )
+          else if (_parsed != null)
             Text(
               '${formatBirthDateFr(_parsed!)} ✓',
               style: AuryelText.body(

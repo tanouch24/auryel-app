@@ -2,10 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:phosphor_icons/phosphor_icons.dart';
 
 import '../config/legal_links.dart';
+import '../data/birth_date_parser.dart';
 import '../data/daily_like_store.dart';
 import '../data/daily_share_tracker.dart';
 import '../data/daily_thought.dart';
 import '../data/legal_link_launcher.dart';
+import '../data/share_reward_repository.dart';
 import '../data/subscription_manager.dart';
 import '../state/auth_controller.dart';
 import '../state/auryel_state.dart';
@@ -68,10 +70,26 @@ class _DashboardScreenState extends State<DashboardScreen> {
   int _shareDays = 0;
   bool _savingBirthDate = false;
 
+  /// Progression partage SERVEUR (`GET /api/app/rewards/share-progress`) — fait
+  /// autorité quand disponible ; sinon on retombe sur le cache local
+  /// [_shareDays]. Aucun endpoint inventé : `RewardsApi` porte déjà cette route.
+  int? _serverShareCount;
+  int _shareTarget = 30;
+  bool _serverShareRequested = false;
+
   @override
   void initState() {
     super.initState();
     _loadCounters();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Une seule tentative de lecture serveur par montage (besoin du scope Auth).
+    if (_serverShareRequested) return;
+    _serverShareRequested = true;
+    _loadServerShareProgress();
   }
 
   Future<void> _loadCounters() async {
@@ -89,6 +107,25 @@ class _DashboardScreenState extends State<DashboardScreen> {
     } catch (_) {
       /* compteurs à 0 par défaut */
     }
+  }
+
+  /// Lecture SEULE de la progression serveur (`count` / `target`). Ne crédite
+  /// rien, ne modifie aucun quota. En cas d'indisponibilité (endpoint absent,
+  /// réseau, 5xx, 401, pas de session), `loadProgress()` renvoie `null` et
+  /// l'affichage reste sur le cache local.
+  Future<void> _loadServerShareProgress() async {
+    final auth = AuthScope.maybeOf(context);
+    if (auth == null) return;
+    final repo = ShareRewardRepository(
+      api: auth.rewardsApi,
+      tokenProvider: auth.currentToken,
+    );
+    final progress = await repo.loadProgress();
+    if (progress == null || !mounted) return;
+    setState(() {
+      _serverShareCount = progress.count;
+      _shareTarget = progress.target;
+    });
   }
 
   Future<void> _logout() async {
@@ -270,8 +307,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
       ),
     );
     if (picked == null || !mounted) return;
-    setState(() => _savingBirthDate = true);
     final messenger = ScaffoldMessenger.of(context);
+    // Règle 18+ (J2) : une édition ne peut pas rendre le compte < 18 ans.
+    // Aucun PATCH n'est envoyé, l'état local n'est pas touché.
+    if (!meetsMinimumAge(picked)) {
+      messenger.showSnackBar(const SnackBar(content: Text(kMinimumAgeMessage)));
+      return;
+    }
+    setState(() => _savingBirthDate = true);
     final outcome = auth == null
         ? ProfileSyncOutcome.retryable
         : await auth.syncProfileFields(dateNaissance: _isoDate(picked));
@@ -365,7 +408,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 ),
                 const SizedBox(height: 16),
                 _RewardsSection(
-                  shareDays: _shareDays,
+                  // Serveur autoritaire quand disponible, sinon cache local.
+                  shareDays: _serverShareCount ?? _shareDays,
+                  target: _shareTarget,
                   onGenerate: _openPublication,
                 ),
                 const SizedBox(height: 16),
@@ -933,14 +978,23 @@ class _StatRow extends StatelessWidget {
 // ---------------------------------------------------------------------------
 
 class _RewardsSection extends StatelessWidget {
-  const _RewardsSection({required this.shareDays, required this.onGenerate});
+  const _RewardsSection({
+    required this.shareDays,
+    required this.target,
+    required this.onGenerate,
+  });
 
+  /// Jours de partage à afficher — serveur si disponible, sinon cache local.
   final int shareDays;
+
+  /// Palier (30 en V1) — vient de la réponse serveur quand disponible.
+  final int target;
   final VoidCallback onGenerate;
 
   @override
   Widget build(BuildContext context) {
-    final capped = shareDays > 30 ? 30 : shareDays;
+    final safeTarget = target <= 0 ? 30 : target;
+    final capped = shareDays > safeTarget ? safeTarget : shareDays;
     return _Section(
       title: 'Mes récompenses',
       icon: PhosphorIconsRegular.gift,
@@ -965,7 +1019,7 @@ class _RewardsSection extends StatelessWidget {
           ),
           const SizedBox(height: 6),
           Text(
-            '30 jours de partage = 1 h de consultation offerte.',
+            '$safeTarget jours de partage = 1 h de consultation offerte.',
             style: AuryelText.body(
               fontSize: 11.5,
               height: 1.4,
@@ -977,7 +1031,7 @@ class _RewardsSection extends StatelessWidget {
           ClipRRect(
             borderRadius: BorderRadius.circular(6),
             child: LinearProgressIndicator(
-              value: capped / 30,
+              value: capped / safeTarget,
               minHeight: 6,
               backgroundColor: AuryelColors.warmBorder,
               valueColor: const AlwaysStoppedAnimation(AuryelColors.goldLight),
@@ -985,7 +1039,7 @@ class _RewardsSection extends StatelessWidget {
           ),
           const SizedBox(height: 6),
           Text(
-            '$capped / 30 jours',
+            '$capped / $safeTarget jours',
             style: AuryelText.body(
               fontSize: 12,
               fontWeight: FontWeight.w600,
@@ -999,8 +1053,8 @@ class _RewardsSection extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           Text(
-            'Reviens chaque jour : au bout de 30 jours de partage, ton heure '
-            'de consultation sera créditée. Récompense en cours d’activation.',
+            'Un partage compté par jour. Le décompte des jours et le crédit '
+            'de l’heure sont gérés par nos serveurs.',
             style: AuryelText.body(
               fontSize: 10.5,
               height: 1.4,

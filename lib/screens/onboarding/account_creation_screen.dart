@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../api/api_client.dart';
+import '../../data/birth_date_parser.dart';
 import '../../state/auryel_state.dart';
 import '../../state/auth_controller.dart';
 import '../../theme/auryel_theme.dart';
@@ -135,6 +136,11 @@ class _AccountCreationScreenState extends State<AccountCreationScreen> {
         'Ton profil d’onboarding est incomplet. Reviens en arrière pour le '
         'compléter avant de continuer.',
       );
+    }
+    // Garde-fou 18+ (filet — la règle est déjà appliquée à l'étape 2). Une
+    // date < 18 ans ne doit jamais aboutir à un profil synchronisé.
+    if (!meetsMinimumAge(birth)) {
+      return _failSync(_Phase.syncBlocked, kMinimumAgeMessage);
     }
 
     final outcome = await auth.syncProfile(
