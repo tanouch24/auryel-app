@@ -639,8 +639,15 @@ void main() {
     await t.tap(find.text('OK'));
     await t.pumpAndSettle();
 
+    // Message de refus affiché dans un SnackBar (le même texte figure aussi de
+    // façon permanente dans « Informations & confidentialité » depuis J3).
     expect(
-      find.text('Auryel est réservé aux personnes âgées de 18 ans ou plus.'),
+      find.descendant(
+        of: find.byType(SnackBar),
+        matching: find.text(
+          'Auryel est réservé aux personnes âgées de 18 ans ou plus.',
+        ),
+      ),
       findsOneWidget,
     );
     expect(find.text('Date de naissance mise à jour.'), findsNothing);

@@ -20,6 +20,7 @@ import 'package:auryel/data/onboarding_record.dart';
 import 'package:auryel/data/onboarding_repository.dart';
 import 'package:auryel/data/token_store.dart';
 import 'package:auryel/screens/dashboard_screen.dart';
+import 'package:auryel/screens/legal_document_screen.dart';
 import 'package:auryel/screens/onboarding/email_auth_screen.dart';
 import 'package:auryel/state/auryel_state.dart';
 import 'package:auryel/state/auth_controller.dart';
@@ -370,11 +371,11 @@ void main() {
   });
 
   // -------------------------------------------------------------------------
-  // A/H/J — Dashboard : 3 liens juridiques null -> inertes, aucun launcher
+  // J3 — Dashboard : documents juridiques lisibles DANS l'app (plus de
+  // « Bientôt disponible »), identité éditeur + 18+ + disclaimer visibles.
   // -------------------------------------------------------------------------
-  testWidgets('21/22 — Dashboard : liens juridiques null = « Bientôt '
-      'disponible » ×3, aucun launcher, aucune donnée technique', (t) async {
-    final spy = _SpyLauncher();
+  testWidgets('J3 — « Informations & confidentialité » : docs juridiques '
+      'in-app, société, 18+, disclaimer, aucune donnée technique', (t) async {
     await t.pumpWidget(
       AuryelStateScope(
         state: AuryelState(
@@ -403,7 +404,6 @@ void main() {
               ],
             ),
             showBackButton: false,
-            legalLinkLauncher: spy,
           ),
         ),
       ),
@@ -411,11 +411,40 @@ void main() {
     await t.pump();
     await t.ensureVisible(find.text('INFORMATIONS & CONFIDENTIALITÉ'));
 
-    expect(find.text('Bientôt disponible'), findsNWidgets(3));
-    expect(spy.opened, isEmpty);
-    // aucune donnée technique
+    // Plus aucun « Bientôt disponible » pour les documents juridiques.
+    expect(find.text('Bientôt disponible'), findsNothing);
+
+    // Les 4 documents + identité + 18+ + transparence IA + disclaimer.
+    expect(find.text('Politique de confidentialité'), findsOneWidget);
+    expect(find.text('Conditions d’utilisation'), findsOneWidget);
+    expect(find.text('Conditions Premium'), findsOneWidget);
+    expect(find.text('Mentions légales'), findsOneWidget);
+    expect(find.textContaining('3E Technology Ltd'), findsOneWidget);
+    expect(find.textContaining('17179077'), findsOneWidget);
+    expect(find.textContaining('contact@auryelvoyance.com'), findsOneWidget);
+    expect(find.textContaining('18 ans ou plus'), findsOneWidget);
+    expect(
+      find.text(
+        'Une partie de nos échanges est gérée par une intelligence '
+        'artificielle.',
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.textContaining('à titre indicatif et de divertissement'),
+      findsOneWidget,
+    );
+
+    // Aucune donnée technique.
     expect(find.textContaining('uuid-technique-secret'), findsNothing);
     expect(find.textContaining('Bearer'), findsNothing);
     expect(find.textContaining('/api/'), findsNothing);
+
+    // Ouvrir un document -> écran de lecture in-app, sans quitter l'app.
+    await t.ensureVisible(find.text('Mentions légales'));
+    await t.tap(find.text('Mentions légales'));
+    await t.pumpAndSettle();
+    expect(find.byType(LegalDocumentScreen), findsOneWidget);
+    expect(find.textContaining('company number 17179077'), findsWidgets);
   });
 }

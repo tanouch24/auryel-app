@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 
+import '../config/legal_texts.dart';
 import '../data/subscription_manager.dart';
 import '../state/consultation_controller.dart';
 import '../state/purchase_controller.dart';
 import '../theme/auryel_theme.dart';
 import '../widgets/gold_button.dart';
+import 'legal_document_screen.dart';
 
 /// Écran d'abonnement Premium (F5-C).
 ///
@@ -121,7 +123,96 @@ class _Body extends StatelessWidget {
             )
           else
             _OfferBlock(priceLabel: _priceLabel, controller: controller),
+          const SizedBox(height: 20),
+          const _LegalFooter(),
         ],
+      ),
+    );
+  }
+}
+
+/// Rappel juridique de l'écran Premium + accès aux textes DANS l'app.
+/// Ces boutons NE déclenchent aucun achat : ils ouvrent [LegalDocumentScreen].
+class _LegalFooter extends StatelessWidget {
+  const _LegalFooter();
+
+  void _openDoc(BuildContext context, String title, String body) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => LegalDocumentScreen(title: title, body: body),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Divider(height: 1, color: AuryelColors.warmBorder),
+        const SizedBox(height: 12),
+        Text(
+          'Abonnement mensuel à renouvellement automatique via Google Play ou '
+          'l’App Store. Le prix est celui indiqué par le Store avant l’achat. '
+          '8 h de consultation par mois, messages illimités pendant le temps '
+          'disponible. Résiliation à tout moment depuis le Store. Restauration '
+          'des achats disponible ci-dessus. Détails dans les Conditions '
+          'Premium.',
+          style: AuryelText.body(
+            fontSize: 10.5,
+            height: 1.5,
+            color: AuryelColors.textMuted,
+          ),
+        ),
+        const SizedBox(height: 10),
+        Wrap(
+          spacing: 16,
+          runSpacing: 4,
+          children: [
+            _DocLink(
+              label: 'Conditions Premium',
+              onTap: () => _openDoc(
+                context,
+                'Conditions Auryel Premium',
+                kPremiumTermsInAppText,
+              ),
+            ),
+            _DocLink(
+              label: 'Politique de confidentialité',
+              onTap: () => _openDoc(
+                context,
+                'Politique de confidentialité',
+                kPrivacyPolicyInAppText,
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+class _DocLink extends StatelessWidget {
+  const _DocLink({required this.label, required this.onTap});
+
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(6),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 4),
+        child: Text(
+          label,
+          style: AuryelText.body(
+            fontSize: 11.5,
+            fontWeight: FontWeight.w600,
+            color: AuryelColors.goldLight,
+          ),
+        ),
       ),
     );
   }

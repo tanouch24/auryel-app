@@ -17,6 +17,7 @@ import 'package:auryel/data/auth_repository.dart';
 import 'package:auryel/data/iap_gateway.dart';
 import 'package:auryel/data/purchase.dart';
 import 'package:auryel/data/token_store.dart';
+import 'package:auryel/screens/legal_document_screen.dart';
 import 'package:auryel/screens/premium_screen.dart';
 import 'package:auryel/state/auth_controller.dart';
 import 'package:auryel/state/consultation_controller.dart';
@@ -309,5 +310,42 @@ void main() {
     expect(rig.controller.state, PurchaseState.canceled);
     expect(find.textContaining('erreur'), findsNothing);
     expect(find.text('S’abonner'), findsOneWidget);
+  });
+
+  testWidgets('J3 — accès aux textes juridiques + infos essentielles, sans '
+      'déclencher d\'achat', (t) async {
+    final rig = _rig(handler: _happy);
+    rig.gateway.products = [_product(price: '7,99 €')];
+    await rig.controller.initialize();
+    await _pump(t, rig.controller);
+    await t.pump();
+
+    // Rappel juridique essentiel présent sur l'écran d'achat.
+    expect(find.text('7,99 €'), findsOneWidget); // prix du Store, autoritaire
+    expect(
+      find.textContaining('renouvellement automatique via Google Play'),
+      findsOneWidget,
+    );
+    expect(
+      find.textContaining('Résiliation à tout moment depuis le Store'),
+      findsOneWidget,
+    );
+
+    // Liens vers les textes, dans l'app.
+    expect(find.text('Conditions Premium'), findsOneWidget);
+    expect(find.text('Politique de confidentialité'), findsOneWidget);
+
+    final buyBefore = rig.gateway.buyCalls;
+    await t.ensureVisible(find.text('Conditions Premium'));
+    await t.tap(find.text('Conditions Premium'));
+    await t.pumpAndSettle();
+
+    // Écran de lecture in-app, AUCUN achat déclenché par la navigation.
+    expect(find.byType(LegalDocumentScreen), findsOneWidget);
+    expect(
+      find.textContaining('8 heures de consultation par mois'),
+      findsWidgets,
+    );
+    expect(rig.gateway.buyCalls, buyBefore);
   });
 }

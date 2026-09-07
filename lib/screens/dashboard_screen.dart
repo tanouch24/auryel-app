@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:phosphor_icons/phosphor_icons.dart';
 
-import '../config/legal_links.dart';
+import '../config/legal_texts.dart';
 import '../data/birth_date_parser.dart';
 import '../data/daily_like_store.dart';
 import '../data/daily_share_tracker.dart';
@@ -22,6 +22,7 @@ import '../widgets/gold_button.dart';
 import 'advisor_chooser_screen.dart';
 import 'auryel_experience_screen.dart';
 import 'bibliotheque_screen.dart';
+import 'legal_document_screen.dart';
 import 'notification_settings_screen.dart';
 import 'onboarding/email_auth_screen.dart';
 import 'premium_screen.dart';
@@ -40,7 +41,6 @@ class DashboardScreen extends StatefulWidget {
     this.thoughtRepository,
     this.showBackButton = true,
     this.subscriptionManager,
-    this.legalLinkLauncher,
   });
 
   /// Injecté par les tests ; en production la source est le pack local
@@ -49,9 +49,6 @@ class DashboardScreen extends StatefulWidget {
 
   /// Test uniquement : sinon [defaultSubscriptionManager].
   final SubscriptionManager? subscriptionManager;
-
-  /// Test uniquement : sinon [defaultLegalLinkLauncher].
-  final LegalLinkLauncher? legalLinkLauncher;
 
   /// `false` quand l'écran est monté DANS la bottom navigation (onglet « Mon
   /// compte ») : pas de flèche retour inutile. `true` (défaut) quand il est
@@ -436,12 +433,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   ),
                 ),
                 const SizedBox(height: 16),
-                _PrivacySection(
-                  onDelete: _confirmDelete,
-                  deleting: _deleting,
-                  legalLinkLauncher:
-                      widget.legalLinkLauncher ?? defaultLegalLinkLauncher,
-                ),
+                _PrivacySection(onDelete: _confirmDelete, deleting: _deleting),
                 const SizedBox(height: 22),
                 _LogoutButton(onTap: _logout),
               ],
@@ -1245,15 +1237,18 @@ class _Kv extends StatelessWidget {
 // ---------------------------------------------------------------------------
 
 class _PrivacySection extends StatelessWidget {
-  const _PrivacySection({
-    required this.onDelete,
-    required this.deleting,
-    required this.legalLinkLauncher,
-  });
+  const _PrivacySection({required this.onDelete, required this.deleting});
 
   final VoidCallback onDelete;
   final bool deleting;
-  final LegalLinkLauncher legalLinkLauncher;
+
+  void _openDoc(BuildContext context, String title, String body) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => LegalDocumentScreen(title: title, body: body),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -1263,20 +1258,55 @@ class _PrivacySection extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          LegalLinkRow(
+          // Identité de l'éditeur — visible sans quitter l'app.
+          Text(
+            kPublisherIdentitySummary,
+            style: AuryelText.body(
+              fontSize: 11,
+              height: 1.45,
+              color: AuryelColors.textMuted,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            kMinimumAgeMessage,
+            style: AuryelText.body(
+              fontSize: 11,
+              height: 1.35,
+              fontWeight: FontWeight.w600,
+              color: AuryelColors.textSecondary,
+            ),
+          ),
+          const SizedBox(height: 8),
+          _LinkRow(
             label: 'Politique de confidentialité',
-            url: LegalLinks.privacyPolicyUrl,
-            launcher: legalLinkLauncher,
+            icon: PhosphorIconsRegular.fileText,
+            onTap: () => _openDoc(
+              context,
+              'Politique de confidentialité',
+              kPrivacyPolicyInAppText,
+            ),
           ),
-          LegalLinkRow(
+          _LinkRow(
             label: 'Conditions d’utilisation',
-            url: LegalLinks.termsUrl,
-            launcher: legalLinkLauncher,
+            icon: PhosphorIconsRegular.fileText,
+            onTap: () =>
+                _openDoc(context, 'Conditions d’utilisation', kTermsInAppText),
           ),
-          LegalLinkRow(
+          _LinkRow(
+            label: 'Conditions Premium',
+            icon: PhosphorIconsRegular.fileText,
+            onTap: () => _openDoc(
+              context,
+              'Conditions Auryel Premium',
+              kPremiumTermsInAppText,
+            ),
+          ),
+          _LinkRow(
             label: 'Mentions légales',
-            url: LegalLinks.legalNoticeUrl,
-            launcher: legalLinkLauncher,
+            icon: PhosphorIconsRegular.fileText,
+            onTap: () =>
+                _openDoc(context, 'Mentions légales', kLegalNoticeInAppText),
           ),
           _LinkRow(
             label: 'Gérer mon abonnement',
@@ -1312,12 +1342,35 @@ class _PrivacySection extends StatelessWidget {
               icon: PhosphorIconsRegular.trash,
               onTap: onDelete,
             ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 12),
+          const Divider(height: 1, color: AuryelColors.warmBorder),
+          const SizedBox(height: 12),
+          // Transparence IA (wording canonique) + disclaimer produit + note IA.
+          // Affichés ici une fois, jamais à chaque message de consultation.
           Text(
             kAiTransparencyText,
             style: AuryelText.body(
               fontSize: 11,
-              height: 1.35,
+              height: 1.4,
+              fontWeight: FontWeight.w600,
+              color: AuryelColors.textSecondary,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            kAuryelDisclaimerText,
+            style: AuryelText.body(
+              fontSize: 10.5,
+              height: 1.45,
+              color: AuryelColors.textMuted,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            kAiResponsesDisclaimerText,
+            style: AuryelText.body(
+              fontSize: 10.5,
+              height: 1.45,
               color: AuryelColors.textMuted,
             ),
           ),
