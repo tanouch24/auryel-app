@@ -30,7 +30,10 @@ import 'package:auryel/widgets/consultation_block.dart';
 // ===========================================================================
 
 http.Response _json(Map<String, dynamic> b, [int s = 200]) => http.Response(
-    jsonEncode(b), s, headers: {'content-type': 'application/json'});
+  jsonEncode(b),
+  s,
+  headers: {'content-type': 'application/json'},
+);
 
 Map<String, dynamic> _time({
   int firstFree = 0,
@@ -38,15 +41,16 @@ Map<String, dynamic> _time({
   int purchased = 0,
   bool windowActive = false,
 }) => {
-      'first_free_remaining_seconds': firstFree,
-      'premium_remaining_seconds': premium,
-      'purchased_remaining_seconds': purchased,
-      'total_remaining_seconds': firstFree + premium + purchased,
-      'window_active': windowActive,
-      'window_expires_at': windowActive ? '2999-01-01T00:05:00Z' : null,
-    };
+  'first_free_remaining_seconds': firstFree,
+  'premium_remaining_seconds': premium,
+  'purchased_remaining_seconds': purchased,
+  'total_remaining_seconds': firstFree + premium + purchased,
+  'window_active': windowActive,
+  'window_expires_at': windowActive ? '2999-01-01T00:05:00Z' : null,
+};
 
-Map<String, dynamic> _quota({bool isPremium = true, bool firstFree = false}) => {
+Map<String, dynamic> _quota({bool isPremium = true, bool firstFree = false}) =>
+    {
       'is_premium': isPremium,
       'monthly_limit': 8,
       'monthly_used': 1,
@@ -67,7 +71,9 @@ _Rig _rig(Future<http.Response> Function(http.Request) handler) {
   final api = ConsultationApi(client);
   final auth = AuthController(
     repository: AuthRepository(
-        api: AuthApi(client), tokenStore: InMemoryTokenStore('tok')),
+      api: AuthApi(client),
+      tokenStore: InMemoryTokenStore('tok'),
+    ),
     profileApi: ProfileApi(client),
     consultationApi: api,
     tirageApi: TirageApi(client),
@@ -78,28 +84,28 @@ _Rig _rig(Future<http.Response> Function(http.Request) handler) {
 }
 
 Future<void> _pumpHome(WidgetTester t, _Rig rig) => t.pumpWidget(
-      AuthScope(
-        controller: rig.auth,
-        child: ConsultationScope(
-          controller: rig.controller,
-          child: AuryelStateScope(
-            state: AuryelState(
-              repository: LocalOnboardingRepository(),
-              initial: OnboardingRecord(
-                userId: 'u',
-                selectedAdvisor: 'Séléna',
-                firstName: 'N',
-                birthDate: DateTime(1994, 1, 1),
-                portraitData: 'x',
-                portraitFeedback: 'y',
-                onboardingCompleted: true,
-              ),
-            ),
-            child: const MaterialApp(home: HomeScreen()),
+  AuthScope(
+    controller: rig.auth,
+    child: ConsultationScope(
+      controller: rig.controller,
+      child: AuryelStateScope(
+        state: AuryelState(
+          repository: LocalOnboardingRepository(),
+          initial: OnboardingRecord(
+            userId: 'u',
+            selectedAdvisor: 'Séléna',
+            firstName: 'N',
+            birthDate: DateTime(1994, 1, 1),
+            portraitData: 'x',
+            portraitFeedback: 'y',
+            onboardingCompleted: true,
           ),
         ),
+        child: const MaterialApp(home: HomeScreen()),
       ),
-    );
+    ),
+  ),
+);
 
 void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
@@ -107,113 +113,188 @@ void main() {
   // -------------------------------------------------------------------------
   group('Accueil — bloc consultation', () {
     testWidgets('A. première heure disponible -> "1 h ... offerte"', (t) async {
-      final rig = _rig((_) async => _json({
-            'consultation': null,
-            'time': _time(firstFree: 3600),
-            'quota': _quota(isPremium: false, firstFree: true),
-          }));
+      final rig = _rig(
+        (_) async => _json({
+          'consultation': null,
+          'time': _time(firstFree: 3600),
+          'quota': _quota(isPremium: false, firstFree: true),
+        }),
+      );
       await rig.controller.refresh();
       await _pumpHome(t, rig);
       await t.pumpAndSettle();
-      expect(find.text('Ta première heure de consultation est offerte'),
-          findsOneWidget);
       expect(find.textContaining('2 h'), findsNothing);
       expect(find.textContaining('consultations'), findsNothing);
-      // B8.1 §3 — bandeau « TEMPS DISPONIBLE » bien visible + valeur brute.
+      // Bloc compact « TEMPS DISPONIBLE » : label + valeur brute + CTA court.
       expect(find.text('TEMPS DISPONIBLE'), findsOneWidget);
       expect(find.text('1 h offerte'), findsOneWidget);
+      expect(find.text('Consulter'), findsOneWidget);
     });
 
-    testWidgets('B/E. Premium avec temps -> "7 h 42 min disponibles"',
-        (t) async {
-      final rig = _rig((_) async => _json({
-            'consultation': null,
-            'time': _time(premium: 27720), // 7 h 42 min
-            'quota': _quota(),
-          }));
+    testWidgets('B/E. Premium avec temps -> "7 h 42 min disponibles"', (
+      t,
+    ) async {
+      final rig = _rig(
+        (_) async => _json({
+          'consultation': null,
+          'time': _time(premium: 27720), // 7 h 42 min
+          'quota': _quota(),
+        }),
+      );
       await rig.controller.refresh();
       await _pumpHome(t, rig);
       await t.pumpAndSettle();
-      expect(find.text('7 h 42 min disponibles'), findsOneWidget);
-      expect(find.text('Ouvrir une consultation'), findsOneWidget);
+      expect(find.text('Consulter'), findsOneWidget);
       expect(find.textContaining('/8'), findsNothing);
       expect(find.textContaining('consultations restantes'), findsNothing);
-      // B8.1 §3 — bandeau « TEMPS DISPONIBLE » + valeur brute « 7 h 42 min ».
+      // Bloc compact « TEMPS DISPONIBLE » + valeur brute « 7 h 42 min ».
       expect(find.text('TEMPS DISPONIBLE'), findsOneWidget);
       expect(find.text('7 h 42 min'), findsOneWidget);
     });
 
     testWidgets('J. 0 temps -> "S’abonner pour consulter"', (t) async {
-      final rig = _rig((_) async => _json({
-            'consultation': null,
-            'time': _time(), // total 0
-            'quota': _quota(isPremium: false),
-          }));
+      final rig = _rig(
+        (_) async => _json({
+          'consultation': null,
+          'time': _time(), // total 0
+          'quota': _quota(isPremium: false),
+        }),
+      );
       await rig.controller.refresh();
       await _pumpHome(t, rig);
       await t.pumpAndSettle();
-      expect(find.text('S’abonner pour consulter'), findsOneWidget);
-      expect(find.text('Ton temps de consultation est épuisé.'), findsOneWidget);
-      // B8.1 §3 — bandeau « TEMPS DISPONIBLE » = « 0 min » avant le CTA Premium.
+      expect(find.text('S’abonner'), findsOneWidget);
+      // Bloc compact « TEMPS DISPONIBLE » = « 0 min ».
       expect(find.text('TEMPS DISPONIBLE'), findsOneWidget);
       expect(find.text('0 min'), findsOneWidget);
     });
 
-    testWidgets('reprise -> "Reprendre ma consultation" + "X disponibles"',
-        (t) async {
-      final rig = _rig((_) async => _json({
-            'consultation': {
-              'id': 'c-1',
-              'advisor_id': 'selena',
-              'started_at': '2026-09-01T10:00:00Z',
-              'expires_at': '2026-09-01T12:00:00Z',
-              'seconds_remaining': 12000,
-              'credit_source': 'time',
-              'opened_now': false,
-            },
-            'time': _time(premium: 12000, windowActive: false),
-            'quota': _quota(),
-          }));
+    testWidgets('reprise -> "Reprendre ma consultation" + "X disponibles"', (
+      t,
+    ) async {
+      final rig = _rig(
+        (_) async => _json({
+          'consultation': {
+            'id': 'c-1',
+            'advisor_id': 'selena',
+            'started_at': '2026-09-01T10:00:00Z',
+            'expires_at': '2026-09-01T12:00:00Z',
+            'seconds_remaining': 12000,
+            'credit_source': 'time',
+            'opened_now': false,
+          },
+          'time': _time(premium: 12000, windowActive: false),
+          'quota': _quota(),
+        }),
+      );
       await rig.controller.refresh();
       await _pumpHome(t, rig);
       await t.pump();
       rig.controller.dispose();
       await t.pumpAndSettle();
-      expect(find.text('Reprendre ma consultation'), findsOneWidget);
-      expect(find.text('3 h 20 min disponibles'), findsOneWidget);
+      expect(find.text('Reprendre'), findsOneWidget);
+      expect(
+        find.textContaining('Consultation en cours avec Séléna'),
+        findsOneWidget,
+      );
+      expect(find.text('3 h 20 min'), findsOneWidget);
     });
   });
 
   // -------------------------------------------------------------------------
   group('ConsultationBlock — sous-texte temps', () {
     testWidgets('subscriberAvailable + availableTimeText affiché', (t) async {
-      await t.pumpWidget(const MaterialApp(
-        home: Scaffold(
-          body: ConsultationBlock(
-            state: ConsultationState.subscriberAvailable,
-            advisorName: 'Séléna',
-            advisorAssetPath: 'assets/conseillers/selena.webp',
-            availableTimeText: '2 h 05 min disponibles',
+      await t.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(
+            body: ConsultationBlock(
+              state: ConsultationState.subscriberAvailable,
+              advisorName: 'Séléna',
+              advisorAssetPath: 'assets/conseillers/selena.webp',
+              availableTimeText: '2 h 05 min disponibles',
+            ),
           ),
         ),
-      ));
+      );
       expect(find.text('2 h 05 min disponibles'), findsOneWidget);
     });
 
     testWidgets('locked -> "temps épuisé" + "S’abonner"', (t) async {
-      await t.pumpWidget(const MaterialApp(
-        home: Scaffold(
-          body: ConsultationBlock(
-            state: ConsultationState.locked,
-            advisorName: 'Séléna',
-            advisorAssetPath: 'assets/conseillers/selena.webp',
+      await t.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(
+            body: ConsultationBlock(
+              state: ConsultationState.locked,
+              advisorName: 'Séléna',
+              advisorAssetPath: 'assets/conseillers/selena.webp',
+            ),
           ),
         ),
-      ));
-      expect(find.text('Ton temps de consultation est épuisé.'), findsOneWidget);
+      );
+      expect(
+        find.text('Ton temps de consultation est épuisé.'),
+        findsOneWidget,
+      );
       expect(find.text('S’abonner pour consulter'), findsOneWidget);
       expect(find.textContaining('consultation de 2 h'), findsNothing);
     });
+  });
+
+  // -------------------------------------------------------------------------
+  // UX-LOT §2 — consultation ACTIVE liée à un autre conseiller que le
+  // conseiller préféré : on n'affiche PAS le mauvais nom en silence, on
+  // explique (sans mentir : la session en cours garde son conseiller).
+  group('ConsultationBlock — conseiller de session vs conseiller préféré', () {
+    testWidgets('session Ezra + préféré Maïa -> nomme Ezra pour la session ET '
+        'précise que Maïa reprend ensuite', (t) async {
+      await t.pumpWidget(
+        const MaterialApp(
+          home: Scaffold(
+            body: ConsultationBlock(
+              state: ConsultationState.active,
+              advisorName: 'Ezra',
+              advisorAssetPath: 'assets/conseillers/ezra.webp',
+              chosenAdvisorName: 'Maïa',
+              activeResumeLabel: 'Reprendre ma consultation',
+            ),
+          ),
+        ),
+      );
+      expect(
+        find.text('Ta consultation avec Ezra est en cours'),
+        findsOneWidget,
+      );
+      expect(
+        find.textContaining(
+          'Ton conseiller Maïa prend le relais à ta prochaine consultation.',
+        ),
+        findsOneWidget,
+      );
+    });
+
+    testWidgets(
+      'session ET préféré = même conseiller -> aucune ligne en trop',
+      (t) async {
+        await t.pumpWidget(
+          const MaterialApp(
+            home: Scaffold(
+              body: ConsultationBlock(
+                state: ConsultationState.active,
+                advisorName: 'Maïa',
+                advisorAssetPath: 'assets/conseillers/maia.webp',
+                chosenAdvisorName: 'Maïa',
+                activeResumeLabel: 'Reprendre ma consultation',
+              ),
+            ),
+          ),
+        );
+        expect(
+          find.text('Ta consultation avec Maïa est en cours'),
+          findsOneWidget,
+        );
+        expect(find.textContaining('prend le relais'), findsNothing);
+      },
+    );
   });
 
   // -------------------------------------------------------------------------
@@ -262,10 +343,9 @@ void main() {
     }
 
     testWidgets('F. windowActive -> "Consultation en cours"', (t) async {
-      final rig = _rig((_) async => _json({
-            'consultation_id': 'c-1',
-            'messages': const [],
-          }));
+      final rig = _rig(
+        (_) async => _json({'consultation_id': 'c-1', 'messages': const []}),
+      );
       await pumpChat(t, rig, _time(premium: 27720, windowActive: true));
       await t.pump();
       await t.pump();
@@ -275,12 +355,12 @@ void main() {
       rig.controller.dispose();
     });
 
-    testWidgets('windowInactive -> "X disponibles", jamais "expirée"',
-        (t) async {
-      final rig = _rig((_) async => _json({
-            'consultation_id': 'c-1',
-            'messages': const [],
-          }));
+    testWidgets('windowInactive -> "X disponibles", jamais "expirée"', (
+      t,
+    ) async {
+      final rig = _rig(
+        (_) async => _json({'consultation_id': 'c-1', 'messages': const []}),
+      );
       await pumpChat(t, rig, _time(premium: 27720, windowActive: false));
       await t.pump();
       await t.pump();
@@ -293,32 +373,41 @@ void main() {
   });
 
   // -------------------------------------------------------------------------
-  test('R. aucune ancienne copy « 4 consultations » / « consultation(s) de 2 h » '
-      '/ « X/Y ce mois » ne subsiste dans lib/', () {
-    final banned = <RegExp>[
-      RegExp(r'4 consultations'),
-      RegExp(r'consultations? de 2\s?h'),
-      RegExp(r'consultations? restantes?'),
-      RegExp(r'/\$\{?q\.monthlyLimit'), // "X/Y ce mois" interpolé
-      RegExp(r'ce mois'),
-    ];
-    final offenders = <String>[];
-    final dir = Directory('lib');
-    for (final f in dir.listSync(recursive: true).whereType<File>()) {
-      if (!f.path.endsWith('.dart')) continue;
-      final lines = f.readAsLinesSync();
-      for (var i = 0; i < lines.length; i++) {
-        final line = lines[i];
-        final code = line.split('//').first; // ignore les commentaires en fin de ligne
-        final trimmed = line.trimLeft();
-        if (trimmed.startsWith('//') || trimmed.startsWith('///')) continue;
-        for (final re in banned) {
-          if (re.hasMatch(code)) {
-            offenders.add('${f.path}:${i + 1}  $line');
+  test(
+    'R. aucune ancienne copy « 4 consultations » / « consultation(s) de 2 h » '
+    '/ « X/Y ce mois » ne subsiste dans lib/',
+    () {
+      final banned = <RegExp>[
+        RegExp(r'4 consultations'),
+        RegExp(r'consultations? de 2\s?h'),
+        RegExp(r'consultations? restantes?'),
+        RegExp(r'/\$\{?q\.monthlyLimit'), // "X/Y ce mois" interpolé
+        RegExp(r'ce mois'),
+      ];
+      final offenders = <String>[];
+      final dir = Directory('lib');
+      for (final f in dir.listSync(recursive: true).whereType<File>()) {
+        if (!f.path.endsWith('.dart')) continue;
+        final lines = f.readAsLinesSync();
+        for (var i = 0; i < lines.length; i++) {
+          final line = lines[i];
+          final code = line
+              .split('//')
+              .first; // ignore les commentaires en fin de ligne
+          final trimmed = line.trimLeft();
+          if (trimmed.startsWith('//') || trimmed.startsWith('///')) continue;
+          for (final re in banned) {
+            if (re.hasMatch(code)) {
+              offenders.add('${f.path}:${i + 1}  $line');
+            }
           }
         }
       }
-    }
-    expect(offenders, isEmpty, reason: 'copy obsolète:\n${offenders.join('\n')}');
-  });
+      expect(
+        offenders,
+        isEmpty,
+        reason: 'copy obsolète:\n${offenders.join('\n')}',
+      );
+    },
+  );
 }

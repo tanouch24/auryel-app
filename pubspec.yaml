@@ -42,6 +42,17 @@ dependencies:
   http: ^1.6.0
   flutter_secure_storage: ^10.0.0
   in_app_purchase: ^3.3.0
+  video_player: ^2.14.0
+  # Sortie vers la gestion d'abonnement Google Play (résiliation / modification).
+  # Aucun paiement web, aucun steering — uniquement l'URL OFFICIELLE du store.
+  url_launcher: ^6.3.1
+  # Push Android (FCM). L'app démarre SANS Firebase configuré : sans
+  # google-services.json + plugin Google Services, `Firebase.initializeApp()`
+  # échoue proprement et le service passe en état « indisponible » (aucun crash,
+  # tests OK). Le plugin gradle `com.google.gms.google-services` N'EST PAS
+  # appliqué (il casserait le build sans google-services.json) — cf. rapport.
+  firebase_core: ^4.14.0
+  firebase_messaging: ^16.6.0
 
 dev_dependencies:
   flutter_test:
@@ -68,9 +79,12 @@ flutter:
   assets:
     - assets/conseillers/
     - assets/vocaux/
+    - assets/videos/
     - assets/images/tarot/
     - assets/images/tarot_card_back.png
     - assets/images/tarot_table_blank.png
+    - assets/pensees/pensees_100_site.json
+    - assets/pensees/publications/
 
   # Typographie Auryel — Inter, EMBARQUÉE (aucun chargement réseau au runtime).
   # Fichiers : rsms/inter v4.1 · SIL Open Font License 1.1 (usage commercial /

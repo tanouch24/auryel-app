@@ -118,7 +118,10 @@ class AuryelState extends ChangeNotifier {
   /// « Mon espace ». À n'appeler QU'APRÈS un PATCH backend réussi
   /// (`AuthController.syncProfileFields` -> `ProfileSyncOutcome.ok`) : local et
   /// serveur restent alignés. Persiste l'instantané via le repository.
-  Future<void> applyIdentityEdit({String? firstName, DateTime? birthDate}) async {
+  Future<void> applyIdentityEdit({
+    String? firstName,
+    DateTime? birthDate,
+  }) async {
     if (firstName != null) this.firstName = firstName;
     if (birthDate != null) this.birthDate = birthDate;
     notifyListeners();
@@ -166,7 +169,23 @@ class AuryelState extends ChangeNotifier {
   /// Reset DEBUG uniquement — efface les données mock d'onboarding pour
   /// permettre de rejouer le parcours. Jamais exposé comme fonctionnalité
   /// utilisateur finale (voir le geste caché sur l'icône profil).
-  Future<void> debugReset() async {
+  Future<void> debugReset() => _wipeIdentity();
+
+  /// RGPD — à appeler UNIQUEMENT après un succès serveur de suppression de
+  /// compte ([AuthController.deleteAccount] -> [AccountDeletionOutcome.ok]).
+  /// Efface l'identité EN MÉMOIRE (prénom, date de naissance, conseiller,
+  /// portrait, userId) ET le snapshot persisté (`repository.clear()`), pour
+  /// qu'aucune donnée de l'ancien utilisateur ne subsiste dans l'app.
+  Future<void> clearForAccountDeletion() => _wipeIdentity();
+
+  /// CHANGEMENT DE COMPTE — à appeler quand un AUTRE utilisateur se connecte
+  /// sur cet appareil (`userId` authentifié ≠ `userId` local persisté). Évite
+  /// d'afficher le prénom / conseiller / date de naissance de l'utilisateur
+  /// précédent. Même effet que [clearForAccountDeletion] (l'app n'a pas encore
+  /// de récupération de profil serveur au login).
+  Future<void> forgetLocalIdentity() => _wipeIdentity();
+
+  Future<void> _wipeIdentity() async {
     await repository.clear();
     userId = null;
     selectedAdvisor = null;

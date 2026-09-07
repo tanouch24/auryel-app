@@ -22,11 +22,18 @@ class ConsultationBlock extends StatelessWidget {
     this.activeRemainingText,
     this.availableTimeText,
     this.availableTimeValue,
+    this.chosenAdvisorName,
   });
 
   final ConsultationState state;
   final String advisorName;
   final String advisorAssetPath;
+
+  /// Conseiller PRÉFÉRÉ de l'utilisateur (source de vérité : `AuryelState`).
+  /// Utilisé UNIQUEMENT dans l'état `active` : si une consultation en cours est
+  /// liée à un autre conseiller (règle métier : on ne coupe pas une session),
+  /// on l'explique sans mentir plutôt que d'afficher le mauvais nom en silence.
+  final String? chosenAdvisorName;
 
   /// B8.1 §3 — valeur BRUTE du temps disponible mise en avant (« 3 h 20 min »,
   /// « 1 h offerte », « 0 min »), affichée sous un libellé « TEMPS DISPONIBLE »
@@ -63,6 +70,7 @@ class ConsultationBlock extends StatelessWidget {
         resumeLabel: activeResumeLabel,
         remainingText: activeRemainingText,
         timeValue: availableTimeValue,
+        chosenAdvisorName: chosenAdvisorName,
       );
     }
     return _StandardCard(
@@ -181,6 +189,7 @@ class _ActiveBanner extends StatelessWidget {
     this.resumeLabel,
     this.remainingText,
     this.timeValue,
+    this.chosenAdvisorName,
   });
 
   final String name;
@@ -189,6 +198,7 @@ class _ActiveBanner extends StatelessWidget {
   final String? resumeLabel;
   final String? remainingText;
   final String? timeValue;
+  final String? chosenAdvisorName;
 
   @override
   Widget build(BuildContext context) {
@@ -233,6 +243,19 @@ class _ActiveBanner extends StatelessWidget {
                           fontWeight: FontWeight.w500,
                           color: AuryelColors.goldLight,
                           letterSpacing: 0.4,
+                        ),
+                      ),
+                    ],
+                    if (chosenAdvisorName != null &&
+                        chosenAdvisorName != name) ...[
+                      const SizedBox(height: 5),
+                      Text(
+                        'Ton conseiller $chosenAdvisorName prend le relais '
+                        'à ta prochaine consultation.',
+                        style: AuryelText.body(
+                          fontSize: 11.5,
+                          height: 1.35,
+                          color: AuryelColors.textMuted,
                         ),
                       ),
                     ],

@@ -29,8 +29,11 @@ import 'package:auryel/widgets/advisors_carousel.dart';
 // ===========================================================================
 
 http.Response _json(Map<String, dynamic> body, [int status = 200]) =>
-    http.Response(jsonEncode(body), status,
-        headers: {'content-type': 'application/json'});
+    http.Response(
+      jsonEncode(body),
+      status,
+      headers: {'content-type': 'application/json'},
+    );
 
 Map<String, dynamic> _quota({
   int monthlyLimit = 10,
@@ -38,17 +41,16 @@ Map<String, dynamic> _quota({
   bool isPremium = true,
   bool firstFree = false,
   int earned = 0,
-}) =>
-    {
-      'is_premium': isPremium,
-      'monthly_limit': monthlyLimit,
-      'monthly_used': monthlyUsed,
-      'monthly_remaining': monthlyLimit - monthlyUsed,
-      'earned_available': earned,
-      'first_free_available': firstFree,
-      'period_start': '2026-08-01T00:00:00Z',
-      'period_end': '2026-09-01T00:00:00Z',
-    };
+}) => {
+  'is_premium': isPremium,
+  'monthly_limit': monthlyLimit,
+  'monthly_used': monthlyUsed,
+  'monthly_remaining': monthlyLimit - monthlyUsed,
+  'earned_available': earned,
+  'first_free_available': firstFree,
+  'period_start': '2026-08-01T00:00:00Z',
+  'period_end': '2026-09-01T00:00:00Z',
+};
 
 /// Bloc `time` (TIMER-D.1) — SOURCE DE VÉRITÉ du temps disponible.
 Map<String, dynamic> _time({
@@ -66,8 +68,9 @@ Map<String, dynamic> _time({
     'purchased_remaining_seconds': purchased,
     'total_remaining_seconds': total ?? (firstFree + premium + purchased),
     'window_active': windowActive,
-    'window_expires_at':
-        windowActive ? now.add(windowRemaining).toIso8601String() : null,
+    'window_expires_at': windowActive
+        ? now.add(windowRemaining).toIso8601String()
+        : null,
   };
 }
 
@@ -88,8 +91,7 @@ Map<String, dynamic> _activeState({
     'consultation': {
       'id': 'c-1',
       'advisor_id': advisorId,
-      'started_at':
-          now.subtract(const Duration(minutes: 5)).toIso8601String(),
+      'started_at': now.subtract(const Duration(minutes: 5)).toIso8601String(),
       'expires_at': now.add(const Duration(hours: 2)).toIso8601String(),
       'seconds_remaining': totalSeconds,
       'credit_source': 'time',
@@ -108,29 +110,28 @@ Map<String, dynamic> _noState({
   bool firstFree = false,
   int earned = 0,
   int? timeTotal,
-}) =>
-    {
-      'consultation': null,
-      'time': _time(
-        premium: timeTotal ?? (isPremium ? 28800 : 0),
-        firstFree: firstFree ? 3600 : 0,
-        windowActive: false,
-      ),
-      'quota': _quota(
-        monthlyLimit: monthlyLimit,
-        monthlyUsed: monthlyUsed,
-        isPremium: isPremium,
-        firstFree: firstFree,
-        earned: earned,
-      ),
-    };
+}) => {
+  'consultation': null,
+  'time': _time(
+    premium: timeTotal ?? (isPremium ? 28800 : 0),
+    firstFree: firstFree ? 3600 : 0,
+    windowActive: false,
+  ),
+  'quota': _quota(
+    monthlyLimit: monthlyLimit,
+    monthlyUsed: monthlyUsed,
+    isPremium: isPremium,
+    firstFree: firstFree,
+    earned: earned,
+  ),
+};
 
 Map<String, dynamic> _noCreditBody({int monthlyUsed = 8}) => {
-      'error': 'time_exhausted',
-      'consultation': null,
-      'time': _time(premium: 0, windowActive: false),
-      'quota': _quota(monthlyLimit: 8, monthlyUsed: monthlyUsed),
-    };
+  'error': 'time_exhausted',
+  'consultation': null,
+  'time': _time(premium: 0, windowActive: false),
+  'quota': _quota(monthlyLimit: 8, monthlyUsed: monthlyUsed),
+};
 
 typedef _Rig = ({
   ConsultationController controller,
@@ -159,24 +160,23 @@ _Rig _rig(
     consultationApi: consultationApi,
     tirageApi: TirageApi(client),
   );
-  final controller =
-      ConsultationController(api: consultationApi, auth: auth);
+  final controller = ConsultationController(api: consultationApi, auth: auth);
   addTearDown(controller.dispose);
   return (controller: controller, auth: auth, tokens: tokens, hits: hits);
 }
 
 AuryelState _completedState({String advisor = 'Séléna'}) => AuryelState(
-      repository: LocalOnboardingRepository(),
-      initial: OnboardingRecord(
-        userId: 'u',
-        selectedAdvisor: advisor,
-        firstName: 'N',
-        birthDate: DateTime(1994, 1, 1),
-        portraitData: 'x',
-        portraitFeedback: 'y',
-        onboardingCompleted: true,
-      ),
-    );
+  repository: LocalOnboardingRepository(),
+  initial: OnboardingRecord(
+    userId: 'u',
+    selectedAdvisor: advisor,
+    firstName: 'N',
+    birthDate: DateTime(1994, 1, 1),
+    portraitData: 'x',
+    portraitFeedback: 'y',
+    onboardingCompleted: true,
+  ),
+);
 
 Future<void> _pumpWithin(
   WidgetTester tester,
@@ -213,26 +213,28 @@ void main() {
   // A. GET API
   // =========================================================================
   group('A. ConsultationApi.getState', () {
-    test('GET /api/consultation/state + Bearer, parse session + quota=10',
-        () async {
-      http.Request? seen;
-      final client = ApiClient(
-        httpClient: MockClient((req) async {
-          seen = req;
-          return _json(_activeState(advisorId: 'orion', monthlyLimit: 10));
-        }),
-        baseUrl: 'http://test.local',
-      );
+    test(
+      'GET /api/consultation/state + Bearer, parse session + quota=10',
+      () async {
+        http.Request? seen;
+        final client = ApiClient(
+          httpClient: MockClient((req) async {
+            seen = req;
+            return _json(_activeState(advisorId: 'orion', monthlyLimit: 10));
+          }),
+          baseUrl: 'http://test.local',
+        );
 
-      final res = await ConsultationApi(client).getState(bearer: 'abc123');
+        final res = await ConsultationApi(client).getState(bearer: 'abc123');
 
-      expect(seen!.method, 'GET');
-      expect(seen!.url.path, '/api/consultation/state');
-      expect(seen!.headers['Authorization'], 'Bearer abc123');
-      expect(res.consultation, isNotNull);
-      expect(res.consultation!.advisorId, 'orion');
-      expect(res.quota.monthlyLimit, 10);
-    });
+        expect(seen!.method, 'GET');
+        expect(seen!.url.path, '/api/consultation/state');
+        expect(seen!.headers['Authorization'], 'Bearer abc123');
+        expect(res.consultation, isNotNull);
+        expect(res.consultation!.advisorId, 'orion');
+        expect(res.quota.monthlyLimit, 10);
+      },
+    );
 
     test('consultation:null parsé proprement', () async {
       final client = ApiClient(
@@ -258,8 +260,11 @@ void main() {
     });
 
     test('refresh avec session active : active + quota renseignés', () async {
-      final rig = _rig((_) async =>
-          _json(_activeState(advisorId: 'maia', remaining: const Duration(hours: 2))));
+      final rig = _rig(
+        (_) async => _json(
+          _activeState(advisorId: 'maia', remaining: const Duration(hours: 2)),
+        ),
+      );
       await rig.controller.refresh();
       expect(rig.controller.active, isNotNull);
       expect(rig.controller.active!.advisorId, 'maia');
@@ -276,26 +281,36 @@ void main() {
     });
 
     test('remaining dérivé de time.total, jamais de expiresAt', () async {
-      final rig = _rig((_) async => _json(_activeState(
+      final rig = _rig(
+        (_) async => _json(
+          _activeState(
             remaining: const Duration(minutes: 90), // -> time.total = 5400
-          )));
+          ),
+        ),
+      );
       await rig.controller.refresh();
       expect(rig.controller.remaining.inSeconds, 5400);
       // expiresAt du fixture = now + 2 h ; ignoré (sinon on lirait ~7200 s).
       expect(rig.controller.remaining.inMinutes, 90);
     });
 
-    test('backend SANS bloc time : fallback sur consultation.secondsRemaining',
-        () async {
-      final rig = _rig((_) async => _json(_activeState(
-            remaining: const Duration(minutes: 42),
-            includeTime: false, // simule un backend distant ancien
-          )));
-      await rig.controller.refresh();
-      expect(rig.controller.time, isNull);
-      expect(rig.controller.remaining.inSeconds, 42 * 60);
-      expect(rig.controller.hasActiveSession, isTrue);
-    });
+    test(
+      'backend SANS bloc time : fallback sur consultation.secondsRemaining',
+      () async {
+        final rig = _rig(
+          (_) async => _json(
+            _activeState(
+              remaining: const Duration(minutes: 42),
+              includeTime: false, // simule un backend distant ancien
+            ),
+          ),
+        );
+        await rig.controller.refresh();
+        expect(rig.controller.time, isNull);
+        expect(rig.controller.remaining.inSeconds, 42 * 60);
+        expect(rig.controller.hasActiveSession, isTrue);
+      },
+    );
 
     test('formatTotalTime : portefeuille d\'heures', () {
       expect(ConsultationController.formatTotalTime(28800), '8 h');
@@ -308,14 +323,21 @@ void main() {
       expect(ConsultationController.formatTotalTime(-30), '0 min');
       // compat : ancienne signature Duration
       expect(
-          ConsultationController.formatRemaining(const Duration(hours: 1, minutes: 40)),
-          '1 h 40 min');
+        ConsultationController.formatRemaining(
+          const Duration(hours: 1, minutes: 40),
+        ),
+        '1 h 40 min',
+      );
     });
 
     test('temps épuisé : isExpired vrai, hasActiveSession faux', () async {
-      final rig = _rig((_) async => _json(_activeState(
+      final rig = _rig(
+        (_) async => _json(
+          _activeState(
             remaining: const Duration(seconds: 0), // time.total = 0
-          )));
+          ),
+        ),
+      );
       await rig.controller.refresh();
       expect(rig.controller.isExpired, isTrue);
       expect(rig.controller.hasActiveSession, isFalse);
@@ -324,28 +346,34 @@ void main() {
       expect(rig.controller.remaining, Duration.zero);
     });
 
-    test('le tick 1s ne tourne QUE fenêtre active, sans muter aucune donnée',
-        () async {
-      final rig = _rig((_) async => _json(_activeState(
-            remaining: const Duration(hours: 1),
-          ))); // windowActive = true par défaut
-      await rig.controller.refresh();
-      final exp = rig.controller.active!.expiresAt;
-      final sec = rig.controller.active!.secondsRemaining;
-      var notifs = 0;
-      rig.controller.addListener(() => notifs++);
-      await Future<void>.delayed(const Duration(milliseconds: 1100));
-      expect(rig.controller.active!.expiresAt, exp);
-      expect(rig.controller.active!.secondsRemaining, sec);
-      expect(rig.controller.remaining.inSeconds, 3600);
-      expect(notifs, greaterThanOrEqualTo(1));
-    });
+    test(
+      'le tick 1s ne tourne QUE fenêtre active, sans muter aucune donnée',
+      () async {
+        final rig = _rig(
+          (_) async => _json(_activeState(remaining: const Duration(hours: 1))),
+        ); // windowActive = true par défaut
+        await rig.controller.refresh();
+        final exp = rig.controller.active!.expiresAt;
+        final sec = rig.controller.active!.secondsRemaining;
+        var notifs = 0;
+        rig.controller.addListener(() => notifs++);
+        await Future<void>.delayed(const Duration(milliseconds: 1100));
+        expect(rig.controller.active!.expiresAt, exp);
+        expect(rig.controller.active!.secondsRemaining, sec);
+        expect(rig.controller.remaining.inSeconds, 3600);
+        expect(notifs, greaterThanOrEqualTo(1));
+      },
+    );
 
     test('fenêtre inactive : aucun tick', () async {
-      final rig = _rig((_) async => _json(_activeState(
+      final rig = _rig(
+        (_) async => _json(
+          _activeState(
             remaining: const Duration(hours: 1),
             windowActive: false,
-          )));
+          ),
+        ),
+      );
       await rig.controller.refresh();
       var notifs = 0;
       rig.controller.addListener(() => notifs++);
@@ -419,10 +447,72 @@ void main() {
 
     test('applyNoCredit resynchronise le quota sans fabriquer de session', () {
       final rig = _rig((_) async => _json(_noState()));
-      rig.controller
-          .applyNoCredit(QuotaDto.fromJson(_quota(monthlyUsed: 10)));
+      rig.controller.applyNoCredit(QuotaDto.fromJson(_quota(monthlyUsed: 10)));
       expect(rig.controller.quota!.monthlyUsed, 10);
       expect(rig.controller.active, isNull);
+    });
+
+    // availableTimeLabel — libellé UNIQUE partagé Accueil + Dashboard.
+    ConsultationController labelRig(Map<String, dynamic> stateJson) {
+      final rig = _rig((_) async => _json(_noState()));
+      rig.controller.updateFromMessageResponse(
+        ConsultationMessageResponse.fromJson({...stateJson, 'reply': 'x'}),
+      );
+      return rig.controller;
+    }
+
+    Map<String, dynamic> timeQuota({
+      int ff = 0,
+      int pr = 0,
+      int pu = 0,
+      bool ffAvail = false,
+      bool premium = false,
+      int monthlyRemaining = 0,
+      int earned = 0,
+    }) => {
+      'consultation': null,
+      'time': {
+        'first_free_remaining_seconds': ff,
+        'premium_remaining_seconds': pr,
+        'purchased_remaining_seconds': pu,
+        'total_remaining_seconds': ff + pr + pu,
+        'window_active': false,
+        'window_expires_at': null,
+      },
+      'quota': {
+        'is_premium': premium,
+        'monthly_limit': 8,
+        'monthly_used': 0,
+        'monthly_remaining': monthlyRemaining,
+        'earned_available': earned,
+        'first_free_available': ffAvail,
+        'period_start': '2026-08-01T00:00:00Z',
+        'period_end': '2026-09-01T00:00:00Z',
+      },
+    };
+
+    test('availableTimeLabel — 1re heure offerte non consommée (buckets à 0) '
+        '-> « 1 h offerte », pas « 0 min »', () {
+      expect(
+        labelRig(timeQuota(ffAvail: true)).availableTimeLabel,
+        '1 h offerte',
+      );
+    });
+
+    test(
+      'availableTimeLabel — portefeuille vide, pas de gratuite -> « 0 min »',
+      () {
+        expect(labelRig(timeQuota()).availableTimeLabel, '0 min');
+      },
+    );
+
+    test('availableTimeLabel — portefeuille mixte -> format existant', () {
+      // 3600 offerte crédité + 27720 premium = 31320 s = 8 h 42 min
+      expect(
+        labelRig(timeQuota(ff: 3600, pr: 27720)).availableTimeLabel,
+        '8 h 42 min',
+      );
+      expect(labelRig(timeQuota(pr: 3600)).availableTimeLabel, '1 h');
     });
   });
 
@@ -441,11 +531,13 @@ void main() {
         return _json({}, 404);
       }, token: 'good');
 
-      await t.pumpWidget(AuryelApp(
-        state: _completedState(),
-        auth: rig.auth,
-        consultation: rig.controller,
-      ));
+      await t.pumpWidget(
+        AuryelApp(
+          state: _completedState(),
+          auth: rig.auth,
+          consultation: rig.controller,
+        ),
+      );
       await t.pump(const Duration(milliseconds: 2100));
       await t.pumpAndSettle();
 
@@ -464,12 +556,16 @@ void main() {
   // D. Accueil
   // =========================================================================
   group('D. Accueil', () {
-    testWidgets('consultation active -> "Reprendre ma consultation" + "3 h disponibles"',
-        (t) async {
+    testWidgets('consultation active -> "Reprendre" + "Consultation en cours" '
+        '+ portefeuille "3 h"', (t) async {
       final rig = _rig((req) async {
         if (req.url.path == '/api/consultation/state') {
-          return _json(_activeState(
-              advisorId: 'selena', remaining: const Duration(hours: 3)));
+          return _json(
+            _activeState(
+              advisorId: 'selena',
+              remaining: const Duration(hours: 3),
+            ),
+          );
         }
         return _json({}, 404);
       });
@@ -480,15 +576,19 @@ void main() {
       rig.controller.dispose(); // coupe le Timer.periodic avant les invariants
       await t.pumpAndSettle(); // vide les timers flutter_animate de l'accueil
 
-      expect(find.text('Reprendre ma consultation'), findsOneWidget);
-      // TIMER-D.2 — portefeuille d'heures « X h disponibles », pas un countdown.
-      expect(find.text('3 h disponibles'), findsOneWidget);
-      expect(find.text('Commencer ma consultation'), findsNothing);
+      expect(find.text('Reprendre'), findsOneWidget);
+      expect(
+        find.textContaining('Consultation en cours avec Séléna'),
+        findsOneWidget,
+      );
+      // TIMER-D.2 — portefeuille d'heures, pas un countdown.
+      expect(find.text('3 h'), findsOneWidget);
       expect(find.textContaining('consultations'), findsNothing);
     });
 
-    testWidgets('aucune session, Premium avec quota restant -> CTA abonné',
-        (t) async {
+    testWidgets('aucune session, Premium avec quota restant -> CTA abonné', (
+      t,
+    ) async {
       // _noState() = Premium, 9 consultations restantes -> subscriberAvailable.
       final rig = _rig((req) async {
         if (req.url.path == '/api/consultation/state') {
@@ -501,13 +601,14 @@ void main() {
       await _pumpWithin(t, rig, const HomeScreen());
       await t.pumpAndSettle();
 
-      expect(find.text('Ouvrir une consultation'), findsOneWidget);
-      expect(find.textContaining('Reprendre ma consultation'), findsNothing);
+      expect(find.text('Consulter'), findsOneWidget);
+      expect(find.text('Reprendre'), findsNothing);
     });
 
     // F5-C — états du bloc consultation dérivés du quota RÉEL (lecture seule).
-    testWidgets('first_free_available -> "Commencer ma consultation"',
-        (t) async {
+    testWidgets('first_free_available -> "Consulter" + "1 h offerte"', (
+      t,
+    ) async {
       final rig = _rig((req) async {
         if (req.url.path == '/api/consultation/state') {
           return _json(_noState(isPremium: false, firstFree: true));
@@ -517,28 +618,30 @@ void main() {
       await rig.controller.refresh();
       await _pumpWithin(t, rig, const HomeScreen());
       await t.pumpAndSettle();
-      expect(find.text('Commencer ma consultation'), findsOneWidget);
-      expect(find.text('Ta première heure de consultation est offerte'),
-          findsOneWidget);
-      // B8.1 §3 — bandeau « TEMPS DISPONIBLE » : valeur mise en avant.
+      expect(find.text('Consulter'), findsOneWidget);
+      // Bloc compact « TEMPS DISPONIBLE » : valeur mise en avant.
+      expect(find.text('TEMPS DISPONIBLE'), findsOneWidget);
       expect(find.text('1 h offerte'), findsOneWidget);
     });
 
-    testWidgets('TIMER-D.1 : crédit gagné SANS temps -> S’abonner (l\'earned ne '
-        'déverrouille plus l\'accès)', (t) async {
-      final rig = _rig((req) async {
-        if (req.url.path == '/api/consultation/state') {
-          return _json(_noState(isPremium: false, earned: 1, timeTotal: 0));
-        }
-        return _json({}, 404);
-      });
-      await rig.controller.refresh();
-      await _pumpWithin(t, rig, const HomeScreen());
-      await t.pumpAndSettle();
-      expect(find.text('S’abonner pour consulter'), findsOneWidget);
-    });
+    testWidgets(
+      'TIMER-D.1 : crédit gagné SANS temps -> S’abonner (l\'earned ne '
+      'déverrouille plus l\'accès)',
+      (t) async {
+        final rig = _rig((req) async {
+          if (req.url.path == '/api/consultation/state') {
+            return _json(_noState(isPremium: false, earned: 1, timeTotal: 0));
+          }
+          return _json({}, 404);
+        });
+        await rig.controller.refresh();
+        await _pumpWithin(t, rig, const HomeScreen());
+        await t.pumpAndSettle();
+        expect(find.text('S’abonner'), findsOneWidget);
+      },
+    );
 
-    testWidgets('temps disponible -> CTA "Ouvrir une consultation"', (t) async {
+    testWidgets('temps disponible -> CTA "Consulter"', (t) async {
       final rig = _rig((req) async {
         if (req.url.path == '/api/consultation/state') {
           return _json(_noState(timeTotal: 12000)); // ~3 h 20
@@ -548,22 +651,28 @@ void main() {
       await rig.controller.refresh();
       await _pumpWithin(t, rig, const HomeScreen());
       await t.pumpAndSettle();
-      expect(find.text('Ouvrir une consultation'), findsOneWidget);
+      expect(find.text('Consulter'), findsOneWidget);
     });
 
     testWidgets('ni gratuite, ni temps -> S’abonner', (t) async {
       final rig = _rig((req) async {
         if (req.url.path == '/api/consultation/state') {
-          return _json(_noState(
-              isPremium: false, monthlyLimit: 0, monthlyUsed: 0, earned: 0,
-              timeTotal: 0));
+          return _json(
+            _noState(
+              isPremium: false,
+              monthlyLimit: 0,
+              monthlyUsed: 0,
+              earned: 0,
+              timeTotal: 0,
+            ),
+          );
         }
         return _json({}, 404);
       });
       await rig.controller.refresh();
       await _pumpWithin(t, rig, const HomeScreen());
       await t.pumpAndSettle();
-      expect(find.text('S’abonner pour consulter'), findsOneWidget);
+      expect(find.text('S’abonner'), findsOneWidget);
     });
 
     testWidgets('Premium SANS temps restant -> S’abonner', (t) async {
@@ -576,14 +685,18 @@ void main() {
       await rig.controller.refresh();
       await _pumpWithin(t, rig, const HomeScreen());
       await t.pumpAndSettle();
-      expect(find.text('S’abonner pour consulter'), findsOneWidget);
+      expect(find.text('S’abonner'), findsOneWidget);
     });
 
     testWidgets('tap CTA -> ouvre ChatScreen sans POST', (t) async {
       final rig = _rig((req) async {
         if (req.url.path == '/api/consultation/state') {
-          return _json(_activeState(
-              advisorId: 'selena', remaining: const Duration(hours: 3)));
+          return _json(
+            _activeState(
+              advisorId: 'selena',
+              remaining: const Duration(hours: 3),
+            ),
+          );
         }
         return _json({}, 404);
       });
@@ -592,8 +705,8 @@ void main() {
       await _pumpWithin(t, rig, const HomeScreen());
       await t.pump();
 
-      await t.ensureVisible(find.text('Reprendre ma consultation'));
-      await t.tap(find.text('Reprendre ma consultation'));
+      await t.ensureVisible(find.text('Reprendre'));
+      await t.tap(find.text('Reprendre'));
       await t.pumpAndSettle();
       rig.controller.dispose();
 
@@ -606,8 +719,9 @@ void main() {
   // E. ChatScreen
   // =========================================================================
   group('E. ChatScreen', () {
-    testWidgets('session active injectée -> pas de confirmation d\'ouverture',
-        (t) async {
+    testWidgets('session active injectée -> pas de confirmation d\'ouverture', (
+      t,
+    ) async {
       final rig = _rig((req) async {
         if (req.url.path == '/api/consultation/state') {
           return _json(_activeState(advisorId: 'maia'));
@@ -620,7 +734,10 @@ void main() {
       await rig.controller.refresh();
 
       await _pumpWithin(
-          t, rig, ChatScreen(advisor: advisorByNameOrNull('Séléna')!));
+        t,
+        rig,
+        ChatScreen(advisor: advisorByNameOrNull('Séléna')!),
+      );
       await t.pump();
 
       await t.enterText(find.byType(TextField), 'coucou');
@@ -629,9 +746,13 @@ void main() {
       await t.pumpAndSettle();
       rig.controller.dispose();
 
-      expect(find.text('Ce premier message ouvre ta consultation. Le temps se décompte '
-          'ensuite de ton temps disponible.'),
-          findsNothing);
+      expect(
+        find.text(
+          'Ce premier message ouvre ta consultation. Le temps se décompte '
+          'ensuite de ton temps disponible.',
+        ),
+        findsNothing,
+      );
       expect(_messagePosts(rig), 1);
     });
 
@@ -648,7 +769,10 @@ void main() {
       await rig.controller.refresh();
 
       await _pumpWithin(
-          t, rig, ChatScreen(advisor: advisorByNameOrNull('Séléna')!));
+        t,
+        rig,
+        ChatScreen(advisor: advisorByNameOrNull('Séléna')!),
+      );
       await t.pump();
 
       await t.enterText(find.byType(TextField), 'bonjour');
@@ -656,116 +780,137 @@ void main() {
       await t.tap(find.byIcon(Icons.send_rounded));
       await t.pumpAndSettle();
 
-      expect(find.text('Ce premier message ouvre ta consultation. Le temps se décompte '
-          'ensuite de ton temps disponible.'),
-          findsOneWidget);
+      expect(
+        find.text(
+          'Ce premier message ouvre ta consultation. Le temps se décompte '
+          'ensuite de ton temps disponible.',
+        ),
+        findsOneWidget,
+      );
       expect(_messagePosts(rig), 0);
     });
 
-    testWidgets('POST 200 -> ConsultationController reçoit le nouvel état, un seul POST',
-        (t) async {
-      final rig = _rig((req) async {
-        if (req.url.path == '/api/consultation/state') {
-          return _json(_noState());
-        }
-        if (req.url.path == '/api/consultation/message') {
-          return _json({
-            ..._activeState(advisorId: 'orion', monthlyUsed: 3),
-            'reply': 'vu',
-          });
-        }
-        return _json({}, 404);
-      });
-      await rig.controller.refresh();
+    testWidgets(
+      'POST 200 -> ConsultationController reçoit le nouvel état, un seul POST',
+      (t) async {
+        final rig = _rig((req) async {
+          if (req.url.path == '/api/consultation/state') {
+            return _json(_noState());
+          }
+          if (req.url.path == '/api/consultation/message') {
+            return _json({
+              ..._activeState(advisorId: 'orion', monthlyUsed: 3),
+              'reply': 'vu',
+            });
+          }
+          return _json({}, 404);
+        });
+        await rig.controller.refresh();
 
-      await _pumpWithin(
-          t, rig, ChatScreen(advisor: advisorByNameOrNull('Séléna')!));
-      await t.pump();
+        await _pumpWithin(
+          t,
+          rig,
+          ChatScreen(advisor: advisorByNameOrNull('Séléna')!),
+        );
+        await t.pump();
 
-      await t.enterText(find.byType(TextField), 'salut');
-      await t.pump();
-      await t.tap(find.byIcon(Icons.send_rounded));
-      await t.pumpAndSettle();
-      await t.tap(find.text('Commencer'));
-      await t.pumpAndSettle();
-      final activeAdvisor = rig.controller.active?.advisorId;
-      final usedAfter = rig.controller.quota?.monthlyUsed;
-      final hadActive = rig.controller.active != null;
-      rig.controller.dispose();
+        await t.enterText(find.byType(TextField), 'salut');
+        await t.pump();
+        await t.tap(find.byIcon(Icons.send_rounded));
+        await t.pumpAndSettle();
+        await t.tap(find.text('Commencer'));
+        await t.pumpAndSettle();
+        final activeAdvisor = rig.controller.active?.advisorId;
+        final usedAfter = rig.controller.quota?.monthlyUsed;
+        final hadActive = rig.controller.active != null;
+        rig.controller.dispose();
 
-      expect(hadActive, isTrue);
-      expect(activeAdvisor, 'orion');
-      expect(usedAfter, 3);
-      expect(_messagePosts(rig), 1);
-      expect(find.text('vu'), findsOneWidget);
-    });
+        expect(hadActive, isTrue);
+        expect(activeAdvisor, 'orion');
+        expect(usedAfter, 3);
+        expect(_messagePosts(rig), 1);
+        expect(find.text('vu'), findsOneWidget);
+      },
+    );
 
-    testWidgets('réseau KO -> texte conservé + Réessayer, état contrôleur intact',
-        (t) async {
-      var call = 0;
-      final rig = _rig((req) async {
-        if (req.url.path == '/api/consultation/state') {
-          return _json(_noState());
-        }
-        if (req.url.path == '/api/consultation/message') {
-          call++;
-          throw http.ClientException('offline');
-        }
-        return _json({}, 404);
-      });
-      await rig.controller.refresh();
+    testWidgets(
+      'réseau KO -> texte conservé + Réessayer, état contrôleur intact',
+      (t) async {
+        var call = 0;
+        final rig = _rig((req) async {
+          if (req.url.path == '/api/consultation/state') {
+            return _json(_noState());
+          }
+          if (req.url.path == '/api/consultation/message') {
+            call++;
+            throw http.ClientException('offline');
+          }
+          return _json({}, 404);
+        });
+        await rig.controller.refresh();
 
-      await _pumpWithin(
-          t, rig, ChatScreen(advisor: advisorByNameOrNull('Séléna')!));
-      await t.pump();
+        await _pumpWithin(
+          t,
+          rig,
+          ChatScreen(advisor: advisorByNameOrNull('Séléna')!),
+        );
+        await t.pump();
 
-      await t.enterText(find.byType(TextField), 'mon message');
-      await t.pump();
-      await t.tap(find.byIcon(Icons.send_rounded));
-      await t.pumpAndSettle();
-      await t.tap(find.text('Commencer'));
-      await t.pumpAndSettle();
+        await t.enterText(find.byType(TextField), 'mon message');
+        await t.pump();
+        await t.tap(find.byIcon(Icons.send_rounded));
+        await t.pumpAndSettle();
+        await t.tap(find.text('Commencer'));
+        await t.pumpAndSettle();
 
-      expect(find.text('mon message'), findsOneWidget);
-      expect(find.text('Réessayer'), findsOneWidget);
-      expect(call, 1);
-      expect(rig.controller.active, isNull);
-    });
+        expect(find.text('mon message'), findsOneWidget);
+        expect(find.text('Réessayer'), findsOneWidget);
+        expect(call, 1);
+        expect(rig.controller.active, isNull);
+      },
+    );
 
-    testWidgets('402 time_exhausted -> mur Premium + time/quota resync, pas de session',
-        (t) async {
-      final rig = _rig((req) async {
-        if (req.url.path == '/api/consultation/state') {
-          return _json(_noState());
-        }
-        if (req.url.path == '/api/consultation/message') {
-          return _json(_noCreditBody(monthlyUsed: 10), 402);
-        }
-        return _json({}, 404);
-      });
-      await rig.controller.refresh();
+    testWidgets(
+      '402 time_exhausted -> mur Premium + time/quota resync, pas de session',
+      (t) async {
+        final rig = _rig((req) async {
+          if (req.url.path == '/api/consultation/state') {
+            return _json(_noState());
+          }
+          if (req.url.path == '/api/consultation/message') {
+            return _json(_noCreditBody(monthlyUsed: 10), 402);
+          }
+          return _json({}, 404);
+        });
+        await rig.controller.refresh();
 
-      await _pumpWithin(
-          t, rig, ChatScreen(advisor: advisorByNameOrNull('Séléna')!));
-      await t.pump();
+        await _pumpWithin(
+          t,
+          rig,
+          ChatScreen(advisor: advisorByNameOrNull('Séléna')!),
+        );
+        await t.pump();
 
-      await t.enterText(find.byType(TextField), 'coucou');
-      await t.pump();
-      await t.tap(find.byIcon(Icons.send_rounded));
-      await t.pumpAndSettle();
-      await t.tap(find.text('Commencer'));
-      await t.pumpAndSettle();
+        await t.enterText(find.byType(TextField), 'coucou');
+        await t.pump();
+        await t.tap(find.byIcon(Icons.send_rounded));
+        await t.pumpAndSettle();
+        await t.tap(find.text('Commencer'));
+        await t.pumpAndSettle();
 
-      // _noCreditBody() est Premium -> mur sobre (titre « disponible épuisé »,
-      // pas de prix, pas de « Découvrir Premium »).
-      expect(find.text('Ton temps de consultation disponible est épuisé.'),
-          findsOneWidget);
-      expect(find.text('Premium — 7,99 €/mois'), findsNothing);
-      expect(rig.controller.active, isNull);
-      // TIMER-D.1 — le corps du 402 resynchronise `time` (0) + `quota`.
-      expect(rig.controller.time!.totalRemainingSeconds, 0);
-      expect(rig.controller.quota!.monthlyUsed, 10);
-    });
+        // _noCreditBody() est Premium -> mur sobre (titre « disponible épuisé »,
+        // pas de prix, pas de « Découvrir Premium »).
+        expect(
+          find.text('Ton temps de consultation disponible est épuisé.'),
+          findsOneWidget,
+        );
+        expect(find.text('Premium — 7,99 €/mois'), findsNothing);
+        expect(rig.controller.active, isNull);
+        // TIMER-D.1 — le corps du 402 resynchronise `time` (0) + `quota`.
+        expect(rig.controller.time!.totalRemainingSeconds, 0);
+        expect(rig.controller.quota!.monthlyUsed, 10);
+      },
+    );
 
     testWidgets('401 -> retour EmailAuthScreen, session purgée', (t) async {
       final rig = _rig((req) async {
@@ -780,7 +925,10 @@ void main() {
       await rig.controller.refresh();
 
       await _pumpWithin(
-          t, rig, ChatScreen(advisor: advisorByNameOrNull('Séléna')!));
+        t,
+        rig,
+        ChatScreen(advisor: advisorByNameOrNull('Séléna')!),
+      );
       await t.pump();
 
       await t.enterText(find.byType(TextField), 'hello');
@@ -790,7 +938,7 @@ void main() {
       await t.tap(find.text('Commencer'));
       await t.pumpAndSettle();
 
-      expect(find.text('Ton adresse email'), findsOneWidget);
+      expect(find.text('Bon retour'), findsOneWidget);
       expect(await rig.tokens.read(), isNull);
       expect(rig.auth.status, AuthStatus.sessionExpired);
     });

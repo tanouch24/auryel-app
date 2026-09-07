@@ -6,6 +6,7 @@ import 'package:phosphor_icons/phosphor_icons.dart';
 
 import '../api/api_client.dart';
 import '../data/daily_like_store.dart';
+import '../data/daily_mission_tracker.dart';
 import '../data/tarot_deck.dart';
 import '../data/tirage.dart';
 import '../screens/chat_screen.dart';
@@ -53,7 +54,31 @@ class _TirageScreenState extends State<TirageScreen> {
   /// Tirage canonique renvoyé par le serveur (source de vérité de l'affichage).
   TirageResult? _result;
 
+  /// Panneau de lecture (phase révélée) — indice de scroll « Voir la suite ».
+  final ScrollController _revealScroll = ScrollController();
+  bool _revealScrollable = false;
+  bool _revealAtBottom = false;
+
   static const int _maxCards = 3;
+
+  @override
+  void dispose() {
+    _revealScroll.dispose();
+    super.dispose();
+  }
+
+  void _onRevealScrollMetrics() {
+    if (!_revealScroll.hasClients) return;
+    final p = _revealScroll.position;
+    final scrollable = p.maxScrollExtent > 8;
+    final atBottom = p.pixels >= p.maxScrollExtent - 24;
+    if (scrollable != _revealScrollable || atBottom != _revealAtBottom) {
+      setState(() {
+        _revealScrollable = scrollable;
+        _revealAtBottom = atBottom;
+      });
+    }
+  }
 
   /// Ordre du deck mélangé (slugs) — pour les tests uniquement.
   @visibleForTesting
@@ -108,6 +133,14 @@ class _TirageScreenState extends State<TirageScreen> {
         _revealed = true;
         _save = _SaveState.saved;
       });
+      // Mission du jour « Fais ton tirage » : cochée sur une SAUVEGARDE réelle
+      // (pas la simple ouverture de l'onglet). Aucune récompense.
+      DailyMissionTracker().markDone(DailyMissionTracker.tirage);
+      // Une fois le panneau de lecture posé : savoir s'il déborde (indice
+      // « Voir la suite »).
+      WidgetsBinding.instance.addPostFrameCallback(
+        (_) => _onRevealScrollMetrics(),
+      );
     } on ApiUnauthorizedException {
       await auth.invalidateSession();
       if (!mounted) return;
@@ -274,7 +307,8 @@ class _TirageScreenState extends State<TirageScreen> {
                     count: _deck.length,
                     selectionNumberFor: _selectionNumber,
                     onTap: _select,
-                    enabled: !_revealed &&
+                    enabled:
+                        !_revealed &&
                         _save != _SaveState.saving &&
                         count < _maxCards,
                   ),
@@ -437,9 +471,12 @@ class _TirageScreenState extends State<TirageScreen> {
           'Ton tirage est prêt.',
           style: AuryelText.body(fontSize: 13, color: AuryelColors.textMuted),
         ),
-        const Spacer(flex: 62),
+        // TIRAGE-UX §6 — les 3 cartes (overlay `_TapisCards`, `_cy` remonté)
+        // deviennent le centre visuel : moins d'espace mort au-dessus, plus de
+        // place pour la lecture en dessous.
+        const Spacer(flex: 42),
         Expanded(
-          flex: 38,
+          flex: 58,
           child: DecoratedBox(
             decoration: const BoxDecoration(
               gradient: LinearGradient(
@@ -449,60 +486,137 @@ class _TirageScreenState extends State<TirageScreen> {
                 stops: [0.0, 0.14],
               ),
             ),
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.fromLTRB(24, 24, 24, 28),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  for (var i = 0; i < cards.length; i++) ...[
-                    _CardDetail(index: i, card: cards[i]),
-                    const SizedBox(height: 18),
-                  ],
-                  const SizedBox(height: 4),
-                  Divider(color: AuryelColors.warmBorder, height: 1),
-                  const SizedBox(height: 18),
-                  Text(
-                    'Lecture de ton tirage',
-                    style: AuryelText.display(
-                      fontSize: 19,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  Text(
-                    result.combinedInterpretation,
-                    style: AuryelText.body(
-                      fontSize: 13.5,
-                      height: 1.6,
-                      color: AuryelColors.textSecondary,
-                    ),
-                  ),
-                  const SizedBox(height: 24),
-                  if (advisor != null)
-                    AuryelGoldButton(
-                      label: 'En parler avec ${advisor.name}',
-                      onTap: () =>
-                          _confirmAndOpenChat(context, advisor, result.tirageId),
-                    ),
-                  const SizedBox(height: 12),
-                  Center(
-                    child: TextButton(
-                      onPressed: _restart,
-                      child: Text(
-                        'Recommencer le tirage',
-                        style: AuryelText.body(
-                          fontSize: 12.5,
-                          color: AuryelColors.textMuted,
+            child: Stack(
+              children: [
+                NotificationListener<ScrollNotification>(
+                  onNotification: (n) {
+                    _onRevealScrollMetrics();
+                    return false;
+                  },
+                  child: SingleChildScrollView(
+                    controller: _revealScroll,
+                    padding: const EdgeInsets.fromLTRB(24, 24, 24, 40),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        for (var i = 0; i < cards.length; i++) ...[
+                          _CardDetail(index: i, card: cards[i]),
+                          const SizedBox(height: 18),
+                        ],
+                        const SizedBox(height: 4),
+                        Divider(color: AuryelColors.warmBorder, height: 1),
+                        const SizedBox(height: 18),
+                        Text(
+                          'Lecture de ton tirage',
+                          style: AuryelText.display(
+                            fontSize: 19,
+                            fontWeight: FontWeight.w600,
+                          ),
                         ),
-                      ),
+                        const SizedBox(height: 10),
+                        Text(
+                          result.combinedInterpretation,
+                          style: AuryelText.body(
+                            fontSize: 13.5,
+                            height: 1.6,
+                            color: AuryelColors.textSecondary,
+                          ),
+                        ),
+                        const SizedBox(height: 24),
+                        if (advisor != null)
+                          AuryelGoldButton(
+                            label: 'En parler avec ${advisor.name}',
+                            onTap: () => _confirmAndOpenChat(
+                              context,
+                              advisor,
+                              result.tirageId,
+                            ),
+                          ),
+                        const SizedBox(height: 12),
+                        Center(
+                          child: TextButton(
+                            onPressed: _restart,
+                            child: Text(
+                              'Recommencer le tirage',
+                              style: AuryelText.body(
+                                fontSize: 12.5,
+                                color: AuryelColors.textMuted,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                ],
-              ),
+                ),
+                // TIRAGE-UX §7 — indice de scroll : chevron + « Voir la suite »,
+                // léger va-et-vient vertical, RETIRÉ de l'arbre une fois le bas
+                // atteint (ou si le contenu tient déjà à l'écran) — donc aucune
+                // animation résiduelle.
+                if (_revealScrollable && !_revealAtBottom)
+                  const Positioned(
+                    left: 0,
+                    right: 0,
+                    bottom: 6,
+                    child: IgnorePointer(child: _ScrollHint()),
+                  ),
+              ],
             ),
           ),
         ),
       ],
+    );
+  }
+}
+
+/// Indice « il y a une suite » : chevron bas + libellé court. Petit va-et-vient
+/// vertical FINI (quelques allers-retours puis repos) — jamais d'animation
+/// infinie, pour ne pas bloquer `pumpAndSettle`. Le widget est de toute façon
+/// retiré de l'arbre dès qu'on a assez scrollé.
+class _ScrollHint extends StatelessWidget {
+  const _ScrollHint();
+
+  @override
+  Widget build(BuildContext context) {
+    final chevron =
+        const PhosphorIcon(
+              PhosphorIconsBold.caretDown,
+              size: 13,
+              color: AuryelColors.goldLight,
+            )
+            .animate(onPlay: (c) => c.repeat(reverse: true, count: 6))
+            .moveY(
+              begin: -2,
+              end: 3,
+              duration: 650.ms,
+              curve: Curves.easeInOut,
+            );
+
+    return Center(
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
+        decoration: BoxDecoration(
+          color: AuryelColors.backgroundDeep.withValues(alpha: 0.55),
+          borderRadius: BorderRadius.circular(14),
+          border: Border.all(color: AuryelColors.gold.withValues(alpha: 0.3)),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              'Voir la suite',
+              style: AuryelText.body(
+                fontSize: 11,
+                fontWeight: FontWeight.w600,
+                color: AuryelColors.goldLight,
+                letterSpacing: 0.4,
+              ),
+            ),
+            const SizedBox(width: 6),
+            chevron,
+          ],
+        ),
+      ),
     );
   }
 }
@@ -523,13 +637,17 @@ class _TapisCards extends StatelessWidget {
   final bool revealed;
   final List<String?> faces;
 
-  // Emplacements des 3 cartes au CENTRE du TAPIS VIDE (fractions d'écran),
-  // calibrés sur tarot_table_blank.png : sous l'éventail, sans chevauchement,
-  // sans dépasser. Identiques en sélection ET après révélation.
+  // Emplacements des 3 cartes sur le TAPIS VIDE (fractions d'écran), calibrés
+  // sur tarot_table_blank.png. En SÉLECTION : sous l'éventail (`_cySelect`).
+  // APRÈS RÉVÉLATION (`_cyReveal`) : nettement remontées — les cartes
+  // deviennent le centre visuel, moins d'espace mort au-dessus (TIRAGE-UX §6).
   static const List<double> _cx = [0.255, 0.500, 0.745];
-  static const double _cy = 0.545;
+  static const double _cySelect = 0.545;
+  static const double _cyReveal = 0.40;
   static const double _cardHFrac = 0.165; // hauteur carte / hauteur écran
   static const double _ratio = 781 / 1312; // w/h de tarot_card_back.png
+
+  double get _cy => revealed ? _cyReveal : _cySelect;
 
   @override
   Widget build(BuildContext context) {
@@ -539,23 +657,30 @@ class _TapisCards extends StatelessWidget {
         final h = c.maxHeight;
         final cardH = h * _cardHFrac;
         final cardW = cardH * _ratio;
-        return Stack(
-          clipBehavior: Clip.none,
-          children: [
-            for (var i = 0; i < 3; i++)
-              if (revealed || i < count)
-                Positioned(
-                  left: w * _cx[i] - cardW / 2,
-                  top: h * _cy - cardH / 2,
-                  width: cardW,
-                  height: cardH,
-                  child: _Slot(
-                    index: i,
-                    revealed: revealed,
-                    facePath: faces.length > i ? faces[i] : null,
+        // Le groupe de cartes glisse doucement vers le haut à la révélation
+        // (mêmes positions X, même taille — seule la hauteur du groupe change).
+        return TweenAnimationBuilder<double>(
+          tween: Tween<double>(end: _cy),
+          duration: const Duration(milliseconds: 420),
+          curve: Curves.easeOutCubic,
+          builder: (context, cy, _) => Stack(
+            clipBehavior: Clip.none,
+            children: [
+              for (var i = 0; i < 3; i++)
+                if (revealed || i < count)
+                  Positioned(
+                    left: w * _cx[i] - cardW / 2,
+                    top: h * cy - cardH / 2,
+                    width: cardW,
+                    height: cardH,
+                    child: _Slot(
+                      index: i,
+                      revealed: revealed,
+                      facePath: faces.length > i ? faces[i] : null,
+                    ),
                   ),
-                ),
-          ],
+            ],
+          ),
         );
       },
     );
@@ -665,7 +790,9 @@ class _TirageLikeButtonState extends State<_TirageLikeButton> {
     try {
       final v = await _store.isLikedToday();
       if (mounted) setState(() => _liked = v);
-    } catch (_) {/* défaut : non aimé */}
+    } catch (_) {
+      /* défaut : non aimé */
+    }
   }
 
   Future<void> _toggle() async {
@@ -675,7 +802,9 @@ class _TirageLikeButtonState extends State<_TirageLikeButton> {
     try {
       final v = await _store.toggleToday();
       if (mounted && v != _liked) setState(() => _liked = v);
-    } catch (_) {/* garde l'état optimiste */} finally {
+    } catch (_) {
+      /* garde l'état optimiste */
+    } finally {
       _busy = false;
     }
   }
@@ -684,7 +813,9 @@ class _TirageLikeButtonState extends State<_TirageLikeButton> {
   Widget build(BuildContext context) {
     return Semantics(
       button: true,
-      label: _liked ? 'Retirer le tirage des favoris' : 'Ajouter le tirage aux favoris',
+      label: _liked
+          ? 'Retirer le tirage des favoris'
+          : 'Ajouter le tirage aux favoris',
       child: Material(
         color: Colors.transparent,
         shape: const CircleBorder(),

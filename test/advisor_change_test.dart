@@ -110,33 +110,40 @@ void main() {
   // -------------------------------------------------------------------------
   // D — changement sans session active
   // -------------------------------------------------------------------------
-  test('D. changeAdvisor sans session active -> synced + état à jour', () async {
-    final e = _env();
-    final out = await e.state.changeAdvisor('Luna', 'luna');
-    expect(out, AdvisorChangeOutcome.synced);
-    expect(e.state.selectedAdvisor, 'Luna');
-  });
+  test(
+    'D. changeAdvisor sans session active -> synced + état à jour',
+    () async {
+      final e = _env();
+      final out = await e.state.changeAdvisor('Luna', 'luna');
+      expect(out, AdvisorChangeOutcome.synced);
+      expect(e.state.selectedAdvisor, 'Luna');
+    },
+  );
 
-  test('changeAdvisor vers le conseiller DÉJÀ préféré -> unchanged, aucun appel',
-      () async {
-    final e = _env();
-    final out = await e.state.changeAdvisor('Séléna', 'selena');
-    expect(out, AdvisorChangeOutcome.unchanged);
-    expect(e.requests, isEmpty);
-  });
+  test(
+    'changeAdvisor vers le conseiller DÉJÀ préféré -> unchanged, aucun appel',
+    () async {
+      final e = _env();
+      final out = await e.state.changeAdvisor('Séléna', 'selena');
+      expect(out, AdvisorChangeOutcome.unchanged);
+      expect(e.requests, isEmpty);
+    },
+  );
 
   // -------------------------------------------------------------------------
   // E — persistance locale (SharedPreferences via le repository)
   // -------------------------------------------------------------------------
-  test('E. le changement persiste localement (relecture du repository)',
-      () async {
-    final repo = LocalOnboardingRepository();
-    final e = _env(repository: repo);
-    await e.state.changeAdvisor('Maïa', 'maia');
+  test(
+    'E. le changement persiste localement (relecture du repository)',
+    () async {
+      final repo = LocalOnboardingRepository();
+      final e = _env(repository: repo);
+      await e.state.changeAdvisor('Maïa', 'maia');
 
-    final reloaded = await repo.load();
-    expect(reloaded?.selectedAdvisor, 'Maïa');
-  });
+      final reloaded = await repo.load();
+      expect(reloaded?.selectedAdvisor, 'Maïa');
+    },
+  );
 
   // -------------------------------------------------------------------------
   // F — PATCH backend : « guide » SEUL (jamais prénom / date de naissance)
@@ -175,8 +182,7 @@ void main() {
   // -------------------------------------------------------------------------
   // H / I / J — consultation active conseiller A, nouveau préféré B
   // -------------------------------------------------------------------------
-  test(
-      'H/I/J. session active avec Séléna + nouveau préféré Luna : '
+  test('H/I/J. session active avec Séléna + nouveau préféré Luna : '
       'la session reste Séléna, la prochaine sera Luna, sans erreur', () async {
     final e = _env();
     final consultation = ConsultationController(
@@ -232,18 +238,16 @@ void main() {
     await e.state.changeAdvisor('Orion', 'orion');
 
     expect(e.requests, ['PATCH /api/app/profile']);
-    expect(
-      e.requests.where((r) => r.contains('/api/consultation')),
-      isEmpty,
-    );
+    expect(e.requests.where((r) => r.contains('/api/consultation')), isEmpty);
     expect(e.requests.where((r) => r.contains('/api/tirages')), isEmpty);
   });
 
   // -------------------------------------------------------------------------
   // Point d'entrée Accueil + liste des 10
   // -------------------------------------------------------------------------
-  testWidgets('Accueil : point d\'entrée « Changer de conseiller » -> liste 10',
-      (tester) async {
+  testWidgets('Accueil : les conseillers ne sont PLUS présentés (ni carrousel, '
+      'ni « Changer de conseiller ») — ils reviendront dans l\'onglet '
+      'Consultation', (tester) async {
     final e = _env();
     await tester.pumpWidget(
       AuryelStateScope(
@@ -253,19 +257,9 @@ void main() {
     );
     await tester.pump(const Duration(seconds: 1));
 
-    final link = find.text('Changer de conseiller');
-    expect(link, findsOneWidget);
-
-    await tester.ensureVisible(link);
-    await tester.tap(link);
-    await tester.pumpAndSettle();
-
-    expect(find.byType(AdvisorChooserScreen), findsOneWidget);
-    // La fiche de choix marque le conseiller actuel et présente les autres.
-    expect(find.text('ACTUEL'), findsOneWidget);
-    // Spécialité + accroche du 2e conseiller (non préféré) rendues dans la liste.
-    final other = kAdvisors[1];
-    expect(find.text(other.tagline), findsWidgets);
-    expect(find.text(other.specialty), findsWidgets);
+    expect(find.text('Changer de conseiller'), findsNothing);
+    expect(find.text('Découvre nos conseillers'), findsNothing);
+    expect(find.byType(AdvisorsCarousel), findsNothing);
+    expect(find.byType(AdvisorChooserScreen), findsNothing);
   });
 }

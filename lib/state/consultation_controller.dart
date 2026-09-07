@@ -32,8 +32,8 @@ class ConsultationController extends ChangeNotifier {
   ConsultationController({
     required ConsultationApi api,
     required AuthController auth,
-  })  : _api = api,
-        _auth = auth;
+  }) : _api = api,
+       _auth = auth;
 
   final ConsultationApi _api;
   final AuthController _auth;
@@ -88,6 +88,32 @@ class ConsultationController extends ChangeNotifier {
 
   /// Temps total restant, jamais négatif.
   Duration get remaining => Duration(seconds: _walletSeconds);
+
+  /// Libellé UNIQUE du « temps disponible » — MÊME vérité que l'Accueil
+  /// (`HomeScreen._timeValueFor(_deriveState(...))`). Le serveur reste
+  /// autoritaire : on ne fait que PRÉSENTER, aucun nouveau calcul métier.
+  ///   session active                       -> portefeuille formaté
+  ///   1re heure offerte pas encore consommée -> « 1 h offerte »
+  ///     (le backend ne crédite les 3600 s au portefeuille qu'à l'ouverture de
+  ///      la 1re consultation ; d'ici là `first_free_available` = true et les
+  ///      buckets sont à 0 — l'Accueil affiche déjà « 1 h offerte », pas « 0 min »)
+  ///   portefeuille vide                    -> « 0 min »
+  ///   sinon                                -> portefeuille formaté
+  String get availableTimeLabel {
+    if (hasActiveSession) return formatTotalTime(_walletSeconds);
+    final q = _quota;
+    if (q?.firstFreeAvailable == true) return '1 h offerte';
+    final t = _time;
+    if (t != null) {
+      return t.hasTime ? formatTotalTime(_walletSeconds) : '0 min';
+    }
+    // Fallback backend ancien (bloc `time` absent).
+    if (q == null) return '1 h offerte';
+    if ((q.isPremium && q.monthlyRemaining > 0) || q.earnedAvailable > 0) {
+      return formatTotalTime(_walletSeconds);
+    }
+    return '0 min';
+  }
 
   /// Portefeuille d'heures : « 8 h », « 7 h 42 min », « 42 min », « < 1 min »,
   /// « 0 min ». Pas de countdown seconde par seconde sur ce total.
@@ -210,8 +236,8 @@ class ConsultationScope extends InheritedNotifier<ConsultationController> {
   }) : super(notifier: controller);
 
   static ConsultationController of(BuildContext context) {
-    final scope =
-        context.dependOnInheritedWidgetOfExactType<ConsultationScope>();
+    final scope = context
+        .dependOnInheritedWidgetOfExactType<ConsultationScope>();
     assert(scope != null, 'ConsultationScope introuvable dans l’arbre.');
     return scope!.notifier!;
   }

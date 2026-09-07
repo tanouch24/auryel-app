@@ -27,10 +27,10 @@ class RestoreResult {
 /// (stockage chiffré OS). Ne connaît rien de l'onboarding métier.
 class AuthRepository {
   AuthRepository({required AuthApi api, required TokenStore tokenStore})
-      // Champs privés -> impossible d'utiliser un « initializing formal ».
-      // ignore: prefer_initializing_formals
-      : _api = api,
-        _tokens = tokenStore;
+    // Champs privés -> impossible d'utiliser un « initializing formal ».
+    // ignore: prefer_initializing_formals
+    : _api = api,
+      _tokens = tokenStore;
 
   final AuthApi _api;
   final TokenStore _tokens;
@@ -41,7 +41,32 @@ class AuthRepository {
   /// rencontré hors du flux de login (ex. PATCH profil).
   Future<void> clearSession() => _tokens.clear();
 
-  /// Étape 1 — demande d'un code à usage unique par email.
+  /// AUTH V2 — crée le compte (email + mot de passe), stocke le jeton retourné,
+  /// le renvoie. L'email est trimé ; le mot de passe n'est JAMAIS modifié.
+  /// Lève [ApiException] (400/409/503…) sans écrire de jeton.
+  Future<String> registerWithPasswordAndStore(
+    String email,
+    String password,
+  ) async {
+    final token = await _api.registerWithPassword(email.trim(), password);
+    await _tokens.write(token);
+    return token;
+  }
+
+  /// AUTH V2 — connexion (email + mot de passe), stocke le jeton, le renvoie.
+  /// Lève [ApiException] (401 `invalid_credentials`, 409 `password_not_set`…)
+  /// sans écrire de jeton.
+  Future<String> loginWithPasswordAndStore(
+    String email,
+    String password,
+  ) async {
+    final token = await _api.loginWithPassword(email.trim(), password);
+    await _tokens.write(token);
+    return token;
+  }
+
+  /// LEGACY (OTP) — demande d'un code à usage unique par email. Conservé pour
+  /// un futur parcours « définir un mot de passe » ; hors parcours actif.
   Future<void> requestCode(String email) => _api.requestCode(email.trim());
 
   /// Étape 2 — vérifie le code, stocke le jeton retourné, le renvoie.

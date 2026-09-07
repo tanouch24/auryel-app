@@ -1,38 +1,40 @@
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show AssetBundle, rootBundle;
 import 'package:phosphor_icons/phosphor_icons.dart';
 import 'package:share_plus/share_plus.dart';
 
-import '../data/daily_like_store.dart';
-import '../data/daily_message.dart';
 import '../data/daily_share_tracker.dart';
+import '../data/daily_thought.dart';
+import '../data/share_reward_repository.dart';
+import '../state/auth_controller.dart';
+import '../state/consultation_controller.dart';
 import '../theme/auryel_theme.dart';
-import 'daily_message_poster.dart';
 
 /// Signature du partage natif — injectable pour les tests (aucun canal
-/// plateforme en environnement de test).
-typedef ShareCallback = Future<void> Function(
-    {Uint8List? imagePng, required String text});
+/// plateforme en environnement de test). `imageBytes` = octets du WEBP du jour.
+typedef ShareThoughtCallback = Future<void> Function({
+  Uint8List? imageBytes,
+  required String text,
+});
 
-/// Signature de la capture de l'affiche en PNG, pour la variante d'index donné —
-/// injectable pour les tests (`RenderRepaintBoundary.toImage()` a besoin du
-/// vrai pipeline de rendu).
-typedef PosterCapture = Future<Uint8List?> Function(int variantIndex);
-
-/// Nombre de variantes de publication générées localement (B8.3 §3-C).
-const int kPublicationVariantCount = 3;
-
-Future<void> _defaultShare({Uint8List? imagePng, required String text}) async {
-  if (imagePng != null && imagePng.isNotEmpty) {
+Future<void> _defaultShare({
+  Uint8List? imageBytes,
+  required String text,
+}) async {
+  if (imageBytes != null && imageBytes.isNotEmpty) {
+    // On partage le WEBP FINAL du pack (phrase + interprétation + design déjà
+    // dessus). `XFile.fromData` matérialise lui-même un fichier temporaire côté
+    // plateforme -> pas de conversion PNG, pas de RepaintBoundary.
     await SharePlus.instance.share(
       ShareParams(
         text: text,
         files: [
           XFile.fromData(
-            imagePng,
-            mimeType: 'image/png',
-            name: 'auryel-message-du-jour.png',
+            imageBytes,
+            mimeType: 'image/webp',
+            name: 'auryel-pensee-du-jour.webp',
           ),
         ],
       ),
@@ -42,22 +44,44 @@ Future<void> _defaultShare({Uint8List? imagePng, required String text}) async {
   await SharePlus.instance.share(ShareParams(text: text));
 }
 
-/// Ouvre la feuille de détail du message du jour (retour, phrase, interprétation,
-/// « j'aime », génération de 3 variantes de publication, partage natif).
-Future<void> showDailyMessageSheet(
+/// Ouvre l'aperçu de LA publication du jour : un seul visuel (déjà généré),
+/// un bouton « Partager » (feuille de partage native), le compteur « X / 30 ».
+/// Aucune date, aucune variante, aucun poster généré à la volée.
+Future<void> showDailyThoughtSheet(
   BuildContext context, {
-  DailyMessage message = DailyMessage.today,
-  ShareCallback? onShare,
+  required DailyThought thought,
+  ShareThoughtCallback? onShare,
   DailyShareTracker? tracker,
+  AssetBundle? bundle,
+  ShareRewardRepository? shareReward,
+  VoidCallback? onRewardCredited,
 }) {
+  // Défaut PRODUCTION : la progression 30 jours devient serveur-autoritative
+  // dès qu'un backend récompense est câblé (AuthScope.rewardsApi). Sinon,
+  // `recordShare()` renvoie `null` et l'affichage retombe sur le cache local.
+  final auth = AuthScope.maybeOf(context);
+  final consultation = ConsultationScope.maybeReadOf(context);
+  final reward =
+      shareReward ??
+      (auth == null
+          ? null
+          : ShareRewardRepository(
+              api: auth.rewardsApi,
+              tokenProvider: auth.currentToken,
+            ));
   return showModalBottomSheet<void>(
     context: context,
     isScrollControlled: true,
     backgroundColor: Colors.transparent,
     builder: (_) => DailyMessageSheet(
-      message: message,
+      thought: thought,
       onShare: onShare ?? _defaultShare,
       tracker: tracker ?? DailyShareTracker(),
+      bundle: bundle,
+      shareReward: reward,
+      // Après un crédit serveur confirmé : on rafraîchit le portefeuille de
+      // temps DEPUIS le serveur (jamais de +3600 local).
+      onRewardCredited: onRewardCredited ?? consultation?.refresh,
     ),
   );
 }
@@ -65,92 +89,106 @@ Future<void> showDailyMessageSheet(
 class DailyMessageSheet extends StatefulWidget {
   const DailyMessageSheet({
     super.key,
-    required this.message,
+    required this.thought,
     required this.onShare,
     required this.tracker,
-    this.captureOverride,
-    this.likeStore,
+    this.bundle,
+    this.shareReward,
+    this.onRewardCredited,
   });
 
-  final DailyMessage message;
-  final ShareCallback onShare;
+  final DailyThought thought;
+  final ShareThoughtCallback onShare;
   final DailyShareTracker tracker;
 
-  /// Test uniquement : remplace la capture PNG de la variante d'index donné.
-  final PosterCapture? captureOverride;
+  /// Test uniquement : bundle d'assets injecté (chargement du WEBP).
+  final AssetBundle? bundle;
 
-  /// Test uniquement : store « j'aime » injecté.
-  final DailyLikeStore? likeStore;
+  /// Récompense 30 jours — source de vérité serveur. `null` = pas câblé
+  /// (affichage sur cache local uniquement).
+  final ShareRewardRepository? shareReward;
+
+  /// Appelé UNE fois quand le serveur confirme `credited == true` — sert à
+  /// rafraîchir le portefeuille de temps depuis le serveur.
+  final VoidCallback? onRewardCredited;
 
   @override
   State<DailyMessageSheet> createState() => _DailyMessageSheetState();
 }
 
 class _DailyMessageSheetState extends State<DailyMessageSheet> {
-  late final DailyLikeStore _likeStore = widget.likeStore ?? DailyLikeStore();
-  final List<GlobalKey> _variantKeys =
-      List.generate(kPublicationVariantCount, (_) => GlobalKey());
-  final ScrollController _carousel = ScrollController();
-
-  bool _generated = false;
-  int _selected = 0;
   bool _sharing = false;
-  bool _liked = false;
+  int _sharedDays = 0;
+
+  /// Progression SERVEUR (prévaut sur le cache local quand disponible).
+  int? _serverCount;
+  int _target = 30;
+  bool _justCredited = false;
+
+  int get _displayDays => _serverCount ?? _sharedDays;
 
   @override
   void initState() {
     super.initState();
-    _loadLike();
+    _loadCounter();
+    _loadServerProgress();
   }
 
-  @override
-  void dispose() {
-    _carousel.dispose();
-    super.dispose();
-  }
-
-  void _onCarouselScroll(double viewportW) {
-    if (viewportW <= 0 || !_carousel.hasClients) return;
-    final i = (_carousel.offset / viewportW)
-        .round()
-        .clamp(0, kPublicationVariantCount - 1);
-    if (i != _selected) setState(() => _selected = i);
-  }
-
-  Future<void> _loadLike() async {
+  Future<void> _loadCounter() async {
     try {
-      final v = await _likeStore.isLikedToday();
-      if (mounted) setState(() => _liked = v);
-    } catch (_) {/* défaut : non aimé */}
+      final n = await widget.tracker.sharedDaysCount();
+      if (mounted) setState(() => _sharedDays = n);
+    } catch (_) {
+      /* défaut : 0 */
+    }
   }
 
-  Future<void> _toggleLike() async {
-    setState(() => _liked = !_liked);
-    try {
-      final v = await _likeStore.toggleToday();
-      if (mounted && v != _liked) setState(() => _liked = v);
-    } catch (_) {/* on garde l'état optimiste */}
-  }
-
-  void _generate() {
-    if (_generated) return;
-    setState(() => _generated = true);
+  Future<void> _loadServerProgress() async {
+    final progress = await widget.shareReward?.loadProgress();
+    if (progress == null || !mounted) return;
+    setState(() {
+      _serverCount = progress.count;
+      _target = progress.target;
+    });
   }
 
   Future<void> _share() async {
     if (_sharing) return;
     setState(() => _sharing = true);
     try {
-      final png = widget.captureOverride != null
-          ? await widget.captureOverride!(_selected)
-          : await DailyMessagePoster.capturePng(_variantKeys[_selected]);
+      Uint8List? bytes;
+      try {
+        final data = await (widget.bundle ?? rootBundle).load(
+          widget.thought.imageAsset,
+        );
+        bytes = data.buffer.asUint8List();
+      } catch (_) {
+        // Asset illisible -> on partage au moins le texte.
+        bytes = null;
+      }
       await widget.onShare(
-        imagePng: png,
-        text: '${widget.message.text}\n\n— Auryel',
+        imageBytes: bytes,
+        text: '${widget.thought.phrase}\n\n— Auryel',
       );
-      // B8.1 : on COMPTE seulement (1 jour max / jour) — accroche B10, aucune
-      // récompense ici.
+      // Cache local NON autoritaire (1 jour max / jour calendaire) — sert
+      // seulement si le serveur est indisponible.
       await widget.tracker.recordShareAttempt();
+      await _loadCounter();
+
+      // Déclaration serveur du jour de partage. Le SERVEUR décide s'il compte
+      // le jour et s'il crédite au palier. AUCUN crédit local.
+      final progress = await widget.shareReward?.recordShare();
+      if (progress != null && mounted) {
+        setState(() {
+          _serverCount = progress.count;
+          _target = progress.target;
+        });
+        if (progress.credited) {
+          setState(() => _justCredited = true);
+          // Rafraîchit le portefeuille DEPUIS le serveur (pas de +3600 local).
+          widget.onRewardCredited?.call();
+        }
+      }
     } catch (_) {
       // Le partage ne doit jamais faire planter l'écran.
     } finally {
@@ -179,7 +217,6 @@ class _DailyMessageSheetState extends State<DailyMessageSheet> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              // 1) barre de fermeture : poignée + bouton retour clair.
               Center(
                 child: Container(
                   width: 42,
@@ -199,46 +236,8 @@ class _DailyMessageSheetState extends State<DailyMessageSheet> {
               ),
               const SizedBox(height: 4),
 
-              // 2) date + phrase du jour
               Text(
-                widget.message.dateLabel,
-                textAlign: TextAlign.center,
-                style: AuryelText.body(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w500,
-                  color: AuryelColors.textMuted,
-                  letterSpacing: 2.4,
-                ),
-              ),
-              const SizedBox(height: 14),
-              RichText(
-                textAlign: TextAlign.center,
-                text: TextSpan(
-                  style: AuryelText.display(
-                    fontSize: 24,
-                    fontWeight: FontWeight.w500,
-                    height: 1.34,
-                  ),
-                  children: [
-                    TextSpan(text: widget.message.leadText),
-                    TextSpan(
-                      text: widget.message.accentText,
-                      style: AuryelText.display(
-                        fontSize: 24,
-                        fontWeight: FontWeight.w500,
-                        fontStyle: FontStyle.italic,
-                        color: AuryelColors.goldLight,
-                        height: 1.34,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-
-              // 3) interprétation
-              const SizedBox(height: 22),
-              Text(
-                'L’INTERPRÉTATION',
+                'TA PUBLICATION DU JOUR',
                 textAlign: TextAlign.center,
                 style: AuryelText.body(
                   fontSize: 10.5,
@@ -247,155 +246,55 @@ class _DailyMessageSheetState extends State<DailyMessageSheet> {
                   letterSpacing: 2,
                 ),
               ),
-              const SizedBox(height: 10),
-              Text(
-                widget.message.interpretation,
-                style: AuryelText.body(
-                  fontSize: 14,
-                  height: 1.55,
-                  color: AuryelColors.textSecondary,
-                ),
-              ),
-
-              // 4) « J'aime »  + 5) « Générer la publication »
-              const SizedBox(height: 20),
-              Center(child: _LikeButton(liked: _liked, onTap: _toggleLike)),
               const SizedBox(height: 14),
-              _GoldCta(
-                label: 'Générer la publication',
-                loading: false,
-                onTap: _generate,
-              ),
 
-              // 6) publications générées + 7) relance + 8) partage
-              if (_generated) ...[
-                const SizedBox(height: 20),
-                Text(
-                  'CHOISIS TA PUBLICATION',
-                  textAlign: TextAlign.center,
-                  style: AuryelText.body(
-                    fontSize: 10.5,
-                    fontWeight: FontWeight.w600,
-                    color: AuryelColors.gold,
-                    letterSpacing: 2,
+              // LE visuel final du jour (WEBP : phrase + interprétation + design).
+              Center(
+                child: ConstrainedBox(
+                  constraints: BoxConstraints(
+                    maxHeight: media.size.height * 0.62,
+                    maxWidth: 340,
                   ),
-                ),
-                const SizedBox(height: 12),
-                SizedBox(
-                  height: 320,
-                  // Carrousel horizontal NON paresseux (SingleChildScrollView) :
-                  // les 3 variantes restent montées -> chaque RepaintBoundary est
-                  // capturable même hors écran. Snapping page par page.
-                  child: LayoutBuilder(
-                    builder: (context, c) {
-                      final vw = c.maxWidth;
-                      return NotificationListener<ScrollNotification>(
-                        onNotification: (n) {
-                          _onCarouselScroll(vw);
-                          return false;
-                        },
-                        child: SingleChildScrollView(
-                          controller: _carousel,
-                          scrollDirection: Axis.horizontal,
-                          physics: const PageScrollPhysics(),
-                          child: Row(
-                            children: [
-                              for (var i = 0;
-                                  i < kPublicationVariantCount;
-                                  i++)
-                                SizedBox(
-                                  width: vw,
-                                  child: Center(
-                                    child: AnimatedScale(
-                                      duration:
-                                          const Duration(milliseconds: 160),
-                                      scale: i == _selected ? 1.0 : 0.9,
-                                      child: ConstrainedBox(
-                                        constraints: const BoxConstraints(
-                                            maxWidth: 190),
-                                        child: DecoratedBox(
-                                          decoration: BoxDecoration(
-                                            borderRadius:
-                                                BorderRadius.circular(20),
-                                            border: Border.all(
-                                              color: i == _selected
-                                                  ? AuryelColors.goldLight
-                                                  : AuryelColors.warmBorder,
-                                              width: i == _selected ? 2 : 1,
-                                            ),
-                                          ),
-                                          child: ClipRRect(
-                                            borderRadius:
-                                                BorderRadius.circular(18),
-                                            child: DailyMessagePoster(
-                                              message: widget.message,
-                                              variant:
-                                                  PosterVariant.values[i],
-                                              boundaryKey: _variantKeys[i],
-                                            ),
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                            ],
-                          ),
-                        ),
-                      );
-                    },
-                  ),
-                ),
-                const SizedBox(height: 12),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    for (var i = 0; i < kPublicationVariantCount; i++)
-                      Container(
-                        width: 7,
-                        height: 7,
-                        margin: const EdgeInsets.symmetric(horizontal: 4),
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: i == _selected
-                              ? AuryelColors.goldLight
-                              : AuryelColors.textMuted.withValues(alpha: 0.4),
+                  child: AspectRatio(
+                    aspectRatio: 1080 / 1920,
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(18),
+                      child: Image.asset(
+                        widget.thought.imageAsset,
+                        bundle: widget.bundle,
+                        fit: BoxFit.cover,
+                        gaplessPlayback: true,
+                        errorBuilder: (_, _, _) => const ColoredBox(
+                          color: AuryelColors.backgroundDeep,
                         ),
                       ),
-                  ],
-                ),
-                const SizedBox(height: 18),
-                Text(
-                  'Ce message te fait penser à quelqu’un ?',
-                  textAlign: TextAlign.center,
-                  style: AuryelText.body(
-                    fontSize: 13,
-                    color: AuryelColors.textSecondary,
+                    ),
                   ),
                 ),
-                const SizedBox(height: 14),
-                _GoldCta(
-                  label: 'Partager',
-                  loading: _sharing,
-                  onTap: _share,
+              ),
+
+              const SizedBox(height: 20),
+              _GoldCta(label: 'Partager', loading: _sharing, onTap: _share),
+              const SizedBox(height: 10),
+              Text(
+                'Partage avec l’application de ton choix. '
+                '$_displayDays / $_target jours.',
+                textAlign: TextAlign.center,
+                style: AuryelText.body(
+                  fontSize: 11.5,
+                  color: AuryelColors.textMuted,
                 ),
+              ),
+              if (_justCredited) ...[
                 const SizedBox(height: 8),
                 Text(
-                  'On partage la variante affichée — tu choisis l’application.',
+                  'Bravo ! 1 heure de consultation vient d’être ajoutée à ton '
+                  'compte.',
                   textAlign: TextAlign.center,
                   style: AuryelText.body(
-                    fontSize: 11.5,
-                    color: AuryelColors.textMuted,
-                  ),
-                ),
-              ] else ...[
-                const SizedBox(height: 8),
-                Text(
-                  '3 variantes d’affiche, prêtes à partager.',
-                  textAlign: TextAlign.center,
-                  style: AuryelText.body(
-                    fontSize: 11.5,
-                    color: AuryelColors.textMuted,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                    color: AuryelColors.goldLight,
                   ),
                 ),
               ],
@@ -437,56 +336,6 @@ class _CloseButton extends StatelessWidget {
                   fontWeight: FontWeight.w500,
                   color: AuryelColors.textMuted,
                   letterSpacing: 0.3,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _LikeButton extends StatelessWidget {
-  const _LikeButton({required this.liked, required this.onTap});
-
-  final bool liked;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: Colors.transparent,
-      borderRadius: BorderRadius.circular(20),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(20),
-        onTap: onTap,
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 9),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(20),
-            border: Border.all(
-              color: liked
-                  ? AuryelColors.goldLight
-                  : AuryelColors.gold.withValues(alpha: 0.35),
-            ),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              PhosphorIcon(
-                liked ? PhosphorIconsFill.heart : PhosphorIconsRegular.heart,
-                size: 16,
-                color: AuryelColors.goldLight,
-              ),
-              const SizedBox(width: 8),
-              Text(
-                liked ? 'Aimé' : 'J’aime',
-                style: AuryelText.body(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                  color: AuryelColors.goldLight,
-                  letterSpacing: 0.6,
                 ),
               ),
             ],

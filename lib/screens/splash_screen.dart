@@ -3,11 +3,13 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 
+import '../data/intro_video_store.dart';
 import '../state/auryel_state.dart';
 import '../state/auth_controller.dart';
 import '../state/consultation_controller.dart';
 import '../theme/auryel_theme.dart';
 import '../widgets/main_nav_shell.dart';
+import 'intro_video_screen.dart';
 import 'onboarding/email_auth_screen.dart';
 import 'onboarding/first_name_screen.dart';
 
@@ -33,10 +35,12 @@ class _SplashScreenState extends State<SplashScreen> {
     // Restauration de session + durée mini de splash, en parallèle.
     final auth = AuthScope.of(context);
     final consultation = ConsultationScope.of(context);
+    final introSeenFuture = IntroVideoStore().hasSeen();
     await Future.wait([
       auth.restore(),
       Future<void>.delayed(const Duration(milliseconds: 2000)),
     ]);
+    final introSeen = await introSeenFuture;
     if (!mounted) return;
     // Resynchro de l'état consultation UNIQUEMENT une fois la session restaurée
     // et valide (le GET /state exige un Bearer). Lecture seule : aucun POST,
@@ -44,47 +48,61 @@ class _SplashScreenState extends State<SplashScreen> {
     if (auth.isSignedIn) {
       unawaited(consultation.refresh());
     }
-    _goToNext(auth);
+    _goToNext(auth, introSeen: introSeen);
   }
 
-  void _goToNext(AuthController auth) {
+  static Route<void> _fadeRoute(Widget page) => PageRouteBuilder<void>(
+    transitionDuration: const Duration(milliseconds: 300),
+    pageBuilder: (_, _, _) => page,
+    transitionsBuilder: (_, animation, _, child) =>
+        FadeTransition(opacity: animation, child: child),
+  );
+
+  void _goToNext(AuthController auth, {required bool introSeen}) {
     if (!mounted) return;
-    final onboardingCompleted =
-        AuryelStateScope.of(context).onboardingCompleted;
+    final onboardingCompleted = AuryelStateScope.of(context)
+        .onboardingCompleted;
+    final navigator = Navigator.of(context);
+
+    // Priorité : onboarding terminé -> jamais de vidéo ; sinon vidéo déjà vue
+    // -> onboarding direct ; sinon -> vidéo d'intro puis onboarding.
+    final step = IntroGate.decide(
+      onboardingCompleted: onboardingCompleted,
+      introVideoSeen: introSeen,
+    );
 
     final Widget next;
-    if (!onboardingCompleted) {
-      // Parcours d'onboarding depuis le début : prénom (1/5), date de
-      // naissance (2/5), « parle-moi de toi » (3/5), conseiller (4/5),
-      // création du compte (5/5, OTP inclus).
-      next = const FirstNameScreen();
-    } else {
-      // Onboarding terminé : SEUL un vrai jeton donne accès à l'app.
-      // Un onboarding local terminé et/ou un ancien `temp_xxx` ne comptent
-      // jamais comme une authentification.
-      switch (auth.status) {
-        case AuthStatus.signedIn:
-        case AuthStatus.networkError:
-          // Jeton présent et accepté, OU présent mais backend momentanément
-          // injoignable (jeton conservé) → accueil, éventuellement en mode
-          // dégradé/offline.
-          next = const MainNavShell();
-        case AuthStatus.signedOut:
-        case AuthStatus.sessionExpired:
-        case AuthStatus.unknown:
-          // Aucun jeton, ou jeton rejeté en 401 (déjà purgé) → connexion.
-          next = const EmailAuthScreen();
-      }
+    switch (step) {
+      case IntroStep.video:
+        next = IntroVideoScreen(
+          onDone: () =>
+              navigator.pushReplacement(_fadeRoute(const FirstNameScreen())),
+        );
+      case IntroStep.onboarding:
+        // Parcours d'onboarding depuis le début : prénom (1/5), date de
+        // naissance (2/5), « parle-moi de toi » (3/5), conseiller (4/5),
+        // création du compte (5/5, email + mot de passe — AUCUN code OTP).
+        next = const FirstNameScreen();
+      case IntroStep.authRouting:
+        // Onboarding terminé : SEUL un vrai jeton donne accès à l'app.
+        // Un onboarding local terminé et/ou un ancien `temp_xxx` ne comptent
+        // jamais comme une authentification.
+        switch (auth.status) {
+          case AuthStatus.signedIn:
+          case AuthStatus.networkError:
+            // Jeton présent et accepté, OU présent mais backend momentanément
+            // injoignable (jeton conservé) → accueil, éventuellement en mode
+            // dégradé/offline.
+            next = const MainNavShell();
+          case AuthStatus.signedOut:
+          case AuthStatus.sessionExpired:
+          case AuthStatus.unknown:
+            // Aucun jeton, ou jeton rejeté en 401 (déjà purgé) → connexion.
+            next = const EmailAuthScreen();
+        }
     }
 
-    Navigator.of(context).pushReplacement(
-      PageRouteBuilder(
-        transitionDuration: const Duration(milliseconds: 450),
-        pageBuilder: (_, animation, secondaryAnimation) => next,
-        transitionsBuilder: (_, animation, secondaryAnimation, child) =>
-            FadeTransition(opacity: animation, child: child),
-      ),
-    );
+    navigator.pushReplacement(_fadeRoute(next));
   }
 
   @override

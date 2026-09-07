@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
 
+import '../api/ai_report_api.dart';
 import '../api/api_client.dart';
 import '../data/consultation.dart';
 import '../state/auth_controller.dart';
 import '../state/consultation_controller.dart';
 import '../theme/auryel_theme.dart';
 import '../widgets/advisors_carousel.dart';
+import '../widgets/ai_report_sheet.dart';
+import '../widgets/ai_transparency_note.dart';
 import 'onboarding/email_auth_screen.dart';
 import 'premium_screen.dart';
 
@@ -27,11 +30,20 @@ import 'premium_screen.dart';
 ///   active, sinon rien n'est injecté. Un échec de ce chargement n'empêche
 ///   jamais d'écrire : un retry discret est proposé.
 class ChatScreen extends StatefulWidget {
-  const ChatScreen({super.key, required this.advisor, this.tirageId});
+  const ChatScreen({
+    super.key,
+    required this.advisor,
+    this.tirageId,
+    this.aiReportApi,
+  });
 
   /// Conseiller choisi (affiché tant que le backend n'a pas renvoyé de
   /// consultation). Ensuite `consultation.advisor_id` prime.
   final AdvisorInfo advisor;
+
+  /// Signalement d'une réponse IA. Test uniquement en injection directe ; en
+  /// production on retombe sur `AuthScope.maybeOf(context)?.aiReportApi`.
+  final AiReportApi? aiReportApi;
 
   /// T3 — tirage à rattacher à la consultation. Envoyé avec le PREMIER message
   /// tant qu'il n'a pas obtenu un 200 ; ni le passage ici ni le clic du CTA
@@ -111,7 +123,8 @@ class _ChatScreenState extends State<ChatScreen> {
     final controller = ConsultationScope.maybeReadOf(context);
     if (controller != null && controller.hasResumableConsultation) {
       _consultation = controller.active;
-      _firstMessageConfirmed = true; // consultation existante -> pas de confirmation
+      _firstMessageConfirmed =
+          true; // consultation existante -> pas de confirmation
       _auth = AuthScope.maybeOf(context);
       _loadHistory();
     }
@@ -356,6 +369,45 @@ class _ChatScreenState extends State<ChatScreen> {
     );
   }
 
+  /// Signalement d'UNE réponse conseiller/IA (jamais un message utilisateur).
+  /// La feuille ne confirme qu'en cas de 2xx serveur réel ; sinon elle reste
+  /// ouverte avec un message d'erreur (aucun faux succès).
+  Future<void> _reportResponse() async {
+    final auth = AuthScope.maybeOf(context);
+    final api = widget.aiReportApi ?? auth?.aiReportApi;
+    final consultationId =
+        _consultation?.id ?? ConsultationScope.maybeReadOf(context)?.active?.id;
+    final messenger = ScaffoldMessenger.of(context);
+
+    final submitted = await showAiReportSheet(
+      context,
+      onSubmit: (reason, comment) async {
+        if (api == null || auth == null) return false; // pas de faux succès
+        final token = await auth.currentToken();
+        if (token == null || token.isEmpty) return false;
+        try {
+          await api.report(
+            bearer: token,
+            reason: reason,
+            // DÉPENDANCE BACKEND : aucun identifiant de message exposé
+            // aujourd'hui -> `message_id` omis, `consultation_id` en contexte.
+            consultationId: consultationId,
+            comment: comment,
+          );
+          return true;
+        } catch (_) {
+          return false;
+        }
+      },
+    );
+    if (!mounted || !submitted) return;
+    messenger.showSnackBar(
+      const SnackBar(
+        content: Text('Merci. Ton signalement a bien été transmis.'),
+      ),
+    );
+  }
+
   void _scrollToEnd() {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (_scroll.hasClients) {
@@ -404,6 +456,11 @@ class _ChatScreenState extends State<ChatScreen> {
           child: Column(
             children: [
               _Header(advisor: _headerAdvisor, statusLine: _statusLine()),
+              // Transparence IA — toujours visible, jamais masquée (exigence
+              // Google Play : contenu généré par IA).
+              const AiTransparencyNote(
+                padding: EdgeInsets.fromLTRB(18, 4, 18, 2),
+              ),
               if (_historyLoading || _historyError)
                 _HistoryNotice(
                   error: _historyError,
@@ -434,7 +491,13 @@ class _ChatScreenState extends State<ChatScreen> {
 
   Widget _messageList() {
     final items = <Widget>[
-      for (final m in _messages) _Bubble(fromUser: m.fromUser, text: m.text),
+      for (final m in _messages)
+        _Bubble(
+          fromUser: m.fromUser,
+          text: m.text,
+          // Signalement possible UNIQUEMENT sur une réponse conseiller/IA.
+          onReport: m.fromUser ? null : _reportResponse,
+        ),
       if (_pending != null)
         _Bubble(fromUser: true, text: _pending!, pending: true),
       if (_sending) const _TypingIndicator(),
@@ -596,42 +659,94 @@ class _Bubble extends StatelessWidget {
     required this.fromUser,
     required this.text,
     this.pending = false,
+    this.onReport,
   });
 
   final bool fromUser;
   final String text;
   final bool pending;
 
+  /// Non nul UNIQUEMENT sur une réponse conseiller/IA -> action « ⋯ » discrète.
+  final VoidCallback? onReport;
+
   @override
   Widget build(BuildContext context) {
-    return Align(
-      alignment: fromUser ? Alignment.centerRight : Alignment.centerLeft,
-      child: Container(
-        margin: const EdgeInsets.symmetric(vertical: 5),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-        constraints: BoxConstraints(
-          maxWidth: MediaQuery.of(context).size.width * 0.76,
-        ),
-        decoration: BoxDecoration(
+    final bubble = Container(
+      margin: const EdgeInsets.symmetric(vertical: 5),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      constraints: BoxConstraints(
+        maxWidth: MediaQuery.of(context).size.width * 0.76,
+      ),
+      decoration: BoxDecoration(
+        color: fromUser
+            ? AuryelColors.gold.withValues(alpha: pending ? 0.10 : 0.16)
+            : AuryelColors.surface,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
           color: fromUser
-              ? AuryelColors.gold.withValues(alpha: pending ? 0.10 : 0.16)
-              : AuryelColors.surface,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(
-            color: fromUser
-                ? AuryelColors.gold.withValues(alpha: 0.35)
-                : AuryelColors.warmBorder,
-          ),
-        ),
-        child: Text(
-          text,
-          style: AuryelText.body(
-            fontSize: 14,
-            height: 1.4,
-            color: pending ? AuryelColors.textMuted : AuryelColors.textCream,
-          ),
+              ? AuryelColors.gold.withValues(alpha: 0.35)
+              : AuryelColors.warmBorder,
         ),
       ),
+      child: Text(
+        text,
+        style: AuryelText.body(
+          fontSize: 14,
+          height: 1.4,
+          color: pending ? AuryelColors.textMuted : AuryelColors.textCream,
+        ),
+      ),
+    );
+
+    if (onReport == null) {
+      return Align(
+        alignment: fromUser ? Alignment.centerRight : Alignment.centerLeft,
+        child: bubble,
+      );
+    }
+
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Flexible(child: bubble),
+          _ReportMenuButton(onReport: onReport!),
+        ],
+      ),
+    );
+  }
+}
+
+/// Bouton « ⋯ » discret sur une réponse IA -> menu « Signaler cette réponse ».
+class _ReportMenuButton extends StatelessWidget {
+  const _ReportMenuButton({required this.onReport});
+
+  final VoidCallback onReport;
+
+  @override
+  Widget build(BuildContext context) {
+    return PopupMenuButton<String>(
+      tooltip: 'Options de la réponse',
+      icon: const Icon(
+        Icons.more_horiz,
+        size: 18,
+        color: AuryelColors.textMuted,
+      ),
+      color: AuryelColors.surface,
+      onSelected: (v) {
+        if (v == 'report') onReport();
+      },
+      itemBuilder: (_) => [
+        PopupMenuItem<String>(
+          value: 'report',
+          child: Text(
+            'Signaler cette réponse',
+            style: AuryelText.body(fontSize: 13, color: AuryelColors.textCream),
+          ),
+        ),
+      ],
     );
   }
 }
@@ -818,9 +933,9 @@ class _NoCreditPanel extends StatelessWidget {
             Text(
               isPremium
                   ? 'Ta conversation reste enregistrée. Ton temps se '
-                      'renouvellera à la prochaine période.'
+                        'renouvellera à la prochaine période.'
                   : 'Passe à Premium pour continuer, avec 8 h de consultation '
-                      'par mois.',
+                        'par mois.',
               style: AuryelText.body(
                 fontSize: 13,
                 color: AuryelColors.textMuted,

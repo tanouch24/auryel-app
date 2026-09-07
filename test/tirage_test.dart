@@ -165,11 +165,13 @@ void main() {
     expect(find.text('Révéler mon tirage'), findsNothing);
     // B8.2 §E — le « tapis » de fond réutilisé des publications est bien posé.
     expect(
-      find.byWidgetPredicate((w) =>
-          w is Image &&
-          w.image is AssetImage &&
-          (w.image as AssetImage).assetName ==
-              'assets/images/tarot_table_blank.png'),
+      find.byWidgetPredicate(
+        (w) =>
+            w is Image &&
+            w.image is AssetImage &&
+            (w.image as AssetImage).assetName ==
+                'assets/images/tarot_table_blank.png',
+      ),
       findsOneWidget,
     );
 
@@ -539,5 +541,91 @@ void main() {
     await _reveal(tester);
     expect(find.textContaining('En parler avec'), findsNothing);
     expect(find.text('Recommencer le tirage'), findsOneWidget);
+  });
+
+  // -------------------------------------------------------------------------
+  // UX-LOT §6-7 — cartes remontées à la révélation + indice de scroll.
+  // -------------------------------------------------------------------------
+  group('UX-LOT — Tirage révélé', () {
+    /// Centre vertical du slot de la 1re carte retournée (en test, l'asset face
+    /// n'a pas de dimensions -> le widget clé se réduit au centre du slot).
+    double cardCenter(WidgetTester t) =>
+        t.getTopLeft(find.byKey(const ValueKey('tarot-reveal-0'))).dy;
+
+    testWidgets('A/C — 3 cartes révélées EN PLACE (pas de duplication) et '
+        'remontées : centre du groupe au-dessus du milieu de l\'écran', (
+      tester,
+    ) async {
+      tester.view.devicePixelRatio = 1.0;
+      tester.view.physicalSize = const Size(384, 850); // Galaxy A07 ~ 384 dp
+      addTearDown(tester.view.reset);
+
+      final e = _env((_, keys) async => _json(_tirageBody(keys), 201));
+      await _pump(tester, e.auth);
+      await _selectThree(tester);
+      await _reveal(tester);
+      await tester.pumpAndSettle();
+
+      // exactement 3 faces révélées, une par slot (aucune 2e rangée)
+      expect(find.byKey(const ValueKey('tarot-reveal-0')), findsOneWidget);
+      expect(find.byKey(const ValueKey('tarot-reveal-1')), findsOneWidget);
+      expect(find.byKey(const ValueKey('tarot-reveal-2')), findsOneWidget);
+      expect(_cardFaceImages, findsNWidgets(3));
+
+      // Avant ce lot : centre à ~0.545 de la hauteur (≈ 463 dp). Objectif :
+      // nettement remonté, au-dessus du milieu.
+      expect(
+        cardCenter(tester),
+        lessThan(850 * 0.46),
+        reason: 'centre carte à ${cardCenter(tester).toStringAsFixed(0)} dp',
+      );
+    });
+
+    testWidgets('D/E — indice « Voir la suite » quand la lecture déborde, '
+        'puis disparaît une fois scrollé en bas', (tester) async {
+      tester.view.devicePixelRatio = 1.0;
+      tester.view.physicalSize = const Size(384, 720); // volontairement court
+      addTearDown(tester.view.reset);
+
+      final e = _env((_, keys) async => _json(_tirageBody(keys), 201));
+      await _pump(tester, e.auth);
+      await _selectThree(tester);
+      await _reveal(tester);
+      await tester.pumpAndSettle();
+
+      expect(find.text('Voir la suite'), findsOneWidget);
+
+      // scroll jusqu'en bas du panneau de lecture
+      await tester.scrollUntilVisible(
+        find.text('Recommencer le tirage'),
+        400,
+        scrollable: find.byType(Scrollable).last,
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('Voir la suite'), findsNothing);
+    });
+
+    for (final w in const [360.0, 384.0, 430.0]) {
+      testWidgets('F/G — aucun overflow + CTA conseiller atteignable à '
+          '${w.toInt()} dp', (tester) async {
+        tester.view.devicePixelRatio = 1.0;
+        tester.view.physicalSize = Size(w, 780);
+        addTearDown(tester.view.reset);
+
+        final e = _env((_, keys) async => _json(_tirageBody(keys), 201));
+        await _pump(tester, e.auth);
+        await _selectThree(tester);
+        await _reveal(tester);
+        await tester.pumpAndSettle();
+
+        expect(tester.takeException(), isNull, reason: '${w.toInt()} dp');
+
+        // le CTA conseiller reste accessible via scroll (jamais masqué)
+        await tester.ensureVisible(find.text('En parler avec Maïa'));
+        await tester.pumpAndSettle();
+        expect(find.text('En parler avec Maïa'), findsOneWidget);
+      });
+    }
   });
 }

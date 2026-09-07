@@ -1,13 +1,9 @@
-/// B10 — seam pour la suppression de compte (RGPD).
+/// B10 — ANCIEN seam de suppression de compte. **REMPLACÉ** par
+/// `AccountApi` (`DELETE /api/app/account`) + `AuthController.deleteAccount()`
+/// + `LocalUserData.clearPersonal()`, qui orchestrent l'appel réel, la purge
+/// du jeton et le nettoyage local UNIQUEMENT après un succès serveur.
 ///
-/// L'audit backend (auryel-1 @ 37e82b8) confirme : **aucun endpoint app de
-/// hard-delete `accounts` n'existe** (`/api/account` = GET only, `deleted_at`
-/// jamais posé par une route, la purge RGPD ne touche que le legacy `phone`).
-///
-/// Ce lot NE FAIT DONC AUCUNE suppression — locale ou distante. La confirmation
-/// UI existe, mais [deleteAccount] lève [AccountDeletionUnavailable]. Quand
-/// l'endpoint B10 backend (`DELETE /api/account`, cascade multi-tables) sera
-/// prêt, il suffira de brancher son appel ici — le reste de l'UI ne bouge pas.
+/// Conservé sans usage pour compat ; ne rien construire dessus.
 class AccountService {
   const AccountService();
 

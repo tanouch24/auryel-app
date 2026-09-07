@@ -1,19 +1,26 @@
 import 'package:flutter/material.dart';
 import 'package:phosphor_icons/phosphor_icons.dart';
 
-import '../data/account_service.dart';
+import '../config/legal_links.dart';
 import '../data/daily_like_store.dart';
 import '../data/daily_share_tracker.dart';
+import '../data/daily_thought.dart';
+import '../data/legal_link_launcher.dart';
+import '../data/subscription_manager.dart';
 import '../state/auth_controller.dart';
 import '../state/auryel_state.dart';
 import '../state/consultation_controller.dart';
 import '../state/purchase_controller.dart';
 import '../theme/auryel_theme.dart';
 import '../widgets/advisors_carousel.dart';
+import '../widgets/ai_transparency_note.dart';
+import '../widgets/auryel_wordmark.dart';
 import '../widgets/daily_message_sheet.dart';
 import '../widgets/gold_button.dart';
 import 'advisor_chooser_screen.dart';
+import 'auryel_experience_screen.dart';
 import 'bibliotheque_screen.dart';
+import 'notification_settings_screen.dart';
 import 'onboarding/email_auth_screen.dart';
 import 'premium_screen.dart';
 
@@ -26,13 +33,36 @@ import 'premium_screen.dart';
 /// suppression de compte n'ont PAS d'endpoint backend -> affichées « en
 /// préparation », aucune action réelle.
 class DashboardScreen extends StatefulWidget {
-  const DashboardScreen({super.key});
+  const DashboardScreen({
+    super.key,
+    this.thoughtRepository,
+    this.showBackButton = true,
+    this.subscriptionManager,
+    this.legalLinkLauncher,
+  });
+
+  /// Injecté par les tests ; en production la source est le pack local
+  /// `assets/pensees/`.
+  final DailyThoughtRepository? thoughtRepository;
+
+  /// Test uniquement : sinon [defaultSubscriptionManager].
+  final SubscriptionManager? subscriptionManager;
+
+  /// Test uniquement : sinon [defaultLegalLinkLauncher].
+  final LegalLinkLauncher? legalLinkLauncher;
+
+  /// `false` quand l'écran est monté DANS la bottom navigation (onglet « Mon
+  /// compte ») : pas de flèche retour inutile. `true` (défaut) quand il est
+  /// poussé comme écran secondaire (icône profil de l'Accueil).
+  final bool showBackButton;
 
   @override
   State<DashboardScreen> createState() => _DashboardScreenState();
 }
 
 class _DashboardScreenState extends State<DashboardScreen> {
+  late final DailyThoughtRepository _thoughts =
+      widget.thoughtRepository ?? DailyThoughtRepository();
   int _likedMessages = 0;
   int _likedTarot = 0;
   int _shareDays = 0;
@@ -71,8 +101,22 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
+  bool _deleting = false;
+
+  /// B10 — suppression RÉELLE du compte, en 2 confirmations (dialogue clair +
+  /// saisie de « SUPPRIMER » pour écarter le tap accidentel).
+  ///
+  /// Rien n'est purgé localement AVANT un succès serveur (cf.
+  /// [AuthController.deleteAccount]). Sur échec réseau/5xx : session conservée,
+  /// message d'erreur, réessai possible. Sur succès : retour au parcours non
+  /// authentifié, aucun ancien utilisateur conservé dans l'état Flutter.
   Future<void> _confirmDelete() async {
-    final ok = await showDialog<bool>(
+    if (_deleting) return;
+    final auth = AuthScope.maybeOf(context);
+    final state = AuryelStateScope.of(context);
+    final messenger = ScaffoldMessenger.of(context);
+
+    final step1 = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
         backgroundColor: AuryelColors.surface,
@@ -81,7 +125,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
           style: AuryelText.display(fontSize: 18, fontWeight: FontWeight.w600),
         ),
         content: Text(
-          'Cette action supprimera définitivement ton compte et tes données.',
+          'Cette action supprimera ton compte Auryel et les données associées '
+          'selon notre politique de confidentialité. Cette action est '
+          'irréversible.',
           style: AuryelText.body(fontSize: 13.5, color: AuryelColors.textMuted),
         ),
         actions: [
@@ -105,28 +151,67 @@ class _DashboardScreenState extends State<DashboardScreen> {
         ],
       ),
     );
-    if (ok != true || !mounted) return;
-    try {
-      await const AccountService().deleteAccount();
-    } on AccountDeletionUnavailable {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
+    if (step1 != true || !mounted) return;
+
+    final step2 = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => _DeleteConfirmDialog(),
+    );
+    if (step2 != true || !mounted) return;
+
+    if (auth == null || !auth.accountDeletionAvailable) {
+      messenger.showSnackBar(
         const SnackBar(
           content: Text(
-            'La suppression de compte sera bientôt disponible. '
+            'La suppression de compte n’est pas encore disponible. '
             'Aucune donnée n’a été touchée.',
           ),
         ),
       );
+      return;
+    }
+
+    setState(() => _deleting = true);
+    final outcome = await auth.deleteAccount();
+    if (!mounted) return;
+    setState(() => _deleting = false);
+
+    switch (outcome) {
+      case AccountDeletionOutcome.ok:
+        // Succès serveur confirmé : on efface aussi l'identité EN MÉMOIRE +
+        // son snapshot persisté (prénom / date de naissance / conseiller /
+        // portrait) avant de repartir sur le flux non authentifié.
+        await state.clearForAccountDeletion();
+        if (!mounted) return;
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute(builder: (_) => const EmailAuthScreen()),
+          (route) => false,
+        );
+      case AccountDeletionOutcome.unauthorized:
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute(builder: (_) => const EmailAuthScreen()),
+          (route) => false,
+        );
+      case AccountDeletionOutcome.unavailable:
+      case AccountDeletionOutcome.retryable:
+        messenger.showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Impossible de supprimer ton compte pour le moment. '
+              'Ta session est conservée, réessaie plus tard.',
+            ),
+          ),
+        );
     }
   }
 
-  /// §8-§10 — ouvre EXACTEMENT la feuille « Message du jour » de B8
-  /// (interprétation, « j'aime », génération des 3 variantes, partage natif).
-  /// Aucun second générateur. Au retour on rafraîchit les compteurs (le
-  /// partage a pu incrémenter les jours).
+  /// Ouvre l'aperçu de LA publication du jour (visuel WEBP final déjà généré) +
+  /// partage natif. Au retour on rafraîchit les compteurs (le partage a pu
+  /// incrémenter les jours). Aucun générateur, aucune variante.
   Future<void> _openPublication() async {
-    await showDailyMessageSheet(context);
+    final thought = await _thoughts.today();
+    if (!mounted) return;
+    await showDailyThoughtSheet(context, thought: thought);
     if (mounted) await _loadCounters();
   }
 
@@ -150,9 +235,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
     if (saved == null || !mounted) return;
     await state.applyIdentityEdit(firstName: saved);
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Prénom mis à jour.')),
-    );
+    ScaffoldMessenger.of(context)
+        .showSnackBar(const SnackBar(content: Text('Prénom mis à jour.')));
   }
 
   /// §5 — édition de la date de naissance : on réutilise le `showDatePicker`
@@ -240,7 +324,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                _Header(firstName: firstName, email: email),
+                _Header(
+                  firstName: firstName,
+                  email: email,
+                  showBackButton: widget.showBackButton,
+                ),
                 const SizedBox(height: 22),
                 if (advisor != null) ...[
                   _AdvisorSection(advisor: advisor),
@@ -251,12 +339,29 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 _SubscriptionSection(
                   consultation: consultation,
                   purchase: purchase,
+                  subscriptionManager:
+                      widget.subscriptionManager ?? defaultSubscriptionManager,
                 ),
                 const SizedBox(height: 16),
                 _JourneySection(
                   likedMessages: _likedMessages,
                   likedTarot: _likedTarot,
                   shareDays: _shareDays,
+                ),
+                const SizedBox(height: 16),
+                _Section(
+                  title: 'L’expérience Auryel',
+                  icon: PhosphorIconsRegular.compassRose,
+                  child: _LinkRow(
+                    label: 'Découvrir Auryel',
+                    icon: PhosphorIconsRegular.sparkle,
+                    onTap: () => Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) =>
+                            const AuryelExperienceScreen(fromDashboard: true),
+                      ),
+                    ),
+                  ),
                 ),
                 const SizedBox(height: 16),
                 _RewardsSection(
@@ -272,7 +377,26 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   onEditBirthDate: _savingBirthDate ? null : _editBirthDate,
                 ),
                 const SizedBox(height: 16),
-                _PrivacySection(onDelete: _confirmDelete),
+                _Section(
+                  title: 'Notifications',
+                  icon: PhosphorIconsRegular.bell,
+                  child: _LinkRow(
+                    label: 'Notifications',
+                    icon: PhosphorIconsRegular.bell,
+                    onTap: () => Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => const NotificationSettingsScreen(),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                _PrivacySection(
+                  onDelete: _confirmDelete,
+                  deleting: _deleting,
+                  legalLinkLauncher:
+                      widget.legalLinkLauncher ?? defaultLegalLinkLauncher,
+                ),
                 const SizedBox(height: 22),
                 _LogoutButton(onTap: _logout),
               ],
@@ -289,34 +413,51 @@ class _DashboardScreenState extends State<DashboardScreen> {
 // ---------------------------------------------------------------------------
 
 class _Header extends StatelessWidget {
-  const _Header({required this.firstName, required this.email});
+  const _Header({
+    required this.firstName,
+    required this.email,
+    this.showBackButton = true,
+  });
 
   final String firstName;
   final String email;
+  final bool showBackButton;
 
   @override
   Widget build(BuildContext context) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Align(
-          alignment: Alignment.centerLeft,
-          child: IconButton(
-            onPressed: () => Navigator.of(context).maybePop(),
-            icon: const PhosphorIcon(
-              PhosphorIconsRegular.arrowLeft,
-              size: 20,
-              color: AuryelColors.textMuted,
+        if (showBackButton)
+          Align(
+            alignment: Alignment.centerLeft,
+            child: IconButton(
+              onPressed: () => Navigator.of(context).maybePop(),
+              icon: const PhosphorIcon(
+                PhosphorIconsRegular.arrowLeft,
+                size: 20,
+                color: AuryelColors.textMuted,
+              ),
             ),
-          ),
-        ),
-        const SizedBox(height: 4),
+          )
+        else
+          const SizedBox(height: 8),
+        const SizedBox(height: 6),
+        // Identité Auryel affirmée dès l'ouverture : le wordmark domine,
+        // « Mon espace » devient un sous-titre. Compact, aligné à gauche.
+        const AuryelWordmark(fontSize: 30, letterSpacing: 5, rules: false),
+        const SizedBox(height: 6),
         Text(
           'Mon espace',
-          style: AuryelText.display(fontSize: 26, fontWeight: FontWeight.w600),
+          style: AuryelText.body(
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
+            color: AuryelColors.textMuted,
+            letterSpacing: 1.4,
+          ),
         ),
         if (firstName.isNotEmpty) ...[
-          const SizedBox(height: 4),
+          const SizedBox(height: 6),
           Text(
             firstName,
             style: AuryelText.body(
@@ -463,9 +604,7 @@ class _AdvisorSection extends StatelessWidget {
             label: 'Changer de conseiller',
             icon: PhosphorIconsRegular.arrowsLeftRight,
             onTap: () => Navigator.of(context).push(
-              MaterialPageRoute(
-                builder: (_) => const AdvisorChooserScreen(),
-              ),
+              MaterialPageRoute(builder: (_) => const AdvisorChooserScreen()),
             ),
           ),
         ],
@@ -486,7 +625,10 @@ class _TimeSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = consultation;
-    final total = c == null ? 0 : c.remaining.inSeconds;
+    // Même source de vérité que l'Accueil (« 1 h offerte » tant que la 1re
+    // heure gratuite n'est pas consommée) — plus de « 0 min » incohérent.
+    final label =
+        c?.availableTimeLabel ?? ConsultationController.formatTotalTime(0);
     final t = c?.time;
     return _Section(
       title: 'Mon temps de consultation',
@@ -504,7 +646,7 @@ class _TimeSection extends StatelessWidget {
           ),
           const SizedBox(height: 3),
           Text(
-            ConsultationController.formatTotalTime(total),
+            label,
             style: AuryelText.display(
               fontSize: 24,
               fontWeight: FontWeight.w600,
@@ -585,16 +727,38 @@ class _SubscriptionSection extends StatelessWidget {
   const _SubscriptionSection({
     required this.consultation,
     required this.purchase,
+    required this.subscriptionManager,
   });
 
   final ConsultationController? consultation;
   final PurchaseController? purchase;
+  final SubscriptionManager subscriptionManager;
+
+  Future<void> _manage(BuildContext context) async {
+    final messenger = ScaffoldMessenger.of(context);
+    final ok = await subscriptionManager.openManagement();
+    if (!ok) {
+      messenger.showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Ouvre l’app Google Play puis Abonnements pour gérer ou résilier '
+            'ton abonnement Auryel.',
+          ),
+        ),
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
     final premium = consultation?.quota?.isPremium ?? false;
     final periodEnd = consultation?.quota?.periodEnd;
     final canRestore = purchase?.canRestore ?? false;
+    // Prix STORE d'abord ; repli marketing « 7,99 €/mois » sinon.
+    final storePrice = purchase?.premiumProduct?.price;
+    final priceLabel = (storePrice != null && storePrice.isNotEmpty)
+        ? storePrice
+        : '7,99 €/mois';
 
     return _Section(
       title: 'Mon abonnement',
@@ -633,8 +797,15 @@ class _SubscriptionSection extends StatelessWidget {
             _LinkRow(
               label: 'Gérer mon abonnement',
               icon: PhosphorIconsRegular.gear,
-              onTap: () => Navigator.of(context).push(
-                MaterialPageRoute(builder: (_) => const PremiumScreen()),
+              onTap: () => _manage(context),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Renouvellement automatique. Résiliation depuis Google Play → '
+              'Abonnements.',
+              style: AuryelText.body(
+                fontSize: 10.5,
+                color: AuryelColors.textMuted,
               ),
             ),
           ] else ...[
@@ -647,7 +818,7 @@ class _SubscriptionSection extends StatelessWidget {
             ),
             const SizedBox(height: 2),
             Text(
-              '7,99 €/mois',
+              priceLabel,
               style: AuryelText.body(
                 fontSize: 12.5,
                 fontWeight: FontWeight.w600,
@@ -658,9 +829,9 @@ class _SubscriptionSection extends StatelessWidget {
             _LinkRow(
               label: 'S’abonner',
               icon: PhosphorIconsRegular.arrowRight,
-              onTap: () => Navigator.of(context).push(
-                MaterialPageRoute(builder: (_) => const PremiumScreen()),
-              ),
+              onTap: () => Navigator.of(
+                context,
+              ).push(MaterialPageRoute(builder: (_) => const PremiumScreen())),
             ),
           ],
           if (canRestore) ...[
@@ -720,8 +891,7 @@ class _JourneySection extends StatelessWidget {
             icon: PhosphorIconsRegular.arrowRight,
             onTap: () => Navigator.of(context).push(
               MaterialPageRoute(
-                builder: (_) =>
-                    const BibliothequeScreen(showBackButton: true),
+                builder: (_) => const BibliothequeScreen(showBackButton: true),
               ),
             ),
           ),
@@ -763,10 +933,7 @@ class _StatRow extends StatelessWidget {
 // ---------------------------------------------------------------------------
 
 class _RewardsSection extends StatelessWidget {
-  const _RewardsSection({
-    required this.shareDays,
-    required this.onGenerate,
-  });
+  const _RewardsSection({required this.shareDays, required this.onGenerate});
 
   final int shareDays;
   final VoidCallback onGenerate;
@@ -781,7 +948,7 @@ class _RewardsSection extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Text(
-            'Génère ta publication',
+            'Ta pensée du jour',
             style: AuryelText.display(
               fontSize: 14,
               fontWeight: FontWeight.w600,
@@ -789,7 +956,7 @@ class _RewardsSection extends StatelessWidget {
           ),
           const SizedBox(height: 4),
           Text(
-            'Partage ton message du jour sur tes réseaux.',
+            'Partage la publication du jour avec tes contacts.',
             style: AuryelText.body(
               fontSize: 11.5,
               height: 1.4,
@@ -827,14 +994,13 @@ class _RewardsSection extends StatelessWidget {
           ),
           const SizedBox(height: 12),
           AuryelGoldButton(
-            label: 'Générer ma publication',
+            label: 'Partager ma pensée du jour',
             onTap: onGenerate,
           ),
           const SizedBox(height: 8),
           Text(
             'Reviens chaque jour : au bout de 30 jours de partage, ton heure '
-            'de consultation est créditée. Activation de la récompense bientôt '
-            'disponible.',
+            'de consultation sera créditée. Récompense en cours d’activation.',
             style: AuryelText.body(
               fontSize: 10.5,
               height: 1.4,
@@ -878,9 +1044,7 @@ class _Pill extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(20),
-          border: Border.all(
-            color: AuryelColors.gold.withValues(alpha: 0.35),
-          ),
+          border: Border.all(color: AuryelColors.gold.withValues(alpha: 0.35)),
         ),
         child: Text(
           text,
@@ -1027,33 +1191,250 @@ class _Kv extends StatelessWidget {
 // ---------------------------------------------------------------------------
 
 class _PrivacySection extends StatelessWidget {
-  const _PrivacySection({required this.onDelete});
+  const _PrivacySection({
+    required this.onDelete,
+    required this.deleting,
+    required this.legalLinkLauncher,
+  });
 
   final VoidCallback onDelete;
+  final bool deleting;
+  final LegalLinkLauncher legalLinkLauncher;
 
   @override
   Widget build(BuildContext context) {
     return _Section(
-      title: 'Confidentialité et données',
+      title: 'Informations & confidentialité',
       icon: PhosphorIconsRegular.shieldCheck,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          _LinkRow(
-            label: 'Supprimer mon compte',
-            icon: PhosphorIconsRegular.trash,
-            onTap: onDelete,
+          LegalLinkRow(
+            label: 'Politique de confidentialité',
+            url: LegalLinks.privacyPolicyUrl,
+            launcher: legalLinkLauncher,
           ),
-          const SizedBox(height: 6),
+          LegalLinkRow(
+            label: 'Conditions d’utilisation',
+            url: LegalLinks.termsUrl,
+            launcher: legalLinkLauncher,
+          ),
+          LegalLinkRow(
+            label: 'Mentions légales',
+            url: LegalLinks.legalNoticeUrl,
+            launcher: legalLinkLauncher,
+          ),
+          _LinkRow(
+            label: 'Gérer mon abonnement',
+            icon: PhosphorIconsRegular.gear,
+            onTap: () => Navigator.of(context)
+                .push(MaterialPageRoute(builder: (_) => const PremiumScreen())),
+          ),
+          const SizedBox(height: 4),
+          if (deleting)
+            Row(
+              children: [
+                const SizedBox(
+                  width: 15,
+                  height: 15,
+                  child: CircularProgressIndicator(
+                    strokeWidth: 2,
+                    valueColor: AlwaysStoppedAnimation(AuryelColors.goldLight),
+                  ),
+                ),
+                const SizedBox(width: 10),
+                Text(
+                  'Suppression en cours…',
+                  style: AuryelText.body(
+                    fontSize: 12.5,
+                    color: AuryelColors.textMuted,
+                  ),
+                ),
+              ],
+            )
+          else
+            _LinkRow(
+              label: 'Supprimer mon compte',
+              icon: PhosphorIconsRegular.trash,
+              onTap: onDelete,
+            ),
+          const SizedBox(height: 10),
           Text(
-            'La suppression définitive sera disponible prochainement.',
+            kAiTransparencyText,
             style: AuryelText.body(
               fontSize: 11,
+              height: 1.35,
               color: AuryelColors.textMuted,
             ),
           ),
         ],
       ),
+    );
+  }
+}
+
+/// Ligne juridique : ouvre l'URL si elle existe, sinon état « bientôt » inerte
+/// (jamais de lien fictif ouvert).
+/// Ligne juridique. URL renseignée -> ouvre la page HTTPS externe (échec ->
+/// message sobre). URL `null` -> ligne INERTE « Bientôt disponible » : jamais
+/// un lien actif qui ne fait rien, jamais un lien cassé.
+class LegalLinkRow extends StatelessWidget {
+  const LegalLinkRow({
+    super.key,
+    required this.label,
+    required this.url,
+    required this.launcher,
+  });
+
+  final String label;
+  final String? url;
+  final LegalLinkLauncher launcher;
+
+  Future<void> _open(BuildContext context) async {
+    final u = url;
+    if (u == null || u.isEmpty) return;
+    final messenger = ScaffoldMessenger.of(context);
+    final ok = await launcher.open(u);
+    if (!ok) {
+      messenger.showSnackBar(
+        const SnackBar(
+          content: Text('Impossible d’ouvrir la page. Réessaie plus tard.'),
+        ),
+      );
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final available = url != null && url!.isNotEmpty;
+    final row = Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Row(
+        children: [
+          PhosphorIcon(
+            PhosphorIconsRegular.fileText,
+            size: 14,
+            color: available ? AuryelColors.goldLight : AuryelColors.textMuted,
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              label,
+              style: AuryelText.body(
+                fontSize: 13,
+                fontWeight: FontWeight.w500,
+                color: available
+                    ? AuryelColors.goldLight
+                    : AuryelColors.textMuted,
+              ),
+            ),
+          ),
+          if (available)
+            const PhosphorIcon(
+              PhosphorIconsRegular.arrowSquareOut,
+              size: 12,
+              color: AuryelColors.textMuted,
+            )
+          else
+            Text(
+              'Bientôt disponible',
+              style: AuryelText.body(
+                fontSize: 10.5,
+                color: AuryelColors.textMuted,
+              ),
+            ),
+        ],
+      ),
+    );
+    if (!available) return row;
+    return Semantics(
+      button: true,
+      link: true,
+      label: label,
+      child: InkWell(
+        onTap: () => _open(context),
+        borderRadius: BorderRadius.circular(8),
+        child: row,
+      ),
+    );
+  }
+}
+
+/// Deuxième confirmation de suppression : saisie explicite de « SUPPRIMER ».
+class _DeleteConfirmDialog extends StatefulWidget {
+  @override
+  State<_DeleteConfirmDialog> createState() => _DeleteConfirmDialogState();
+}
+
+class _DeleteConfirmDialogState extends State<_DeleteConfirmDialog> {
+  final TextEditingController _c = TextEditingController();
+  static const _word = 'SUPPRIMER';
+  bool get _ok => _c.text.trim().toUpperCase() == _word;
+
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      backgroundColor: AuryelColors.surface,
+      title: Text(
+        'Confirmer la suppression',
+        style: AuryelText.display(fontSize: 17, fontWeight: FontWeight.w600),
+      ),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            'Écris « $_word » pour confirmer.',
+            style: AuryelText.body(fontSize: 13, color: AuryelColors.textMuted),
+          ),
+          const SizedBox(height: 12),
+          TextField(
+            controller: _c,
+            autofocus: true,
+            textCapitalization: TextCapitalization.characters,
+            onChanged: (_) => setState(() {}),
+            style: AuryelText.display(
+              fontSize: 16,
+              fontWeight: FontWeight.w600,
+            ),
+            cursorColor: AuryelColors.gold,
+            decoration: const InputDecoration(
+              hintText: _word,
+              enabledBorder: UnderlineInputBorder(
+                borderSide: BorderSide(color: AuryelColors.warmBorder),
+              ),
+              focusedBorder: UnderlineInputBorder(
+                borderSide: BorderSide(color: AuryelColors.gold, width: 1.5),
+              ),
+            ),
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(false),
+          child: Text(
+            'Annuler',
+            style: AuryelText.body(color: AuryelColors.textMuted),
+          ),
+        ),
+        TextButton(
+          onPressed: _ok ? () => Navigator.of(context).pop(true) : null,
+          child: Text(
+            'Supprimer définitivement',
+            style: AuryelText.body(
+              fontWeight: FontWeight.w600,
+              color: _ok ? AuryelColors.goldLight : AuryelColors.textMuted,
+            ),
+          ),
+        ),
+      ],
     );
   }
 }
@@ -1169,8 +1550,9 @@ class _EditNameSheet extends StatefulWidget {
 }
 
 class _EditNameSheetState extends State<_EditNameSheet> {
-  late final TextEditingController _controller =
-      TextEditingController(text: widget.initialValue);
+  late final TextEditingController _controller = TextEditingController(
+    text: widget.initialValue,
+  );
   bool _saving = false;
   String? _error;
 
@@ -1260,7 +1642,10 @@ class _EditNameSheetState extends State<_EditNameSheet> {
                     borderSide: BorderSide(color: AuryelColors.warmBorder),
                   ),
                   focusedBorder: const UnderlineInputBorder(
-                    borderSide: BorderSide(color: AuryelColors.gold, width: 1.5),
+                    borderSide: BorderSide(
+                      color: AuryelColors.gold,
+                      width: 1.5,
+                    ),
                   ),
                 ),
               ),

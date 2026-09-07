@@ -50,7 +50,10 @@ AuthController _auth({
   String? token,
 }) {
   final tokens = InMemoryTokenStore(token);
-  final client = ApiClient(httpClient: MockClient(handler), baseUrl: 'http://test.local');
+  final client = ApiClient(
+    httpClient: MockClient(handler),
+    baseUrl: 'http://test.local',
+  );
   return (
     auth: AuthController(
       repository: AuthRepository(api: AuthApi(client), tokenStore: tokens),
@@ -98,8 +101,10 @@ AuryelApp _app({required AuryelState state, required AuthController auth}) =>
     AuryelApp(
       state: state,
       auth: auth,
-      consultation:
-          ConsultationController(api: auth.consultationApi, auth: auth),
+      consultation: ConsultationController(
+        api: auth.consultationApi,
+        auth: auth,
+      ),
     );
 
 Future<void> _bootSplash(WidgetTester tester) async {
@@ -108,8 +113,11 @@ Future<void> _bootSplash(WidgetTester tester) async {
 }
 
 http.Response _json(Map<String, dynamic> body, [int status = 200]) =>
-    http.Response(jsonEncode(body), status,
-        headers: {'content-type': 'application/json'});
+    http.Response(
+      jsonEncode(body),
+      status,
+      headers: {'content-type': 'application/json'},
+    );
 
 /// Handler par défaut d'un flux OTP complet ; [onPatch] observe le corps du
 /// PATCH, [patchResponder] le personnalise (throw / statut).
@@ -166,8 +174,8 @@ Future<void> _enterCodeAndValidate(WidgetTester tester) async {
   await tester.pumpAndSettle();
 }
 
-const _emailScreenMarker = 'Ton adresse email';
-const _homeMarker = 'Voir l’interprétation';
+const _emailScreenMarker = 'Bon retour';
+const _homeMarker = 'ESPACE PRIVÉ';
 const _syncRetryMarker = 'Réessayer';
 const _syncBlockedMarker = 'Revenir en arrière';
 
@@ -177,19 +185,22 @@ void main() {
   // =========================================================================
   // SPLASH — routage (inchangé F1)
   // =========================================================================
-  testWidgets('Splash : nouvel utilisateur -> parcours onboarding (prénom d’abord)',
-      (tester) async {
-    final state = AuryelState(repository: LocalOnboardingRepository());
-    await tester.pumpWidget(_app(state: state, auth: _auth()));
-    expect(find.text('AURYEL'), findsOneWidget);
-    await _bootSplash(tester);
-    // Nouvel ordre : le premier écran est le prénom, plus le conseiller.
-    expect(find.text('Comment veux-tu qu’on t’appelle ?'), findsOneWidget);
-    expect(find.text('Choisis ton conseiller'), findsNothing);
-  });
+  testWidgets(
+    'Splash : nouvel utilisateur -> parcours onboarding (prénom d’abord)',
+    (tester) async {
+      final state = AuryelState(repository: LocalOnboardingRepository());
+      await tester.pumpWidget(_app(state: state, auth: _auth()));
+      expect(find.text('AURYEL'), findsOneWidget);
+      await _bootSplash(tester);
+      // Nouvel ordre : le premier écran est le prénom, plus le conseiller.
+      expect(find.text('Comment veux-tu qu’on t’appelle ?'), findsOneWidget);
+      expect(find.text('Choisis ton conseiller'), findsNothing);
+    },
+  );
 
-  testWidgets('Splash : onboarding terminé + AUCUN token -> EmailAuthScreen',
-      (tester) async {
+  testWidgets('Splash : onboarding terminé + AUCUN token -> EmailAuthScreen', (
+    tester,
+  ) async {
     await tester.pumpWidget(
       _app(state: _completedOnboardingState(), auth: _auth(token: null)),
     );
@@ -198,8 +209,9 @@ void main() {
     expect(find.text(_homeMarker), findsNothing);
   });
 
-  testWidgets('Splash : token valide (GET /account 200) -> MainNavShell',
-      (tester) async {
+  testWidgets('Splash : token valide (GET /account 200) -> MainNavShell', (
+    tester,
+  ) async {
     await tester.pumpWidget(
       _app(
         state: _completedOnboardingState(),
@@ -214,21 +226,25 @@ void main() {
   });
 
   testWidgets(
-      'Splash : token présent + erreur réseau -> token conservé + MainNavShell',
-      (tester) async {
-    final auth = _auth(token: 'keep-tok', throwNetwork: true);
-    await tester.pumpWidget(
-      _app(state: _completedOnboardingState(), auth: auth),
-    );
-    await _bootSplash(tester);
-    expect(find.text(_homeMarker), findsOneWidget);
-    expect(auth.status, AuthStatus.networkError);
-  });
+    'Splash : token présent + erreur réseau -> token conservé + MainNavShell',
+    (tester) async {
+      final auth = _auth(token: 'keep-tok', throwNetwork: true);
+      await tester.pumpWidget(
+        _app(state: _completedOnboardingState(), auth: auth),
+      );
+      await _bootSplash(tester);
+      expect(find.text(_homeMarker), findsOneWidget);
+      expect(auth.status, AuthStatus.networkError);
+    },
+  );
 
-  testWidgets('Splash : token rejeté (401) -> purge + EmailAuthScreen',
-      (tester) async {
-    final b = _authFrom((_) async => _json({'error': 'unauthorized'}, 401),
-        token: 'bad-tok');
+  testWidgets('Splash : token rejeté (401) -> purge + EmailAuthScreen', (
+    tester,
+  ) async {
+    final b = _authFrom(
+      (_) async => _json({'error': 'unauthorized'}, 401),
+      token: 'bad-tok',
+    );
     await tester.pumpWidget(
       _app(state: _completedOnboardingState(), auth: b.auth),
     );
@@ -242,90 +258,104 @@ void main() {
   // OTP -> SYNCHRO PROFIL (B4.3)
   // =========================================================================
   testWidgets(
-      'OTP OK + PATCH OK -> profil envoyé (guide=maia, prénom trimé, date ISO), '
-      'completeOnboarding, MainNavShell', (tester) async {
-    Map<String, dynamic>? patched;
-    final b = _authFrom(_otpHandler(onPatch: (body) => patched = body));
-    final state = _onboardingState(
-      firstName: '  Nathanyel  ',
-      selectedAdvisor: 'Maïa',
-      birthDate: DateTime(2001, 3, 9),
+    'OTP OK + PATCH OK -> profil envoyé (guide=maia, prénom trimé, date ISO), '
+    'completeOnboarding, MainNavShell',
+    (tester) async {
+      Map<String, dynamic>? patched;
+      final b = _authFrom(_otpHandler(onPatch: (body) => patched = body));
+      final state = _onboardingState(
+        firstName: '  Nathanyel  ',
+        selectedAdvisor: 'Maïa',
+        birthDate: DateTime(2001, 3, 9),
+      );
+
+      await _pumpOtp(tester, auth: b.auth, state: state);
+      await _enterCodeAndValidate(tester);
+
+      expect(patched, {
+        'guide': 'maia',
+        'prenom': 'Nathanyel',
+        'date_naissance': '2001-03-09',
+      });
+      expect(patched!.containsKey('user_id'), isFalse);
+      expect(state.onboardingCompleted, isTrue);
+      expect(state.userId, 'uuid-real');
+      expect(find.text(_homeMarker), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    'PATCH réseau KO -> reste sur OTP, token conservé, onboarding NON terminé, '
+    'CTA Réessayer',
+    (tester) async {
+      final b = _authFrom(
+        _otpHandler(
+          patchResponder: (_) async => throw http.ClientException('offline'),
+        ),
+      );
+      final state = _onboardingState();
+
+      await _pumpOtp(tester, auth: b.auth, state: state);
+      await _enterCodeAndValidate(tester);
+
+      expect(find.text(_homeMarker), findsNothing);
+      expect(state.onboardingCompleted, isFalse);
+      expect(await b.tokens.read(), 'sess-tok'); // jeton conservé
+      expect(find.text(_syncRetryMarker), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    'Retry après réseau KO -> ne redemande PAS d’OTP, PATCH 2e OK -> MainNavShell',
+    (tester) async {
+      var verifyCalls = 0;
+      var patchCalls = 0;
+      final b = _authFrom((req) async {
+        if (req.url.path == '/api/auth/verify-code') {
+          verifyCalls++;
+          return _json({'token': 'sess-tok'});
+        }
+        if (req.url.path == '/api/account') {
+          return _json({'user_id': 'uuid-real', 'email': 'user@test.co'});
+        }
+        if (req.url.path == '/api/app/profile') {
+          patchCalls++;
+          if (patchCalls == 1) throw http.ClientException('offline');
+          return _json({
+            'user_id': 'uuid-real',
+            'guide': 'maia',
+            'prenom': 'Nathanyel',
+            'date_naissance': '1994-01-01',
+            'chemin_de_vie': '6',
+            'signe_zodiaque': 'Capricorne',
+          });
+        }
+        return _json({}, 404);
+      });
+      final state = _onboardingState();
+
+      await _pumpOtp(tester, auth: b.auth, state: state);
+      await _enterCodeAndValidate(tester);
+      expect(find.text(_syncRetryMarker), findsOneWidget);
+
+      await tester.tap(find.text(_syncRetryMarker));
+      await tester.pumpAndSettle();
+
+      expect(find.text(_homeMarker), findsOneWidget);
+      expect(state.onboardingCompleted, isTrue);
+      expect(verifyCalls, 1); // aucun nouvel OTP
+      expect(patchCalls, 2);
+    },
+  );
+
+  testWidgets('PATCH 401 -> token purgé + retour EmailAuthScreen', (
+    tester,
+  ) async {
+    final b = _authFrom(
+      _otpHandler(
+        patchResponder: (_) async => _json({'error': 'unauthorized'}, 401),
+      ),
     );
-
-    await _pumpOtp(tester, auth: b.auth, state: state);
-    await _enterCodeAndValidate(tester);
-
-    expect(patched, {
-      'guide': 'maia',
-      'prenom': 'Nathanyel',
-      'date_naissance': '2001-03-09',
-    });
-    expect(patched!.containsKey('user_id'), isFalse);
-    expect(state.onboardingCompleted, isTrue);
-    expect(state.userId, 'uuid-real');
-    expect(find.text(_homeMarker), findsOneWidget);
-  });
-
-  testWidgets(
-      'PATCH réseau KO -> reste sur OTP, token conservé, onboarding NON terminé, '
-      'CTA Réessayer', (tester) async {
-    final b = _authFrom(_otpHandler(
-      patchResponder: (_) async => throw http.ClientException('offline'),
-    ));
-    final state = _onboardingState();
-
-    await _pumpOtp(tester, auth: b.auth, state: state);
-    await _enterCodeAndValidate(tester);
-
-    expect(find.text(_homeMarker), findsNothing);
-    expect(state.onboardingCompleted, isFalse);
-    expect(await b.tokens.read(), 'sess-tok'); // jeton conservé
-    expect(find.text(_syncRetryMarker), findsOneWidget);
-  });
-
-  testWidgets(
-      'Retry après réseau KO -> ne redemande PAS d’OTP, PATCH 2e OK -> MainNavShell',
-      (tester) async {
-    var verifyCalls = 0;
-    var patchCalls = 0;
-    final b = _authFrom((req) async {
-      if (req.url.path == '/api/auth/verify-code') {
-        verifyCalls++;
-        return _json({'token': 'sess-tok'});
-      }
-      if (req.url.path == '/api/account') {
-        return _json({'user_id': 'uuid-real', 'email': 'user@test.co'});
-      }
-      if (req.url.path == '/api/app/profile') {
-        patchCalls++;
-        if (patchCalls == 1) throw http.ClientException('offline');
-        return _json({
-          'user_id': 'uuid-real', 'guide': 'maia', 'prenom': 'Nathanyel',
-          'date_naissance': '1994-01-01', 'chemin_de_vie': '6',
-          'signe_zodiaque': 'Capricorne',
-        });
-      }
-      return _json({}, 404);
-    });
-    final state = _onboardingState();
-
-    await _pumpOtp(tester, auth: b.auth, state: state);
-    await _enterCodeAndValidate(tester);
-    expect(find.text(_syncRetryMarker), findsOneWidget);
-
-    await tester.tap(find.text(_syncRetryMarker));
-    await tester.pumpAndSettle();
-
-    expect(find.text(_homeMarker), findsOneWidget);
-    expect(state.onboardingCompleted, isTrue);
-    expect(verifyCalls, 1); // aucun nouvel OTP
-    expect(patchCalls, 2);
-  });
-
-  testWidgets('PATCH 401 -> token purgé + retour EmailAuthScreen', (tester) async {
-    final b = _authFrom(_otpHandler(
-      patchResponder: (_) async => _json({'error': 'unauthorized'}, 401),
-    ));
     final state = _onboardingState();
 
     await _pumpOtp(tester, auth: b.auth, state: state);
@@ -338,8 +368,7 @@ void main() {
     expect(state.onboardingCompleted, isFalse);
   });
 
-  testWidgets(
-      'Donnée onboarding manquante (birthDate absent) -> syncBlocked, '
+  testWidgets('Donnée onboarding manquante (birthDate absent) -> syncBlocked, '
       'PATCH jamais appelé, pas d’entrée dans l’app', (tester) async {
     var patchCalled = false;
     final b = _authFrom(_otpHandler(onPatch: (_) => patchCalled = true));

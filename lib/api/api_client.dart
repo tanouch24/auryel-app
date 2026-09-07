@@ -49,9 +49,12 @@ class ApiNetworkException implements Exception {
 /// Client HTTP minimal du backend Auryel : base URL, JSON, en-tête Bearer
 /// optionnel, mapping d'erreurs typé. Aucune logique métier ici.
 class ApiClient {
-  ApiClient({http.Client? httpClient, String? baseUrl, this.timeout = const Duration(seconds: 15)})
-      : _http = httpClient ?? http.Client(),
-        _baseUrl = baseUrl ?? ApiConfig.baseUrl;
+  ApiClient({
+    http.Client? httpClient,
+    String? baseUrl,
+    this.timeout = const Duration(seconds: 15),
+  }) : _http = httpClient ?? http.Client(),
+       _baseUrl = baseUrl ?? ApiConfig.baseUrl;
 
   final http.Client _http;
   final String _baseUrl;
@@ -91,6 +94,15 @@ class ApiClient {
     );
   }
 
+  /// DELETE authentifié (suppression de compte B10). Même mapping d'erreurs que
+  /// les autres verbes : 401 -> [ApiUnauthorizedException], réseau -> [ApiNetworkException],
+  /// autre hors-2xx -> [ApiException]. Un corps vide (`204`) est accepté.
+  Future<Map<String, dynamic>> deleteJson(String path, {String? bearer}) {
+    return _send(
+      () => _http.delete(_uri(path), headers: _headers(bearer: bearer)),
+    );
+  }
+
   void close() => _http.close();
 
   // ---------------------------------------------------------------------------
@@ -101,7 +113,8 @@ class ApiClient {
     return {
       'Accept': 'application/json',
       if (json) 'Content-Type': 'application/json',
-      if (bearer != null && bearer.isNotEmpty) 'Authorization': 'Bearer $bearer',
+      if (bearer != null && bearer.isNotEmpty)
+        'Authorization': 'Bearer $bearer',
     };
   }
 
