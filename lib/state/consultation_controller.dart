@@ -46,8 +46,27 @@ class ConsultationController extends ChangeNotifier {
   Timer? _ticker;
   bool _disposed = false;
 
+  // J6 — LISTE des fils de discussion (un par conseiller). Séparée du snapshot
+  // `_active` (compat `/state`). C'est cette liste que consommera la nouvelle
+  // UI « Consultations en cours » (J6-F2). Jamais persistée : l'utilisateur
+  // revient toujours sur la liste et choisit lui-même son fil.
+  List<ConsultationSummaryDto> _consultations = const [];
+  bool _consultationsLoading = false;
+  Object? _consultationsError;
+
   ConsultationDto? get active => _active;
   QuotaDto? get quota => _quota;
+
+  /// J6 — tous les fils connus, ordre backend (« le plus récemment actif
+  /// d'abord »). Copie non modifiable.
+  List<ConsultationSummaryDto> get consultations =>
+      List.unmodifiable(_consultations);
+  bool get hasConsultations => _consultations.isNotEmpty;
+  bool get consultationsLoading => _consultationsLoading;
+
+  /// Dernier échec de [refreshConsultations] (réseau / 5xx / 401). N'entraîne
+  /// JAMAIS de déconnexion et NE vide PAS la liste connue.
+  Object? get consultationsError => _consultationsError;
 
   /// SOURCE DE VÉRITÉ DU TEMPS. `null` tant que le backend distant est ancien
   /// (aucun bloc `time` reçu) — les getters ci-dessous appliquent alors le
@@ -171,6 +190,75 @@ class ConsultationController extends ChangeNotifier {
       _refreshing = false;
       if (!_disposed) notifyListeners();
     }
+  }
+
+  /// J6 — recharge la LISTE des fils (`GET /api/consultation/list`). Distinct de
+  /// [refresh] (qui ne synchronise que le portefeuille via `/state`).
+  ///
+  ///  - pas de jeton -> aucun appel.
+  ///  - 200 -> `consultations` remplacée par la liste serveur.
+  ///  - réseau / 5xx / 401 -> on CONSERVE la liste connue, on note
+  ///    [consultationsError] et on ne purge/ne déconnecte JAMAIS (un `/list`
+  ///    indisponible ne doit pas sortir l'utilisateur de l'app).
+  Future<void> refreshConsultations() async {
+    if (_consultationsLoading || _disposed) return;
+
+    final token = await _auth.currentToken();
+    if (token == null || token.isEmpty || _disposed) return;
+
+    _consultationsLoading = true;
+    _consultationsError = null;
+    notifyListeners();
+
+    try {
+      final list = await _api.listConsultations(bearer: token);
+      if (_disposed) return;
+      _consultations = list;
+      _consultationsError = null;
+    } on ApiUnauthorizedException catch (e) {
+      // Volontaire : un échec de /list ne déconnecte pas (cf. J6-F1 §E).
+      _consultationsError = e;
+    } on ApiNetworkException catch (e) {
+      _consultationsError = e;
+    } on ApiException catch (e) {
+      _consultationsError = e;
+    } catch (e) {
+      _consultationsError = e;
+    } finally {
+      _consultationsLoading = false;
+      if (!_disposed) notifyListeners();
+    }
+  }
+
+  /// J6 — synchronise le portefeuille (`/state`) PUIS la liste (`/list`). Un
+  /// échec de l'un n'annule pas l'autre. Pratique pour un « pull-to-refresh »
+  /// unique côté UI ; `refresh()` seul reste inchangé pour les appelants
+  /// existants.
+  Future<void> refreshAll() async {
+    await refresh();
+    await refreshConsultations();
+  }
+
+  /// J6 — ouvre / reprend la discussion avec [advisorId] via
+  /// `POST /api/consultation/open`, puis rafraîchit [consultations]. Retourne le
+  /// [ConsultationDto] du fil — EXISTANT (backend renvoie le fil du conseiller)
+  /// OU neuf (`openedNow`).
+  ///
+  /// Ne modifie PAS `AuryelState.selectedAdvisor`, ne PATCH aucun profil, ne
+  /// consomme aucun temps, ne crée aucun timer local. Lève une
+  /// [ApiUnauthorizedException] s'il n'y a pas de jeton ; propage les autres
+  /// erreurs API à l'appelant (l'UI décidera de l'affichage).
+  Future<ConsultationDto> openAdvisor(String advisorId) async {
+    final token = await _auth.currentToken();
+    if (token == null || token.isEmpty) {
+      throw ApiUnauthorizedException();
+    }
+    final dto = await _api.openConsultation(
+      bearer: token,
+      advisorId: advisorId,
+    );
+    await refreshConsultations();
+    return dto;
   }
 
   /// Injection immédiate de l'état après un `POST /api/consultation/message`
