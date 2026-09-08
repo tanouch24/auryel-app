@@ -28,6 +28,7 @@ import 'package:auryel/state/auth_controller.dart';
 import 'package:auryel/state/consultation_controller.dart';
 import 'package:auryel/state/purchase_controller.dart';
 import 'package:auryel/widgets/advisors_carousel.dart';
+import 'package:auryel/widgets/main_nav_scope.dart';
 
 /// Gateway IAP inerte pour les tests d'UI qui n'exercent pas l'achat.
 class _NullGateway implements IapGateway {
@@ -37,7 +38,9 @@ class _NullGateway implements IapGateway {
   @override
   Future<ProductDetailsResponse> queryProductDetails(Set<String> ids) async =>
       ProductDetailsResponse(
-          productDetails: const [], notFoundIDs: ids.toList());
+        productDetails: const [],
+        notFoundIDs: ids.toList(),
+      );
   @override
   Stream<List<PurchaseDetails>> get purchaseStream => _ctrl.stream;
   @override
@@ -53,8 +56,10 @@ PurchaseController _stubPurchase(AuthController auth) {
     httpClient: MockClient((_) async => http.Response('{}', 200)),
     baseUrl: 'http://test.local',
   );
-  final consultation =
-      ConsultationController(api: ConsultationApi(client), auth: auth);
+  final consultation = ConsultationController(
+    api: ConsultationApi(client),
+    auth: auth,
+  );
   final c = PurchaseController(
     billing: BillingApi(client),
     gateway: _NullGateway(),
@@ -69,54 +74,54 @@ PurchaseController _stubPurchase(AuthController auth) {
 }
 
 http.Response _json(Map<String, dynamic> body, [int status = 200]) =>
-    http.Response(jsonEncode(body), status,
-        headers: {'content-type': 'application/json'});
+    http.Response(
+      jsonEncode(body),
+      status,
+      headers: {'content-type': 'application/json'},
+    );
 
 Map<String, dynamic> _time({
   int firstFree = 0,
   int premium = 6500,
   int purchased = 0,
   bool windowActive = true,
-}) =>
-    {
-      'first_free_remaining_seconds': firstFree,
-      'premium_remaining_seconds': premium,
-      'purchased_remaining_seconds': purchased,
-      'total_remaining_seconds': firstFree + premium + purchased,
-      'window_active': windowActive,
-      'window_expires_at':
-          windowActive ? '2999-01-01T00:05:00Z' : null,
-    };
+}) => {
+  'first_free_remaining_seconds': firstFree,
+  'premium_remaining_seconds': premium,
+  'purchased_remaining_seconds': purchased,
+  'total_remaining_seconds': firstFree + premium + purchased,
+  'window_active': windowActive,
+  'window_expires_at': windowActive ? '2999-01-01T00:05:00Z' : null,
+};
 
 Map<String, dynamic> _okBody({
   String reply = 'Je te vois clairement.',
   String advisorId = 'maia',
   bool openedNow = true,
   int secondsRemaining = 6500,
-}) =>
-    {
-      'reply': reply,
-      'consultation': {
-        'id': 'c-1',
-        'advisor_id': advisorId,
-        'started_at': '2026-08-27T10:00:00Z',
-        'expires_at': '2026-08-27T12:00:00Z',
-        'seconds_remaining': secondsRemaining,
-        'credit_source': 'time',
-        'opened_now': openedNow,
-      },
-      'time': _time(premium: secondsRemaining),
-      'quota': {
-        'is_premium': true,
-        'monthly_limit': 8,
-        'monthly_used': 1,
-        'monthly_remaining': 7,
-        'earned_available': 0,
-        'first_free_available': false,
-        'period_start': '2026-08-01T00:00:00Z',
-        'period_end': '2026-09-01T00:00:00Z',
-      },
-    };
+}) => {
+  'reply': reply,
+  'consultation': {
+    'id': 'c-1',
+    'advisor_id': advisorId,
+    'started_at': '2026-08-27T10:00:00Z',
+    'expires_at': '2026-08-27T12:00:00Z',
+    'seconds_remaining': secondsRemaining,
+    'credit_source': 'time',
+    'opened_now': openedNow,
+  },
+  'time': _time(premium: secondsRemaining),
+  'quota': {
+    'is_premium': true,
+    'monthly_limit': 8,
+    'monthly_used': 1,
+    'monthly_remaining': 7,
+    'earned_available': 0,
+    'first_free_available': false,
+    'period_start': '2026-08-01T00:00:00Z',
+    'period_end': '2026-09-01T00:00:00Z',
+  },
+};
 
 const _noCreditBody = {
   'error': 'time_exhausted',
@@ -141,7 +146,11 @@ const _noCreditBody = {
   },
 };
 
-typedef _Env = ({AuthController auth, InMemoryTokenStore tokens, List<int> posts});
+typedef _Env = ({
+  AuthController auth,
+  InMemoryTokenStore tokens,
+  List<int> posts,
+});
 
 _Env _env(
   Future<http.Response> Function(http.Request req) handler, {
@@ -241,8 +250,7 @@ void main() {
     expect(r.quota.periodStart, isA<DateTime>());
   });
 
-  test('parsing robuste : seconds_remaining string, opened_now absent, dates nulles',
-      () {
+  test('parsing robuste : seconds_remaining string, opened_now absent, dates nulles', () {
     final r = ConsultationMessageResponse.fromJson({
       'reply': 'x',
       'consultation': {
@@ -270,25 +278,28 @@ void main() {
   // =========================================================================
   // ConsultationApi
   // =========================================================================
-  test('sendMessage : POST /api/consultation/message body {message} + Bearer', () async {
-    http.Request? seen;
-    final client = ApiClient(
-      httpClient: MockClient((req) async {
-        seen = req;
-        return _json(_okBody());
-      }),
-      baseUrl: 'http://test.local',
-    );
-    final res =
-        await ConsultationApi(client).sendMessage(bearer: 'tk', message: '  salut  ');
+  test(
+    'sendMessage : POST /api/consultation/message body {message} + Bearer',
+    () async {
+      http.Request? seen;
+      final client = ApiClient(
+        httpClient: MockClient((req) async {
+          seen = req;
+          return _json(_okBody());
+        }),
+        baseUrl: 'http://test.local',
+      );
+      final res = await ConsultationApi(client)
+          .sendMessage(bearer: 'tk', message: '  salut  ');
 
-    expect(seen!.method, 'POST');
-    expect(seen!.url.path, '/api/consultation/message');
-    expect(seen!.headers['Authorization'], 'Bearer tk');
-    expect(jsonDecode(seen!.body), {'message': '  salut  '});
-    expect(res.reply, 'Je te vois clairement.');
-    expect(res.consultation!.advisorId, 'maia');
-  });
+      expect(seen!.method, 'POST');
+      expect(seen!.url.path, '/api/consultation/message');
+      expect(seen!.headers['Authorization'], 'Bearer tk');
+      expect(jsonDecode(seen!.body), {'message': '  salut  '});
+      expect(res.reply, 'Je te vois clairement.');
+      expect(res.consultation!.advisorId, 'maia');
+    },
+  );
 
   test('sendMessage : 402 -> ApiNoCreditException portant quota', () async {
     final client = ApiClient(
@@ -304,12 +315,17 @@ void main() {
   // =========================================================================
   // ChatScreen — widget
   // =========================================================================
-  testWidgets('écran neuf : aucun faux historique, invite de départ', (t) async {
+  testWidgets('écran neuf : aucun faux historique, invite de départ', (
+    t,
+  ) async {
     final e = _env((_) async => _json(_okBody()));
     await _pumpChat(t, auth: e.auth);
     await t.pumpAndSettle();
 
-    expect(find.text('Écris ton premier message pour commencer.'), findsOneWidget);
+    expect(
+      find.text('Écris ton premier message pour commencer.'),
+      findsOneWidget,
+    );
     expect(find.byType(ListView), findsNothing); // pas de liste => pas de bulle
   });
 
@@ -337,7 +353,9 @@ void main() {
     expect(find.text(_confirmText), findsNothing);
   });
 
-  testWidgets('confirmation validée -> POST + bulles user & assistant', (t) async {
+  testWidgets('confirmation validée -> POST + bulles user & assistant', (
+    t,
+  ) async {
     final e = _env((_) async => _json(_okBody(reply: 'Réponse conseiller')));
     await _pumpChat(t, auth: e.auth);
     await _type(t, 'bonjour');
@@ -365,7 +383,9 @@ void main() {
     expect(find.text('Séléna'), findsNothing);
   });
 
-  testWidgets('2e message même session : pas de nouvelle confirmation', (t) async {
+  testWidgets('2e message même session : pas de nouvelle confirmation', (
+    t,
+  ) async {
     final e = _env((_) async => _json(_okBody()));
     await _pumpChat(t, auth: e.auth);
     await _type(t, 'un');
@@ -381,8 +401,9 @@ void main() {
     expect(find.text('deux'), findsOneWidget);
   });
 
-  testWidgets('402 time_exhausted (Premium) -> mur sobre, pas d\'upsell prix',
-      (t) async {
+  testWidgets('402 time_exhausted (Premium) -> mur sobre, pas d\'upsell prix', (
+    t,
+  ) async {
     final e = _env((_) async => _json(_noCreditBody, 402)); // is_premium: true
     await _pumpChat(t, auth: e.auth);
     await _type(t, 'coucou');
@@ -392,8 +413,10 @@ void main() {
 
     // TIMER-D.2 — Premium : titre « disponible épuisé » + sous-texte
     // « renouvellement », AUCUN prix, AUCUN « Découvrir Premium ».
-    expect(find.text('Ton temps de consultation disponible est épuisé.'),
-        findsOneWidget);
+    expect(
+      find.text('Ton temps de consultation disponible est épuisé.'),
+      findsOneWidget,
+    );
     expect(find.textContaining('à la prochaine période'), findsOneWidget);
     expect(find.text('Premium — 7,99 €/mois'), findsNothing);
     expect(find.text('Découvrir Premium'), findsNothing);
@@ -403,85 +426,99 @@ void main() {
     expect(find.byType(TextField), findsNothing); // input remplacé
   });
 
-  testWidgets('402 time_exhausted (non Premium) -> upsell 8 h/mois + Découvrir Premium',
-      (t) async {
-    const body = {
-      'error': 'time_exhausted',
-      'consultation': null,
-      'time': {
-        'first_free_remaining_seconds': 0,
-        'premium_remaining_seconds': 0,
-        'purchased_remaining_seconds': 0,
-        'total_remaining_seconds': 0,
-        'window_active': false,
-        'window_expires_at': null,
-      },
-      'quota': {'is_premium': false, 'monthly_limit': 8, 'monthly_used': 8},
-    };
-    final e = _env((_) async => _json(body, 402));
-    await _pumpChat(t, auth: e.auth);
-    await _type(t, 'coucou');
-    await _tapSend(t);
-    await t.tap(find.text('Commencer'));
-    await t.pumpAndSettle();
+  testWidgets(
+    '402 time_exhausted (non Premium) -> upsell 8 h/mois + Découvrir Premium',
+    (t) async {
+      const body = {
+        'error': 'time_exhausted',
+        'consultation': null,
+        'time': {
+          'first_free_remaining_seconds': 0,
+          'premium_remaining_seconds': 0,
+          'purchased_remaining_seconds': 0,
+          'total_remaining_seconds': 0,
+          'window_active': false,
+          'window_expires_at': null,
+        },
+        'quota': {'is_premium': false, 'monthly_limit': 8, 'monthly_used': 8},
+      };
+      final e = _env((_) async => _json(body, 402));
+      await _pumpChat(t, auth: e.auth);
+      await _type(t, 'coucou');
+      await _tapSend(t);
+      await t.tap(find.text('Commencer'));
+      await t.pumpAndSettle();
 
-    expect(find.text('Ton temps de consultation est épuisé.'), findsOneWidget);
-    expect(
-        find.textContaining('8 h de consultation par mois'), findsOneWidget);
-    expect(find.text('Premium — 7,99 €/mois'), findsOneWidget);
-    expect(find.text('Découvrir Premium'), findsOneWidget);
-    expect(find.textContaining('4 consultations'), findsNothing);
-    expect(find.textContaining('consultations de 2 h'), findsNothing);
-  });
+      expect(
+        find.text('Ton temps de consultation est épuisé.'),
+        findsOneWidget,
+      );
+      expect(
+        find.textContaining('8 h de consultation par mois'),
+        findsOneWidget,
+      );
+      expect(find.text('Premium — 7,99 €/mois'), findsOneWidget);
+      expect(find.text('Découvrir Premium'), findsOneWidget);
+      expect(find.textContaining('4 consultations'), findsNothing);
+      expect(find.textContaining('consultations de 2 h'), findsNothing);
+    },
+  );
 
-  testWidgets('M — 402 ANCIEN "no_credit" (sans bloc time) : mur affiché, pas de crash',
-      (t) async {
-    const legacyBody = {
-      'error': 'no_credit',
-      'consultation': null,
-      'quota': {
-        'is_premium': false,
-        'monthly_limit': 4,
-        'monthly_used': 4,
-        'monthly_remaining': 0,
-        'earned_available': 0,
-      },
-    };
-    final e = _env((_) async => _json(legacyBody, 402));
-    await _pumpChat(t, auth: e.auth);
-    await _type(t, 'coucou');
-    await _tapSend(t);
-    await t.tap(find.text('Commencer'));
-    await t.pumpAndSettle();
+  testWidgets(
+    'M — 402 ANCIEN "no_credit" (sans bloc time) : mur affiché, pas de crash',
+    (t) async {
+      const legacyBody = {
+        'error': 'no_credit',
+        'consultation': null,
+        'quota': {
+          'is_premium': false,
+          'monthly_limit': 4,
+          'monthly_used': 4,
+          'monthly_remaining': 0,
+          'earned_available': 0,
+        },
+      };
+      final e = _env((_) async => _json(legacyBody, 402));
+      await _pumpChat(t, auth: e.auth);
+      await _type(t, 'coucou');
+      await _tapSend(t);
+      await t.tap(find.text('Commencer'));
+      await t.pumpAndSettle();
 
-    // fallback : variante non-Premium du texte V1.
-    expect(find.text('Ton temps de consultation est épuisé.'), findsOneWidget);
-    expect(find.text('coucou'), findsNothing);
-    expect(find.byType(TextField), findsNothing);
-  });
+      // fallback : variante non-Premium du texte V1.
+      expect(
+        find.text('Ton temps de consultation est épuisé.'),
+        findsOneWidget,
+      );
+      expect(find.text('coucou'), findsNothing);
+      expect(find.byType(TextField), findsNothing);
+    },
+  );
 
-  testWidgets('I — "Découvrir Premium" ouvre PremiumScreen (plus de snackbar)',
-      (t) async {
-    // non-Premium : le CTA « Découvrir Premium » est présent.
-    const body = {
-      'error': 'time_exhausted',
-      'consultation': null,
-      'quota': {'is_premium': false, 'monthly_limit': 8, 'monthly_used': 8},
-    };
-    final e = _env((_) async => _json(body, 402));
-    await _pumpChat(t, auth: e.auth, purchase: _stubPurchase(e.auth));
-    await _type(t, 'coucou');
-    await _tapSend(t);
-    await t.tap(find.text('Commencer'));
-    await t.pumpAndSettle();
+  testWidgets(
+    'I — "Découvrir Premium" ouvre PremiumScreen (plus de snackbar)',
+    (t) async {
+      // non-Premium : le CTA « Découvrir Premium » est présent.
+      const body = {
+        'error': 'time_exhausted',
+        'consultation': null,
+        'quota': {'is_premium': false, 'monthly_limit': 8, 'monthly_used': 8},
+      };
+      final e = _env((_) async => _json(body, 402));
+      await _pumpChat(t, auth: e.auth, purchase: _stubPurchase(e.auth));
+      await _type(t, 'coucou');
+      await _tapSend(t);
+      await t.tap(find.text('Commencer'));
+      await t.pumpAndSettle();
 
-    await t.tap(find.text('Découvrir Premium'));
-    await t.pumpAndSettle();
+      await t.tap(find.text('Découvrir Premium'));
+      await t.pumpAndSettle();
 
-    expect(find.byType(PremiumScreen), findsOneWidget);
-    expect(find.text('Auryel Premium'), findsOneWidget);
-    expect(find.text('Premium arrive bientôt.'), findsNothing);
-  });
+      expect(find.byType(PremiumScreen), findsOneWidget);
+      expect(find.text('Auryel Premium'), findsOneWidget);
+      expect(find.text('Premium arrive bientôt.'), findsNothing);
+    },
+  );
 
   testWidgets('401 -> session purgée + retour EmailAuthScreen', (t) async {
     final e = _env((_) async => _json({'error': 'unauthorized'}, 401));
@@ -491,40 +528,43 @@ void main() {
     await t.tap(find.text('Commencer'));
     await t.pumpAndSettle();
 
-    expect(find.text('Ton adresse email'), findsOneWidget);
+    expect(find.text('Bon retour'), findsOneWidget);
     expect(await e.tokens.read(), isNull);
     expect(e.auth.status, AuthStatus.sessionExpired);
   });
 
-  testWidgets('réseau KO -> Réessayer dispo, texte conservé, pas de duplication',
-      (t) async {
-    var call = 0;
-    final e = _env((_) async {
-      call++;
-      if (call == 1) throw http.ClientException('offline');
-      return _json(_okBody(reply: 'enfin'));
-    });
-    await _pumpChat(t, auth: e.auth);
-    await _type(t, 'mon message');
-    await _tapSend(t);
-    await t.tap(find.text('Commencer'));
-    await t.pumpAndSettle();
+  testWidgets(
+    'réseau KO -> Réessayer dispo, texte conservé, pas de duplication',
+    (t) async {
+      var call = 0;
+      final e = _env((_) async {
+        call++;
+        if (call == 1) throw http.ClientException('offline');
+        return _json(_okBody(reply: 'enfin'));
+      });
+      await _pumpChat(t, auth: e.auth);
+      await _type(t, 'mon message');
+      await _tapSend(t);
+      await t.tap(find.text('Commencer'));
+      await t.pumpAndSettle();
 
-    // Échec : bulle "pending" visible une seule fois, bouton Réessayer présent.
-    expect(find.text('mon message'), findsOneWidget);
-    expect(find.text('Réessayer'), findsOneWidget);
-    expect(e.posts.length, 1);
+      // Échec : bulle "pending" visible une seule fois, bouton Réessayer présent.
+      expect(find.text('mon message'), findsOneWidget);
+      expect(find.text('Réessayer'), findsOneWidget);
+      expect(e.posts.length, 1);
 
-    await t.tap(find.text('Réessayer'));
-    await t.pumpAndSettle();
+      await t.tap(find.text('Réessayer'));
+      await t.pumpAndSettle();
 
-    expect(e.posts.length, 2);
-    expect(find.text('mon message'), findsOneWidget); // pas dédoublé
-    expect(find.text('enfin'), findsOneWidget);
-    expect(find.text('Réessayer'), findsNothing);
-  });
+      expect(e.posts.length, 2);
+      expect(find.text('mon message'), findsOneWidget); // pas dédoublé
+      expect(find.text('enfin'), findsOneWidget);
+      expect(find.text('Réessayer'), findsNothing);
+    },
+  );
 
-  testWidgets('CTA Accueil -> ouvre ChatScreen', (t) async {
+  testWidgets('J6-F2 §12 : CTA Accueil -> onglet Consultation, jamais '
+      'ChatScreen', (t) async {
     final e = _env((_) async => _json(_okBody()));
     final state = AuryelState(
       repository: LocalOnboardingRepository(),
@@ -538,21 +578,30 @@ void main() {
         onboardingCompleted: true,
       ),
     );
+    final tabs = <int>[];
     await t.pumpWidget(
       AuthScope(
         controller: e.auth,
         child: AuryelStateScope(
           state: state,
-          child: const MaterialApp(home: HomeScreen()),
+          child: MaterialApp(
+            home: MainNavScope(
+              goToTab: tabs.add,
+              currentIndex: kTabHome,
+              child: const Scaffold(body: HomeScreen()),
+            ),
+          ),
         ),
       ),
     );
     await t.pumpAndSettle();
 
-    await t.tap(find.text('Commencer ma consultation'));
+    await t.ensureVisible(find.text('Commencer une consultation'));
+    await t.tap(find.text('Commencer une consultation'));
     await t.pumpAndSettle();
 
-    expect(find.text('Écris ton message…'), findsOneWidget); // hint du ChatScreen
+    expect(tabs, contains(kTabConsultation));
+    expect(find.text('Écris ton message…'), findsNothing); // pas de ChatScreen
   });
 }
 

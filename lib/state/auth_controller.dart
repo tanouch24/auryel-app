@@ -1,11 +1,18 @@
 import 'package:flutter/widgets.dart';
 
+import '../api/account_api.dart';
+import '../api/ai_report_api.dart';
 import '../api/api_client.dart';
 import '../api/consultation_api.dart';
 import '../api/profile_api.dart';
+import '../api/rewards_api.dart';
 import '../api/tirage_api.dart';
+import '../api/wellbeing_api.dart';
 import '../data/account.dart';
+import '../data/app_profile.dart';
 import '../data/auth_repository.dart';
+import '../data/installation_id_store.dart';
+import '../data/local_user_data.dart';
 
 enum AuthStatus {
   /// Restauration pas encore tentée.
@@ -24,6 +31,46 @@ enum AuthStatus {
   /// (jeton conservé, mode dégradé).
   networkError,
 }
+
+/// Issue d'une tentative de suppression de compte (B10).
+enum AccountDeletionOutcome {
+  /// Serveur a confirmé : compte supprimé, données locales purgées, `signedOut`.
+  ok,
+
+  /// Endpoint non câblé (aucun [AccountApi]) — rien tenté, rien touché.
+  unavailable,
+
+  /// 401 pendant le DELETE : jeton mort, session purgée + `sessionExpired`.
+  unauthorized,
+
+  /// Réseau / 5xx : RIEN touché, session conservée, réessai possible.
+  retryable,
+}
+
+/// Issue d'une récupération du profil serveur réel (`GET /api/app/profile`)
+/// pour un compte déjà authentifié — restauration multi-appareil / changement
+/// de compte / profil local perdu.
+enum ProfileRestoreOutcome {
+  /// Profil serveur récupéré. Peut être PARTIEL (prénom / date / guide vides) —
+  /// l'appelant ne remplace jamais une valeur locale par un vide serveur.
+  ok,
+
+  /// 401 pendant le GET : jeton mort — session purgée + `sessionExpired`
+  /// (politique 401 UNIQUE, identique au reste de l'auth). L'appelant renvoie
+  /// au login.
+  unauthorized,
+
+  /// Réseau KO / 5xx / 404 / jeton absent : session CONSERVÉE, l'appelant
+  /// garde le profil local existant du même compte (ou un profil vide honnête).
+  retryable,
+}
+
+/// Retour de [AuthController.fetchServerProfile] : l'issue + le profil (non
+/// `null` uniquement sur [ProfileRestoreOutcome.ok]).
+typedef ProfileRestoreResult = ({
+  ProfileRestoreOutcome outcome,
+  AppProfile? profile,
+});
 
 /// Résultat de la synchro du profil onboarding vers le backend (B4.3).
 enum ProfileSyncOutcome {
@@ -48,21 +95,64 @@ class AuthController extends ChangeNotifier {
     required ProfileApi profileApi,
     required ConsultationApi consultationApi,
     required TirageApi tirageApi,
-  })  : _repo = repository,
-        _profileApi = profileApi,
-        _consultationApi = consultationApi,
-        _tirageApi = tirageApi;
+    AiReportApi? aiReportApi,
+    AccountApi? accountApi,
+    RewardsApi? rewardsApi,
+    WellbeingApi? wellbeingApi,
+    LocalUserData? localUserData,
+    InstallationIdStore? installationIdStore,
+  }) : _repo = repository,
+       _profileApi = profileApi,
+       _consultationApi = consultationApi,
+       _tirageApi = tirageApi,
+       _aiReportApi = aiReportApi,
+       _accountApi = accountApi,
+       _rewardsApi = rewardsApi,
+       _wellbeingApi = wellbeingApi,
+       _localUserData = localUserData ?? LocalUserData(),
+       _installationIdStore = installationIdStore;
 
   final AuthRepository _repo;
   final ProfileApi _profileApi;
   final ConsultationApi _consultationApi;
   final TirageApi _tirageApi;
+  final AiReportApi? _aiReportApi;
+  final AccountApi? _accountApi;
+  final RewardsApi? _rewardsApi;
+  final WellbeingApi? _wellbeingApi;
+  final LocalUserData _localUserData;
+  final InstallationIdStore? _installationIdStore;
 
   /// Exposé pour les écrans qui appellent le backend consultation (F3+).
   ConsultationApi get consultationApi => _consultationApi;
 
   /// Exposé pour l'écran Tirage (T3) et la Bibliothèque — save + historique.
   TirageApi get tirageApi => _tirageApi;
+
+  /// Signalement d'une réponse IA (ChatScreen). `null` tant qu'aucune instance
+  /// n'est câblée (tests hérités) — l'appelant affiche alors l'état d'erreur,
+  /// jamais un faux succès.
+  AiReportApi? get aiReportApi => _aiReportApi;
+
+  /// Récompenses côté app (progression partage 30 jours). `null` si non câblé.
+  RewardsApi? get rewardsApi => _rewardsApi;
+
+  /// Parcours bien-être (missions quotidiennes + récompense par cycle de 30
+  /// journées). `null` si non câblé (tests hérités).
+  WellbeingApi? get wellbeingApi => _wellbeingApi;
+
+  /// `true` si la suppression réelle de compte est disponible (endpoint câblé).
+  bool get accountDeletionAvailable => _accountApi != null;
+
+  /// SEAM anti-abus « heure gratuite » — identifiant d'INSTALLATION (pas de
+  /// compte), conservé au logout / changement de compte / suppression.
+  ///
+  /// AUJOURD'HUI : rien n'est envoyé au backend. `installation_id` N'EST PAS
+  /// ajouté aux payloads (`register` / `login` / `profile` inchangés) tant que
+  /// le contrat backend ne l'accepte pas officiellement. Ce getter permet à un
+  /// lot ultérieur de faire `await auth.installationId()` et de transmettre le
+  /// champ exact — cf. `docs/installation_id_anti_abuse.md`.
+  Future<String?> installationId() async => _installationIdStore?.getOrCreate();
 
   /// Jeton Bearer courant (ou null). Passthrough vers le stockage sécurisé.
   Future<String?> currentToken() => _repo.currentToken();
@@ -97,15 +187,21 @@ class AuthController extends ChangeNotifier {
     }
   }
 
-  /// Étape 1 du login. Relaie les erreurs à l'écran appelant.
-  Future<void> requestCode(String email) => _repo.requestCode(email);
+  /// AUTH V2 — crée le compte (email + mot de passe), stocke le jeton, confirme
+  /// via `GET /api/account`. Mêmes règles post-jeton que [verifyCode] :
+  /// - erreurs métier (400/409/503) -> lèvent [ApiException] (aucun jeton écrit) ;
+  /// - jeton OK mais réseau KO sur /account -> session ouverte en mode dégradé.
+  Future<void> registerWithPassword(String email, String password) =>
+      _authWithToken(() => _repo.registerWithPasswordAndStore(email, password));
 
-  /// Étape 2 : vérifie le code, stocke le jeton, confirme via `GET /api/account`.
-  /// - code invalide/expiré -> lève [ApiException] (aucun jeton écrit).
-  /// - jeton OK mais réseau KO sur /account -> session considérée ouverte
-  ///   (mode dégradé), pas d'exception.
-  Future<void> verifyCode(String email, String code) async {
-    await _repo.verifyCodeAndStore(email, code);
+  /// AUTH V2 — connexion (email + mot de passe). Voir [registerWithPassword].
+  Future<void> loginWithPassword(String email, String password) =>
+      _authWithToken(() => _repo.loginWithPasswordAndStore(email, password));
+
+  /// Socle commun register/login/verify-code : obtient+stocke un jeton via
+  /// [obtainToken], puis résout le compte. Ne touche jamais au mot de passe.
+  Future<void> _authWithToken(Future<String> Function() obtainToken) async {
+    await obtainToken();
     try {
       final account = await _repo.fetchAccount();
       _set(AuthStatus.signedIn, account);
@@ -116,6 +212,15 @@ class AuthController extends ChangeNotifier {
       _set(AuthStatus.networkError, null);
     }
   }
+
+  /// LEGACY (OTP) — étape 1. Hors parcours actif (conservé pour le futur
+  /// « définir un mot de passe » d'un ancien compte).
+  Future<void> requestCode(String email) => _repo.requestCode(email);
+
+  /// LEGACY (OTP) — étape 2 : vérifie le code, stocke le jeton, confirme via
+  /// `GET /api/account`. Hors parcours actif.
+  Future<void> verifyCode(String email, String code) =>
+      _authWithToken(() => _repo.verifyCodeAndStore(email, code));
 
   /// B4.3 — pousse le profil onboarding vers `PATCH /api/app/profile` avec le
   /// jeton courant. Applique les mêmes règles 401 que le reste de l'auth
@@ -135,6 +240,41 @@ class AuthController extends ChangeNotifier {
       await _profileApi.patchProfile(
         token,
         guide: guide,
+        prenom: prenom,
+        dateNaissance: dateNaissance,
+      );
+      return ProfileSyncOutcome.ok;
+    } on ApiUnauthorizedException {
+      await _repo.clearSession();
+      _set(AuthStatus.sessionExpired, null);
+      return ProfileSyncOutcome.unauthorized;
+    } on ApiNetworkException {
+      return ProfileSyncOutcome.retryable;
+    } on ApiException {
+      return ProfileSyncOutcome.retryable;
+    }
+  }
+
+  /// B10.1 — édition d'un ou plusieurs champs de profil depuis « Mon espace »
+  /// (`prenom`, `date_naissance`). PATCH PARTIEL : seuls les champs non nuls
+  /// sont transmis. Mêmes règles 401 que le reste de l'auth (purge +
+  /// sessionExpired). N'ouvre aucune consultation, ne consomme aucun crédit.
+  ///
+  /// L'appelant ne met à jour l'état local QU'APRÈS un [ProfileSyncOutcome.ok]
+  /// — aucune divergence local/serveur, aucun faux succès.
+  Future<ProfileSyncOutcome> syncProfileFields({
+    String? prenom,
+    String? dateNaissance,
+  }) async {
+    if (prenom == null && dateNaissance == null) return ProfileSyncOutcome.ok;
+    final token = await _repo.currentToken();
+    if (token == null || token.isEmpty) {
+      _set(AuthStatus.signedOut, null);
+      return ProfileSyncOutcome.unauthorized;
+    }
+    try {
+      await _profileApi.patchProfile(
+        token,
         prenom: prenom,
         dateNaissance: dateNaissance,
       );
@@ -176,9 +316,82 @@ class AuthController extends ChangeNotifier {
     }
   }
 
+  /// PROFIL MULTI-APPAREIL — récupère le profil serveur réel (prénom, date de
+  /// naissance, conseiller préféré) d'un compte connecté, via
+  /// `GET /api/app/profile` et le jeton courant.
+  ///
+  /// À appeler APRÈS un login réussi, et au démarrage quand le profil local est
+  /// absent / incomplet / rattaché à un autre `userId`. Aucune consultation
+  /// ouverte, aucun crédit consommé (endpoint profil pur).
+  ///
+  /// - 401  -> purge + `sessionExpired` (politique 401 unique) ->
+  ///   [ProfileRestoreOutcome.unauthorized].
+  /// - réseau / 5xx / 404 / jeton absent -> session CONSERVÉE ->
+  ///   [ProfileRestoreOutcome.retryable] (l'appelant garde le profil local).
+  /// - succès -> [ProfileRestoreOutcome.ok] + [AppProfile] (éventuellement
+  ///   partiel).
+  ///
+  /// Ne touche PAS au quota / Premium / temps de consultation / historique /
+  /// Billing : ces données ont leurs propres sources serveur.
+  Future<ProfileRestoreResult> fetchServerProfile() async {
+    final token = await _repo.currentToken();
+    if (token == null || token.isEmpty) {
+      return (outcome: ProfileRestoreOutcome.retryable, profile: null);
+    }
+    try {
+      final profile = await _profileApi.getProfile(token);
+      return (outcome: ProfileRestoreOutcome.ok, profile: profile);
+    } on ApiUnauthorizedException {
+      await _repo.clearSession();
+      _set(AuthStatus.sessionExpired, null);
+      return (outcome: ProfileRestoreOutcome.unauthorized, profile: null);
+    } on ApiNetworkException {
+      return (outcome: ProfileRestoreOutcome.retryable, profile: null);
+    } on ApiException {
+      return (outcome: ProfileRestoreOutcome.retryable, profile: null);
+    }
+  }
+
   Future<void> logout() async {
     await _repo.logout();
     _set(AuthStatus.signedOut, null);
+  }
+
+  /// B10 — suppression RÉELLE du compte.
+  ///
+  /// Ordre STRICT (aucun faux succès, aucune suppression locale prématurée) :
+  ///  1. jeton courant requis ;
+  ///  2. `DELETE /api/app/account` authentifié ;
+  ///  3. SUR SUCCÈS SERVEUR seulement -> purge des données locales personnelles
+  ///     ([LocalUserData]) + purge du jeton + état `signedOut` ;
+  ///  4. SUR ÉCHEC (réseau / 5xx) -> RIEN n'est touché, session conservée,
+  ///     l'appelant peut réessayer ;
+  ///  5. SUR 401 -> le jeton est de toute façon mort : purge locale + état
+  ///     `sessionExpired` (retour login), mais on NE prétend PAS avoir supprimé.
+  Future<AccountDeletionOutcome> deleteAccount() async {
+    final api = _accountApi;
+    if (api == null) return AccountDeletionOutcome.unavailable;
+    final token = await _repo.currentToken();
+    if (token == null || token.isEmpty) {
+      _set(AuthStatus.signedOut, null);
+      return AccountDeletionOutcome.unauthorized;
+    }
+    try {
+      await api.deleteAccount(token);
+    } on ApiUnauthorizedException {
+      await _repo.clearSession();
+      _set(AuthStatus.sessionExpired, null);
+      return AccountDeletionOutcome.unauthorized;
+    } on ApiNetworkException {
+      return AccountDeletionOutcome.retryable; // session CONSERVÉE
+    } on ApiException {
+      return AccountDeletionOutcome.retryable; // session CONSERVÉE
+    }
+    // Succès serveur confirmé -> on nettoie, dans cet ordre.
+    await _localUserData.clearPersonal();
+    await _repo.clearSession();
+    _set(AuthStatus.signedOut, null);
+    return AccountDeletionOutcome.ok;
   }
 
   void _set(AuthStatus status, Account? account) {

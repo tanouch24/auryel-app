@@ -23,36 +23,40 @@ import 'package:auryel/state/consultation_controller.dart';
 import 'package:auryel/widgets/advisors_carousel.dart';
 
 http.Response _json(Map<String, dynamic> body, [int status = 200]) =>
-    http.Response(jsonEncode(body), status,
-        headers: {'content-type': 'application/json'});
+    http.Response(
+      jsonEncode(body),
+      status,
+      headers: {'content-type': 'application/json'},
+    );
 
 /// Réponse POST /message minimale (sert aux tests « chat toujours utilisable »).
 Map<String, dynamic> _okMessage({String reply = 'Réponse conseiller'}) => {
-      'reply': reply,
-      'consultation': {
-        'id': 'c-live',
-        'advisor_id': 'maia',
-        'started_at': '2026-08-31T10:00:00Z',
-        'expires_at': '2999-01-01T00:00:00Z',
-        'seconds_remaining': 7000,
-        'credit_source': 'monthly',
-        'opened_now': false,
-      },
-      'quota': {
-        'is_premium': true,
-        'monthly_limit': 4,
-        'monthly_used': 1,
-        'monthly_remaining': 3,
-        'earned_available': 0,
-        'period_start': '2026-08-01T00:00:00Z',
-        'period_end': '2026-09-01T00:00:00Z',
-      },
-    };
+  'reply': reply,
+  'consultation': {
+    'id': 'c-live',
+    'advisor_id': 'maia',
+    'started_at': '2026-08-31T10:00:00Z',
+    'expires_at': '2999-01-01T00:00:00Z',
+    'seconds_remaining': 7000,
+    'credit_source': 'monthly',
+    'opened_now': false,
+  },
+  'quota': {
+    'is_premium': true,
+    'monthly_limit': 4,
+    'monthly_used': 1,
+    'monthly_remaining': 3,
+    'earned_available': 0,
+    'period_start': '2026-08-01T00:00:00Z',
+    'period_end': '2026-09-01T00:00:00Z',
+  },
+};
 
 typedef _Env = ({
   AuthController auth,
   ConsultationController consultation,
   List<String> getMessagesCalls,
+  List<Uri> getMessagesUrls,
   List<Map<String, dynamic>> postBodies,
 });
 
@@ -62,12 +66,14 @@ _Env _env(
   String? token = 'tok',
 }) {
   final getCalls = <String>[];
+  final getUrls = <Uri>[];
   final postBodies = <Map<String, dynamic>>[];
   final client = ApiClient(
     httpClient: MockClient((req) async {
       final path = req.url.path;
       if (path == '/api/consultation/messages' && req.method == 'GET') {
         getCalls.add(path);
+        getUrls.add(req.url);
         return messagesHandler(getCalls.length);
       }
       if (path == '/api/consultation/message' && req.method == 'POST') {
@@ -87,8 +93,10 @@ _Env _env(
     consultationApi: ConsultationApi(client),
     tirageApi: TirageApi(client),
   );
-  final consultation =
-      ConsultationController(api: ConsultationApi(client), auth: auth);
+  final consultation = ConsultationController(
+    api: ConsultationApi(client),
+    auth: auth,
+  );
   // Session active injectée (id = c-live), expiration lointaine.
   consultation.updateFromMessageResponse(
     ConsultationMessageResponse.fromJson({
@@ -115,6 +123,7 @@ _Env _env(
     auth: auth,
     consultation: consultation,
     getMessagesCalls: getCalls,
+    getMessagesUrls: getUrls,
     postBodies: postBodies,
   );
 }
@@ -123,6 +132,8 @@ Future<void> _pumpChat(
   WidgetTester tester,
   _Env e, {
   String? tirageId,
+  String? consultationId,
+  String advisorName = 'Maïa',
 }) {
   final state = AuryelState(
     repository: LocalOnboardingRepository(),
@@ -145,7 +156,8 @@ Future<void> _pumpChat(
           state: state,
           child: MaterialApp(
             home: ChatScreen(
-              advisor: advisorByNameOrNull('Maïa')!,
+              advisor: advisorByNameOrNull(advisorName)!,
+              consultationId: consultationId,
               tirageId: tirageId,
             ),
           ),
@@ -158,70 +170,80 @@ Future<void> _pumpChat(
 Map<String, dynamic> _history(
   String consultationId,
   List<(String, String)> msgs,
-) =>
-    {
-      'consultation_id': consultationId,
-      'messages': [
-        for (final (role, content) in msgs)
-          {'role': role, 'content': content, 'timestamp': '2026-08-31T10:00:00Z'},
-      ],
-    };
+) => {
+  'consultation_id': consultationId,
+  'messages': [
+    for (final (role, content) in msgs)
+      {'role': role, 'content': content, 'timestamp': '2026-08-31T10:00:00Z'},
+  ],
+};
 
 void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
 
   test('DTO ConsultationMessagesResponse.fromJson : parsing + robustesse', () {
-    final r = ConsultationMessagesResponse.fromJson(_history('c-1', [
-      ('user', 'salut'),
-      ('assistant', 'bonjour'),
-    ]));
+    final r = ConsultationMessagesResponse.fromJson(
+      _history('c-1', [('user', 'salut'), ('assistant', 'bonjour')]),
+    );
     expect(r.consultationId, 'c-1');
     expect(r.messages.length, 2);
     expect(r.messages.first.isUser, isTrue);
     expect(r.messages[1].isUser, isFalse);
     expect(r.messages.first.timestamp, isA<DateTime>());
 
-    final empty = ConsultationMessagesResponse.fromJson(
-        {'consultation_id': null, 'messages': null});
+    final empty = ConsultationMessagesResponse.fromJson({
+      'consultation_id': null,
+      'messages': null,
+    });
     expect(empty.consultationId, isNull);
     expect(empty.messages, isEmpty);
   });
 
-  testWidgets('reprise avec historique -> anciens messages affichés, dans l’ordre',
-      (t) async {
-    final e = _env((_) async => _json(_history('c-live', [
-          ('user', 'ma première question'),
-          ('assistant', 'ma réponse de conseiller'),
-          ('user', 'et ensuite ?'),
-        ])));
-    await _pumpChat(t, e);
-    await t.pump();
-    await t.pump();
+  testWidgets(
+    'reprise avec historique -> anciens messages affichés, dans l’ordre',
+    (t) async {
+      final e = _env(
+        (_) async => _json(
+          _history('c-live', [
+            ('user', 'ma première question'),
+            ('assistant', 'ma réponse de conseiller'),
+            ('user', 'et ensuite ?'),
+          ]),
+        ),
+      );
+      await _pumpChat(t, e);
+      await t.pump();
+      await t.pump();
 
-    expect(find.text('ma première question'), findsOneWidget);
-    expect(find.text('ma réponse de conseiller'), findsOneWidget);
-    expect(find.text('et ensuite ?'), findsOneWidget);
+      expect(find.text('ma première question'), findsOneWidget);
+      expect(find.text('ma réponse de conseiller'), findsOneWidget);
+      expect(find.text('et ensuite ?'), findsOneWidget);
 
-    // Ordre chronologique conservé (haut -> bas).
-    final y1 = t.getTopLeft(find.text('ma première question')).dy;
-    final y2 = t.getTopLeft(find.text('ma réponse de conseiller')).dy;
-    final y3 = t.getTopLeft(find.text('et ensuite ?')).dy;
-    expect(y1 < y2, isTrue);
-    expect(y2 < y3, isTrue);
+      // Ordre chronologique conservé (haut -> bas).
+      final y1 = t.getTopLeft(find.text('ma première question')).dy;
+      final y2 = t.getTopLeft(find.text('ma réponse de conseiller')).dy;
+      final y3 = t.getTopLeft(find.text('et ensuite ?')).dy;
+      expect(y1 < y2, isTrue);
+      expect(y2 < y3, isTrue);
 
-    // user = bulle à droite, assistant = bulle à gauche.
-    final userAlign = t.widget<Align>(find.ancestor(
-      of: find.text('ma première question'),
-      matching: find.byType(Align),
-    ));
-    final assistantAlign = t.widget<Align>(find.ancestor(
-      of: find.text('ma réponse de conseiller'),
-      matching: find.byType(Align),
-    ));
-    expect(userAlign.alignment, Alignment.centerRight);
-    expect(assistantAlign.alignment, Alignment.centerLeft);
-    e.consultation.dispose();
-  });
+      // user = bulle à droite, assistant = bulle à gauche.
+      final userAlign = t.widget<Align>(
+        find.ancestor(
+          of: find.text('ma première question'),
+          matching: find.byType(Align),
+        ),
+      );
+      final assistantAlign = t.widget<Align>(
+        find.ancestor(
+          of: find.text('ma réponse de conseiller'),
+          matching: find.byType(Align),
+        ),
+      );
+      expect(userAlign.alignment, Alignment.centerRight);
+      expect(assistantAlign.alignment, Alignment.centerLeft);
+      e.consultation.dispose();
+    },
+  );
 
   testWidgets('chargement une seule fois (GET /messages == 1)', (t) async {
     final e = _env((_) async => _json(_history('c-live', [('user', 'x')])));
@@ -234,35 +256,47 @@ void main() {
     e.consultation.dispose();
   });
 
-  testWidgets('historique vide -> aucun faux historique, invite de départ',
-      (t) async {
+  testWidgets('historique vide -> aucun faux historique, invite de départ', (
+    t,
+  ) async {
     final e = _env((_) async => _json(_history('c-live', const [])));
     await _pumpChat(t, e);
     await t.pump();
     await t.pump();
 
-    expect(find.text('Écris ton premier message pour commencer.'), findsOneWidget);
+    expect(
+      find.text('Écris ton premier message pour commencer.'),
+      findsOneWidget,
+    );
     expect(e.getMessagesCalls.length, 1);
     e.consultation.dispose();
   });
 
   testWidgets('consultation_id inattendu -> aucun message injecté', (t) async {
-    final e = _env((_) async => _json(_history('c-AUTRE', [
+    final e = _env(
+      (_) async => _json(
+        _history('c-AUTRE', [
           ('user', 'message qui ne doit pas apparaître'),
           ('assistant', 'ni celui-ci'),
-        ])));
+        ]),
+      ),
+    );
     await _pumpChat(t, e);
     await t.pump();
     await t.pump();
 
     expect(find.text('message qui ne doit pas apparaître'), findsNothing);
     expect(find.text('ni celui-ci'), findsNothing);
-    expect(find.text('Écris ton premier message pour commencer.'), findsOneWidget);
+    expect(
+      find.text('Écris ton premier message pour commencer.'),
+      findsOneWidget,
+    );
     e.consultation.dispose();
   });
 
-  testWidgets('erreur réseau historique -> chat toujours utilisable + retry',
-      (t) async {
+  testWidgets('erreur réseau historique -> chat toujours utilisable + retry', (
+    t,
+  ) async {
     var call = 0;
     final e = _env((c) async {
       call = c;
@@ -294,22 +328,155 @@ void main() {
     await t.pump();
     expect(e.getMessagesCalls.length, 2);
     expect(find.text('récupéré au 2e essai'), findsOneWidget);
-    expect((t.state(find.byType(ChatScreen)) as dynamic).debugHistoryError,
-        isFalse);
+    expect(
+      (t.state(find.byType(ChatScreen)) as dynamic).debugHistoryError,
+      isFalse,
+    );
     expect(call, 2);
     e.consultation.dispose();
   });
 
-  testWidgets('tirage_id inchangé : 1er POST le porte malgré l’historique chargé',
-      (t) async {
-    final e = _env((_) async => _json(_history('c-live', [
-          ('assistant', 'contexte précédent'),
-        ])));
-    await _pumpChat(t, e, tirageId: 'tir-77');
+  testWidgets(
+    'tirage_id inchangé : 1er POST le porte malgré l’historique chargé',
+    (t) async {
+      final e = _env(
+        (_) async =>
+            _json(_history('c-live', [('assistant', 'contexte précédent')])),
+      );
+      await _pumpChat(t, e, tirageId: 'tir-77');
+      await t.pump();
+      await t.pump();
+
+      expect(find.text('contexte précédent'), findsOneWidget);
+
+      await t.enterText(find.byType(TextField), 'à propos du tirage');
+      await t.pump();
+      await t.tap(find.byIcon(Icons.send_rounded));
+      await t.pump();
+      await t.pump();
+
+      expect(e.postBodies.single, {
+        'message': 'à propos du tirage',
+        'tirage_id': 'tir-77',
+      });
+      e.consultation.dispose();
+    },
+  );
+
+  // =========================================================================
+  // TIMER-D.1 — §11 : l'historique ne disparaît PAS quand `expires_at` est
+  // dépassé ou quand `window_active == false`.
+  // =========================================================================
+  testWidgets(
+    'H. expires_at PASSÉ + fenêtre inactive -> historique quand même chargé',
+    (t) async {
+      final e = _env(
+        (_) async => _json(
+          _history('c-live', [
+            ('user', 'question d\'il y a longtemps'),
+            ('assistant', 'réponse d\'il y a longtemps'),
+          ]),
+        ),
+      );
+      // On remplace l'état injecté par une consultation « ancienne » :
+      // expires_at très dans le passé, bloc time présent avec window_active=false
+      // mais du temps restant (portefeuille non vide).
+      e.consultation.updateFromMessageResponse(
+        ConsultationMessageResponse.fromJson({
+          'reply': 'x',
+          'consultation': {
+            'id': 'c-live',
+            'advisor_id': 'maia',
+            'started_at': '2020-01-01T10:00:00Z',
+            'expires_at': '2020-01-01T12:00:00Z', // largement dépassé
+            'seconds_remaining': 12000,
+            'credit_source': 'time',
+          },
+          'time': {
+            'first_free_remaining_seconds': 0,
+            'premium_remaining_seconds': 12000,
+            'purchased_remaining_seconds': 0,
+            'total_remaining_seconds': 12000,
+            'window_active': false,
+            'window_expires_at': null,
+          },
+          'quota': {'is_premium': true, 'monthly_limit': 8},
+        }),
+      );
+
+      expect(e.consultation.windowActive, isFalse);
+      expect(e.consultation.hasResumableConsultation, isTrue);
+
+      await _pumpChat(t, e);
+      await t.pump();
+      await t.pump();
+
+      expect(e.getMessagesCalls.length, 1); // l'historique EST demandé
+      expect(find.text('question d\'il y a longtemps'), findsOneWidget);
+      expect(find.text('réponse d\'il y a longtemps'), findsOneWidget);
+      e.consultation.dispose();
+    },
+  );
+
+  // =========================================================================
+  // J6-F2 — chemin multi-consultations : ChatScreen(consultationId, advisor)
+  // =========================================================================
+  testWidgets('§17 historique GET ciblé par consultation_id du fil fourni', (
+    t,
+  ) async {
+    final e = _env(
+      (_) async => _json(_history('c-ezra', [('assistant', 'salut à toi')])),
+    );
+    await _pumpChat(t, e, consultationId: 'c-ezra', advisorName: 'Ezra');
     await t.pump();
     await t.pump();
 
-    expect(find.text('contexte précédent'), findsOneWidget);
+    expect(
+      e.getMessagesUrls.single.queryParameters['consultation_id'],
+      'c-ezra',
+    );
+    expect(find.text('salut à toi'), findsOneWidget);
+    // §27/§9 — le header montre le conseiller FOURNI (Ezra), jamais Maïa
+    // (selectedAdvisor) ni le conseiller de la session partagée.
+    expect(find.text('Ezra'), findsOneWidget);
+    expect(find.text('Maïa'), findsNothing);
+    e.consultation.dispose();
+  });
+
+  testWidgets('§18 envoi POST porte consultation_id du fil fourni', (t) async {
+    final e = _env((_) async => _json(_history('c-ezra', const [])));
+    await _pumpChat(t, e, consultationId: 'c-ezra', advisorName: 'Ezra');
+    await t.pump();
+    await t.pump();
+
+    await t.enterText(find.byType(TextField), 'bonjour Ezra');
+    await t.pump();
+    await t.tap(find.byIcon(Icons.send_rounded));
+    await t.pump();
+    await t.pump();
+
+    expect(e.postBodies.single, {
+      'message': 'bonjour Ezra',
+      'consultation_id': 'c-ezra',
+    });
+    e.consultation.dispose();
+  });
+
+  testWidgets('§19 fil fourni + tirageId : 1er POST porte les deux, pas de '
+      'confirmation', (t) async {
+    final e = _env((_) async => _json(_history('c-ezra', const [])));
+    await _pumpChat(
+      t,
+      e,
+      consultationId: 'c-ezra',
+      advisorName: 'Ezra',
+      tirageId: 'tir-9',
+    );
+    await t.pump();
+    await t.pump();
+
+    // fil existant -> aucune popup « Ouvrir une consultation »
+    expect(find.text('Commencer'), findsNothing);
 
     await t.enterText(find.byType(TextField), 'à propos du tirage');
     await t.pump();
@@ -319,57 +486,9 @@ void main() {
 
     expect(e.postBodies.single, {
       'message': 'à propos du tirage',
-      'tirage_id': 'tir-77',
+      'consultation_id': 'c-ezra',
+      'tirage_id': 'tir-9',
     });
-    e.consultation.dispose();
-  });
-
-  // =========================================================================
-  // TIMER-D.1 — §11 : l'historique ne disparaît PAS quand `expires_at` est
-  // dépassé ou quand `window_active == false`.
-  // =========================================================================
-  testWidgets('H. expires_at PASSÉ + fenêtre inactive -> historique quand même chargé',
-      (t) async {
-    final e = _env((_) async => _json(_history('c-live', [
-          ('user', 'question d\'il y a longtemps'),
-          ('assistant', 'réponse d\'il y a longtemps'),
-        ])));
-    // On remplace l'état injecté par une consultation « ancienne » :
-    // expires_at très dans le passé, bloc time présent avec window_active=false
-    // mais du temps restant (portefeuille non vide).
-    e.consultation.updateFromMessageResponse(
-      ConsultationMessageResponse.fromJson({
-        'reply': 'x',
-        'consultation': {
-          'id': 'c-live',
-          'advisor_id': 'maia',
-          'started_at': '2020-01-01T10:00:00Z',
-          'expires_at': '2020-01-01T12:00:00Z', // largement dépassé
-          'seconds_remaining': 12000,
-          'credit_source': 'time',
-        },
-        'time': {
-          'first_free_remaining_seconds': 0,
-          'premium_remaining_seconds': 12000,
-          'purchased_remaining_seconds': 0,
-          'total_remaining_seconds': 12000,
-          'window_active': false,
-          'window_expires_at': null,
-        },
-        'quota': {'is_premium': true, 'monthly_limit': 8},
-      }),
-    );
-
-    expect(e.consultation.windowActive, isFalse);
-    expect(e.consultation.hasResumableConsultation, isTrue);
-
-    await _pumpChat(t, e);
-    await t.pump();
-    await t.pump();
-
-    expect(e.getMessagesCalls.length, 1); // l'historique EST demandé
-    expect(find.text('question d\'il y a longtemps'), findsOneWidget);
-    expect(find.text('réponse d\'il y a longtemps'), findsOneWidget);
     e.consultation.dispose();
   });
 }

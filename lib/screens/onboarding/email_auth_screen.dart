@@ -1,14 +1,28 @@
 import 'package:flutter/material.dart';
 
 import '../../api/api_client.dart';
+import '../../state/auryel_state.dart';
 import '../../state/auth_controller.dart';
+import '../../state/profile_restore.dart';
+import '../../state/session_profile_gate.dart';
 import '../../theme/auryel_theme.dart';
+import '../../widgets/auth_fields.dart';
+import '../../widgets/main_nav_shell.dart';
 import '../../widgets/onboarding_scaffold.dart';
-import 'otp_code_screen.dart';
+import 'first_name_screen.dart';
 
-/// Étape 5a — saisie de l'email. Déclenche `POST /api/auth/request-code`
-/// puis pousse l'écran de saisie du code. Auth RÉELLE (remplace le faux
-/// bouton "Continuer avec email").
+/// Connexion AUTH V2 — email + mot de passe, AUCUN code OTP.
+///
+/// Écran de retour : splash (session absente / expirée), déconnexion, 401
+/// rencontré en cours d'usage, ou lien « J'ai déjà un compte » depuis la
+/// création. En cas de succès : jeton stocké (comme avant), onboarding local
+/// marqué terminé, entrée dans l'app.
+///
+/// Cas legacy : un ancien compte créé par code OTP n'a pas encore de mot de
+/// passe -> le backend répond 409 `password_not_set`. On l'explique sans jargon
+/// et on propose un SEAM « Définir mon mot de passe » — l'endpoint public
+/// correspondant n'existe pas encore côté backend (cf. rapport). On ne relance
+/// JAMAIS l'OTP en douce.
 class EmailAuthScreen extends StatefulWidget {
   const EmailAuthScreen({super.key});
 
@@ -17,48 +31,125 @@ class EmailAuthScreen extends StatefulWidget {
 }
 
 class _EmailAuthScreenState extends State<EmailAuthScreen> {
-  final _controller = TextEditingController();
+  final _emailCtrl = TextEditingController();
+  final _passwordCtrl = TextEditingController();
+  final _passwordFocus = FocusNode();
+
+  bool _obscure = true;
   bool _loading = false;
   String? _error;
+  bool _needsPasswordSetup = false;
 
   static final _emailRe = RegExp(r'^[^@\s]+@[^@\s]+\.[^@\s]+$');
 
-  bool get _valid => _emailRe.hasMatch(_controller.text.trim());
+  bool get _formValid =>
+      _emailRe.hasMatch(_emailCtrl.text.trim()) &&
+      _passwordCtrl.text.isNotEmpty;
 
   @override
   void dispose() {
-    _controller.dispose();
+    _emailCtrl.dispose();
+    _passwordCtrl.dispose();
+    _passwordFocus.dispose();
     super.dispose();
   }
 
   Future<void> _submit() async {
-    final email = _controller.text.trim();
-    if (!_valid || _loading) return;
+    if (!_formValid || _loading) return;
+    FocusScope.of(context).unfocus();
+    final auth = AuthScope.of(context);
+    final state = AuryelStateScope.of(context);
     setState(() {
       _loading = true;
       _error = null;
+      _needsPasswordSetup = false;
     });
     try {
-      await AuthScope.of(context).requestCode(email);
+      await auth.loginWithPassword(_emailCtrl.text.trim(), _passwordCtrl.text);
+      _passwordCtrl.clear(); // le mot de passe n'est plus nécessaire
       if (!mounted) return;
-      Navigator.of(context).push(
-        MaterialPageRoute(builder: (_) => OtpCodeScreen(email: email)),
+      // CHANGEMENT DE COMPTE : si un AUTRE utilisateur se connecte sur cet
+      // appareil (userId authentifié ≠ userId local), on efface l'identité
+      // locale de l'utilisateur précédent (prénom / conseiller / DOB) — jamais
+      // affichée au nouvel utilisateur. Même utilisateur -> on conserve.
+      final newUserId = auth.account?.userId;
+      if (SessionProfileGate.mustForgetLocalIdentity(
+        accountUserId: newUserId ?? '',
+        localUserId: state.userId,
+      )) {
+        await state.forgetLocalIdentity();
+        if (!mounted) return;
+      }
+
+      // MULTI-APPAREIL — récupère le profil serveur réel (prénom / date de
+      // naissance / conseiller). Sur 401 : session déjà purgée -> retour login.
+      // Sur réseau KO / 5xx / 404 : session CONSERVÉE, on garde ce qu'on a
+      // (profil local du même compte, ou vide honnête après un changement de
+      // compte) — jamais les données de l'ancien compte.
+      final restore = await auth.fetchServerProfile();
+      if (!mounted) return;
+      if (restore.outcome == ProfileRestoreOutcome.unauthorized) {
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute(builder: (_) => const EmailAuthScreen()),
+          (route) => false,
+        );
+        return;
+      }
+      final profile = restore.profile;
+      if (profile != null) {
+        await applyServerProfileToState(state, profile);
+        if (!mounted) return;
+      }
+
+      await state.completeOnboarding(userId: newUserId);
+      if (!mounted) return;
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(builder: (_) => const MainNavShell()),
+        (route) => false,
       );
+    } on ApiUnauthorizedException {
+      _fail('Email ou mot de passe incorrect.');
+    } on ApiException catch (e) {
+      if (e.statusCode == 409 && e.code == 'password_not_set') {
+        _passwordCtrl.clear();
+        _fail(
+          'Ton compte Auryel existe déjà, mais aucun mot de passe n’y est '
+          'encore associé.',
+          needsPasswordSetup: true,
+        );
+      } else if (e.statusCode == 429) {
+        _fail(
+          'Trop de tentatives. Patiente quelques minutes avant de réessayer.',
+        );
+      } else if (e.statusCode == 503) {
+        _fail(
+          'Service temporairement indisponible. Réessaie dans quelques '
+          'instants.',
+        );
+      } else {
+        _fail('Connexion impossible pour le moment. Réessaie.');
+      }
     } on ApiNetworkException {
       _fail('Connexion impossible. Vérifie ta connexion et réessaie.');
-    } on ApiException {
-      _fail('Impossible d’envoyer le code pour l’instant. Réessaie plus tard.');
     } catch (_) {
       _fail('Une erreur est survenue. Réessaie.');
     }
   }
 
-  void _fail(String message) {
+  void _fail(String message, {bool needsPasswordSetup = false}) {
     if (!mounted) return;
     setState(() {
       _loading = false;
       _error = message;
+      _needsPasswordSetup = needsPasswordSetup;
     });
+  }
+
+  void _goCreateAccount() {
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute(builder: (_) => const FirstNameScreen()),
+      (route) => false,
+    );
   }
 
   @override
@@ -66,38 +157,30 @@ class _EmailAuthScreenState extends State<EmailAuthScreen> {
     return OnboardingScaffold(
       step: 5,
       totalSteps: 5,
-      title: 'Ton adresse email',
-      subtitle: 'On t’envoie un code à 6 chiffres pour sécuriser ton espace.',
-      ctaLabel: _loading ? 'Envoi…' : 'Recevoir mon code',
-      ctaEnabled: _valid && !_loading,
+      title: 'Bon retour',
+      subtitle: 'Connecte-toi avec ton email et ton mot de passe.',
+      ctaLabel: _loading ? 'Connexion…' : 'Se connecter',
+      ctaEnabled: _formValid && !_loading,
       onCta: _submit,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          TextField(
-            controller: _controller,
-            autofocus: true,
+          AuthEmailField(
+            controller: _emailCtrl,
             enabled: !_loading,
-            keyboardType: TextInputType.emailAddress,
-            autocorrect: false,
-            style: AuryelText.display(fontSize: 20, fontWeight: FontWeight.w500),
-            cursorColor: AuryelColors.gold,
-            onChanged: (_) => setState(() => _error = null),
-            onSubmitted: (_) => _submit(),
-            decoration: InputDecoration(
-              hintText: 'toi@exemple.com',
-              hintStyle: AuryelText.display(
-                fontSize: 20,
-                fontWeight: FontWeight.w500,
-                color: AuryelColors.textMuted,
-              ),
-              enabledBorder: UnderlineInputBorder(
-                borderSide: BorderSide(color: AuryelColors.warmBorder),
-              ),
-              focusedBorder: const UnderlineInputBorder(
-                borderSide: BorderSide(color: AuryelColors.gold, width: 1.5),
-              ),
-            ),
+            onChanged: () => setState(() => _error = null),
+            onSubmitted: _passwordFocus.requestFocus,
+          ),
+          const SizedBox(height: 22),
+          AuthPasswordField(
+            controller: _passwordCtrl,
+            focusNode: _passwordFocus,
+            enabled: !_loading,
+            obscure: _obscure,
+            newPassword: false,
+            onToggleObscure: () => setState(() => _obscure = !_obscure),
+            onChanged: () => setState(() => _error = null),
+            onSubmitted: _submit,
           ),
           if (_error != null) ...[
             const SizedBox(height: 16),
@@ -109,6 +192,27 @@ class _EmailAuthScreenState extends State<EmailAuthScreen> {
               ),
             ),
           ],
+          if (_needsPasswordSetup) ...[
+            const SizedBox(height: 12),
+            AuthSecondaryLink(
+              label: 'Définir mon mot de passe',
+              onTap: () {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text(
+                      'La définition d’un mot de passe pour les anciens comptes '
+                      'arrive très bientôt.',
+                    ),
+                  ),
+                );
+              },
+            ),
+          ],
+          const SizedBox(height: 18),
+          AuthSecondaryLink(
+            label: 'Créer un compte',
+            onTap: _loading ? null : _goCreateAccount,
+          ),
         ],
       ),
     );

@@ -71,9 +71,7 @@ class ConsultationTimeState {
   /// interpréter ça comme « 0 seconde ». Après le déploiement coordonné, le
   /// bloc `time` est toujours présent.
   static ConsultationTimeState? maybeFromJson(Object? raw) =>
-      raw is Map<String, dynamic>
-          ? ConsultationTimeState.fromJson(raw)
-          : null;
+      raw is Map<String, dynamic> ? ConsultationTimeState.fromJson(raw) : null;
 }
 
 /// DTO d'une consultation renvoyée par `POST /api/consultation/message` /
@@ -123,6 +121,63 @@ class ConsultationDto {
         creditSource: (json['credit_source'] ?? '').toString(),
         openedNow: json['opened_now'] == true,
       );
+}
+
+/// J6 — résumé d'un fil de discussion pour l'écran « Consultations en cours »
+/// (`GET /api/consultation/list`). Modèle V1 : UN fil par conseiller.
+///
+/// Parsing tolérant : `id` et `advisor_id` sont REQUIS (une entrée sans eux est
+/// inexploitable) ; `started_at` / `last_activity_at` ne sont parsés que s'ils
+/// portent une date valide ; `preview` absent / vide -> `null` (jamais de
+/// crash). `window_active` faux par défaut.
+class ConsultationSummaryDto {
+  const ConsultationSummaryDto({
+    required this.id,
+    required this.advisorId,
+    required this.startedAt,
+    required this.lastActivityAt,
+    required this.windowActive,
+    required this.preview,
+  });
+
+  final String id;
+  final String advisorId;
+  final DateTime? startedAt;
+  final DateTime? lastActivityAt;
+  final bool windowActive;
+
+  /// Extrait du dernier message du fil — `null` si le backend n'en fournit pas.
+  final String? preview;
+
+  /// `null` si l'entrée est inexploitable (`id` ou `advisor_id` absent) : la
+  /// couche API filtre alors la ligne au lieu de lever (même esprit que
+  /// [ConsultationMessagesResponse.fromJson]).
+  static ConsultationSummaryDto? tryFromJson(Object? raw) {
+    if (raw is! Map<String, dynamic>) return null;
+    final id = (raw['id'] ?? '').toString();
+    final advisorId = (raw['advisor_id'] ?? '').toString();
+    if (id.isEmpty || advisorId.isEmpty) return null;
+    final preview = raw['preview'];
+    return ConsultationSummaryDto(
+      id: id,
+      advisorId: advisorId,
+      startedAt: _date(raw['started_at']),
+      lastActivityAt: _date(raw['last_activity_at']),
+      windowActive: raw['window_active'] == true,
+      preview: (preview is String && preview.isNotEmpty) ? preview : null,
+    );
+  }
+
+  /// Liste depuis le corps `{ "consultations": [ … ] }`. Les entrées
+  /// inexploitables (voir [tryFromJson]) sont ignorées.
+  static List<ConsultationSummaryDto> listFromJson(Map<String, dynamic> json) {
+    final raw = json['consultations'];
+    if (raw is! List) return const [];
+    return raw
+        .map(ConsultationSummaryDto.tryFromJson)
+        .whereType<ConsultationSummaryDto>()
+        .toList(growable: false);
+  }
 }
 
 /// Un message d'historique renvoyé par `GET /api/consultation/messages`.

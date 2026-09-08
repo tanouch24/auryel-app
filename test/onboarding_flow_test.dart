@@ -19,26 +19,25 @@ AuryelState _state({
   String? selectedAdvisor,
   String? portraitData,
   String? portraitFeedback,
-}) =>
-    AuryelState(
-      repository: LocalOnboardingRepository(),
-      initial: OnboardingRecord(
-        userId: null,
-        selectedAdvisor: selectedAdvisor,
-        firstName: firstName,
-        birthDate: birthDate,
-        portraitData: portraitData,
-        portraitFeedback: portraitFeedback,
-        onboardingCompleted: false,
-      ),
-    );
+}) => AuryelState(
+  repository: LocalOnboardingRepository(),
+  initial: OnboardingRecord(
+    userId: null,
+    selectedAdvisor: selectedAdvisor,
+    firstName: firstName,
+    birthDate: birthDate,
+    portraitData: portraitData,
+    portraitFeedback: portraitFeedback,
+    onboardingCompleted: false,
+  ),
+);
 
 Future<void> _pump(WidgetTester tester, AuryelState state) => tester.pumpWidget(
-      AuryelStateScope(
-        state: state,
-        child: const MaterialApp(home: FirstNameScreen()),
-      ),
-    );
+  AuryelStateScope(
+    state: state,
+    child: const MaterialApp(home: FirstNameScreen()),
+  ),
+);
 
 int _step(WidgetTester tester) =>
     tester.widget<OnboardingScaffold>(find.byType(OnboardingScaffold)).step;
@@ -110,8 +109,9 @@ void main() {
     expect(state.birthDate, DateTime(2000, 5, 17));
   });
 
-  testWidgets('retour arrière : conseiller -> parle-moi de toi -> date',
-      (tester) async {
+  testWidgets('retour arrière : conseiller -> parle-moi de toi -> date', (
+    tester,
+  ) async {
     await _pump(tester, _state());
     await tester.enterText(find.byType(TextField), 'Alice');
     await tester.pump();
@@ -134,8 +134,9 @@ void main() {
     expect(_step(tester), 2);
   });
 
-  testWidgets('données existantes préremplies (prénom, date, conseiller)',
-      (tester) async {
+  testWidgets('données existantes préremplies (prénom, date, conseiller)', (
+    tester,
+  ) async {
     final state = _state(
       firstName: 'Bob',
       birthDate: DateTime(2000, 5, 17),
@@ -182,5 +183,42 @@ void main() {
     await tester.pumpAndSettle();
     // Toujours sur l'écran date : CTA désactivé a bloqué la navigation.
     expect(find.byType(BirthDateScreen), findsOneWidget);
+  });
+
+  testWidgets('règle 18+ : date valide mais < 18 ans -> message neutre + '
+      'Continuer désactivé ; corrigée -> on peut avancer', (tester) async {
+    await _pump(tester, _state());
+    await tester.enterText(find.byType(TextField), 'Alice');
+    await tester.pump();
+    await _tapContinue(tester);
+    expect(find.byType(BirthDateScreen), findsOneWidget);
+
+    // ~10 ans : date parfaitement valide mais sous le seuil.
+    final minorYear = DateTime.now().year - 10;
+    await tester.enterText(find.byType(TextField), '1 janvier $minorYear');
+    await tester.pump();
+
+    expect(
+      find.text('Auryel est réservé aux personnes âgées de 18 ans ou plus.'),
+      findsOneWidget,
+    );
+    expect(find.textContaining('✓'), findsNothing);
+
+    await tester.tap(find.text('Continuer'));
+    await tester.pumpAndSettle();
+    // Bloqué : l'onboarding ne peut pas se terminer.
+    expect(find.byType(BirthDateScreen), findsOneWidget);
+    expect(find.byType(PortraitScreen), findsNothing);
+
+    // Correction avec une date adulte -> le message disparaît, on avance.
+    await tester.enterText(find.byType(TextField), '17 mai 1995');
+    await tester.pump();
+    expect(
+      find.text('Auryel est réservé aux personnes âgées de 18 ans ou plus.'),
+      findsNothing,
+    );
+    expect(find.text('17 mai 1995 ✓'), findsOneWidget);
+    await _tapContinue(tester);
+    expect(find.byType(PortraitScreen), findsOneWidget);
   });
 }

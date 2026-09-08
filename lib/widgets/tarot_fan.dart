@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../theme/auryel_theme.dart';
+import 'tarot_card_back.dart';
 
 /// UX-B §9-§12 — les 22 arcanes présentés ENSEMBLE en éventail, comme un jeu
 /// tenu en main. Flutter pur : `LayoutBuilder` + `Stack` + `Positioned` +
@@ -48,9 +49,18 @@ class TarotFan extends StatelessWidget {
         final maxCardH = (height - 56).clamp(80.0, 260.0);
         final cardH = (cardW * 1.5).clamp(80.0, maxCardH);
 
-        // Pas horizontal : 1re carte à left=0, dernière à left=width-cardW.
-        // => la largeur totale est EXACTEMENT `width`, jamais plus.
-        final step = n > 1 ? (width - cardW) / (n - 1) : 0.0;
+        // B8.1 §5 — marge de sécurité latérale : les cartes de bord sont
+        // inclinées (Transform.rotate autour de bottomCenter) et légèrement
+        // agrandies (scale 1.08) quand sélectionnées ; sans cet `edge` leur
+        // coin supérieur dépasse hors du SizedBox sur écran étroit
+        // (constat Galaxy A07). La bande de cartes est donc rétrécie de `edge`
+        // de chaque côté -> plus aucun débordement horizontal.
+        final edge = (cardW * 0.18).clamp(0.0, 16.0);
+
+        // Pas horizontal : 1re carte à left=edge, dernière à left=width-cardW-edge.
+        // => la bande occupe AU PLUS `width`, jamais plus.
+        final span = (width - cardW - 2 * edge).clamp(0.0, double.infinity);
+        final step = n > 1 ? span / (n - 1) : 0.0;
 
         // Arc en parabole (centre le plus haut) + légère inclinaison.
         final arc = (height * 0.16).clamp(16.0, 52.0);
@@ -81,7 +91,7 @@ class TarotFan extends StatelessWidget {
           final lift = liftFor(i) + (sel != null ? -24.0 : 0.0);
           decorative.add(
             Positioned(
-              left: i * step,
+              left: edge + i * step,
               top: baseTop + lift,
               width: cardW,
               height: cardH,
@@ -101,11 +111,14 @@ class TarotFan extends StatelessWidget {
         final hits = <Widget>[];
         for (var i = 0; i < n; i++) {
           final isLast = i == n - 1;
-          final left = i * step - pad;
-          final w = isLast ? cardW + pad : step + 2 * pad;
+          final rawLeft = edge + i * step - pad;
+          final left = rawLeft < 0 ? 0.0 : rawLeft;
+          final rawW = isLast ? (cardW + 2 * pad) : (step + 2 * pad);
+          // Ne jamais dépasser le bord droit du SizedBox.
+          final w = (left + rawW > width ? width - left : rawW);
           hits.add(
             Positioned(
-              left: left < 0 ? 0 : left,
+              left: left,
               top: 0,
               width: w <= 0 ? cardW : w,
               height: hitHeight,
@@ -136,8 +149,9 @@ class TarotFan extends StatelessWidget {
   }
 }
 
-/// Dos de carte dessiné (jamais d'`Image`) — motif or sur `surfaceLight`.
-/// Quand la carte est sélectionnée : bordure or vive, halo, pastille numérotée.
+/// Dos de carte de l'éventail — délègue au dos partagé [TarotCardBack] (bleu
+/// nuit + rosace or, cohérent avec le tapis). Carte choisie : bordure vive +
+/// pastille numérotée.
 class _FanCardBack extends StatelessWidget {
   const _FanCardBack({this.selectionNumber});
 
@@ -150,49 +164,7 @@ class _FanCardBack extends StatelessWidget {
       clipBehavior: Clip.none,
       alignment: Alignment.topCenter,
       children: [
-        Container(
-          padding: const EdgeInsets.all(3),
-          decoration: BoxDecoration(
-            color: AuryelColors.surfaceLight,
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(
-              color: AuryelColors.gold.withValues(alpha: selected ? 0.95 : 0.5),
-              width: selected ? 1.8 : 1,
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: selected
-                    ? AuryelColors.gold.withValues(alpha: 0.30)
-                    : AuryelColors.backgroundDeep.withValues(alpha: 0.5),
-                blurRadius: selected ? 18 : 8,
-                spreadRadius: selected ? 1 : 0,
-                offset: const Offset(0, 4),
-              ),
-            ],
-          ),
-          child: Container(
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(7),
-              border: Border.all(
-                color: AuryelColors.gold.withValues(alpha: 0.3),
-                width: 0.6,
-              ),
-            ),
-            child: Center(
-              child: Transform.rotate(
-                angle: 0.785398,
-                child: Container(
-                  width: 9,
-                  height: 9,
-                  decoration: BoxDecoration(
-                    gradient: AuryelColors.goldGradient,
-                    borderRadius: BorderRadius.circular(2),
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ),
+        TarotCardBack(selected: selected),
         if (selected)
           Positioned(
             top: -11,

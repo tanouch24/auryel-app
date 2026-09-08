@@ -25,7 +25,14 @@ enum _Phase {
   syncBlocked,
 }
 
-/// Étape 5b — saisie du code à 6 chiffres.
+/// LEGACY (Auth V2) — saisie du code à 6 chiffres.
+///
+/// ⚠️ Plus dans le parcours actif : la création de compte et la connexion se
+/// font désormais par email + mot de passe (`AccountCreationScreen` /
+/// `EmailAuthScreen`, endpoints `/api/app/auth/register` & `/login`). Cet écran
+/// et `request-code`/`verify-code` sont conservés UNIQUEMENT pour un futur
+/// parcours « définir un mot de passe » sur un ancien compte OTP (login qui
+/// répond 409 `password_not_set`). Aucun nouvel utilisateur ne le voit.
 ///
 /// Flux : `verify-code` (jeton stocké + `GET /api/account`) ->
 /// `PATCH /api/app/profile` (guide + prénom + date de naissance issus de
@@ -146,9 +153,8 @@ class _OtpCodeScreenState extends State<OtpCodeScreen> {
     try {
       await AuthScope.of(context).requestCode(widget.email);
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Nouveau code envoyé.')),
-      );
+      ScaffoldMessenger.of(context)
+          .showSnackBar(const SnackBar(content: Text('Nouveau code envoyé.')));
     } catch (_) {
       _failCode('Impossible de renvoyer le code pour l’instant.');
     } finally {
@@ -267,7 +273,10 @@ class _OtpCodeScreenState extends State<OtpCodeScreen> {
           const SizedBox(height: 16),
           Text(
             _error!,
-            style: AuryelText.body(fontSize: 12.5, color: AuryelColors.goldLight),
+            style: AuryelText.body(
+              fontSize: 12.5,
+              color: AuryelColors.goldLight,
+            ),
           ),
         ],
         const SizedBox(height: 20),
@@ -320,7 +329,10 @@ class _OtpCodeScreenState extends State<OtpCodeScreen> {
           const SizedBox(height: 14),
           Text(
             _error!,
-            style: AuryelText.body(fontSize: 12.5, color: AuryelColors.goldLight),
+            style: AuryelText.body(
+              fontSize: 12.5,
+              color: AuryelColors.goldLight,
+            ),
           ),
         ],
       ],

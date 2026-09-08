@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:phosphor_icons/phosphor_icons.dart';
 
 import '../api/api_client.dart';
 import '../data/tarot_deck.dart';
@@ -12,7 +13,13 @@ import 'onboarding/email_auth_screen.dart';
 /// pagination par curseur `before`). Toutes les données affichées viennent du
 /// serveur ; le deck local ne sert qu'au mapping `key -> assetPath`.
 class BibliothequeScreen extends StatefulWidget {
-  const BibliothequeScreen({super.key});
+  const BibliothequeScreen({super.key, this.showBackButton = false});
+
+  /// B10.1 — `true` quand l'écran est ouvert en secondaire depuis « Mon
+  /// espace » (« Voir mes tirages ») : on affiche alors une flèche retour en
+  /// haut à gauche. `false` (défaut) quand il est monté comme onglet de la
+  /// bottom nav — aucune flèche, le comportement onglet ne change pas.
+  final bool showBackButton;
 
   @override
   State<BibliothequeScreen> createState() => _BibliothequeScreenState();
@@ -154,7 +161,25 @@ class _BibliothequeScreenState extends State<BibliothequeScreen> {
 
   Widget _body() {
     final header = <Widget>[
-      const SizedBox(height: 24),
+      if (widget.showBackButton) ...[
+        const SizedBox(height: 4),
+        Align(
+          alignment: Alignment.centerLeft,
+          child: IconButton(
+            onPressed: () => Navigator.of(context).maybePop(),
+            tooltip: 'Retour',
+            visualDensity: VisualDensity.compact,
+            constraints: const BoxConstraints(minWidth: 44, minHeight: 44),
+            icon: const PhosphorIcon(
+              PhosphorIconsRegular.arrowLeft,
+              size: 20,
+              color: AuryelColors.textMuted,
+            ),
+          ),
+        ),
+        const SizedBox(height: 4),
+      ] else
+        const SizedBox(height: 24),
       Text(
         'Bibliothèque',
         style: AuryelText.display(fontSize: 26, fontWeight: FontWeight.w600),

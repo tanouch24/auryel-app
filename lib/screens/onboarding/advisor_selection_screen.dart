@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../state/auryel_state.dart';
 import '../../theme/auryel_theme.dart';
 import '../../widgets/advisors_carousel.dart';
+import '../../widgets/ai_transparency_note.dart';
 import '../../widgets/onboarding_scaffold.dart';
 import 'account_creation_screen.dart';
 
@@ -38,9 +39,8 @@ class _AdvisorSelectionScreenState extends State<AdvisorSelectionScreen> {
   void _continue() {
     if (_selected == null) return;
     AuryelStateScope.of(context).selectAdvisor(_selected!);
-    Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => const AccountCreationScreen()),
-    );
+    Navigator.of(context)
+        .push(MaterialPageRoute(builder: (_) => const AccountCreationScreen()));
   }
 
   @override
@@ -49,29 +49,37 @@ class _AdvisorSelectionScreenState extends State<AdvisorSelectionScreen> {
       step: 4,
       totalSteps: 5,
       title: 'Choisis ton conseiller',
-      subtitle: 'Il t’accompagnera dans tes consultations. Tu pourras en '
+      subtitle:
+          'Il t’accompagnera dans tes consultations. Tu pourras en '
           'changer plus tard.',
       ctaLabel: 'Continuer',
       ctaEnabled: _selected != null,
       onCta: _continue,
-      child: GridView.builder(
-        shrinkWrap: true,
-        physics: const NeverScrollableScrollPhysics(),
-        itemCount: kAdvisors.length,
-        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: 2,
-          crossAxisSpacing: 12,
-          mainAxisSpacing: 12,
-          childAspectRatio: 0.60,
-        ),
-        itemBuilder: (context, index) {
-          final advisor = kAdvisors[index];
-          return _SelectableAdvisorTile(
-            advisor: advisor,
-            isSelected: advisor.name == _selected,
-            onTap: () => setState(() => _selected = advisor.name),
-          );
-        },
+      child: Column(
+        children: [
+          GridView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: kAdvisors.length,
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 2,
+              crossAxisSpacing: 12,
+              mainAxisSpacing: 12,
+              childAspectRatio: 0.60,
+            ),
+            itemBuilder: (context, index) {
+              final advisor = kAdvisors[index];
+              return _SelectableAdvisorTile(
+                advisor: advisor,
+                isSelected: advisor.name == _selected,
+                onTap: () => setState(() => _selected = advisor.name),
+              );
+            },
+          ),
+          const SizedBox(height: 12),
+          // Transparence IA au moment du choix du conseiller.
+          const AiTransparencyNote(padding: EdgeInsets.symmetric(vertical: 4)),
+        ],
       ),
     );
   }

@@ -82,6 +82,16 @@ class _FanHarnessState extends State<_FanHarness> {
   }
 }
 
+/// B8.2 — l'écran Tirage a désormais un fond « tapis » (assets/images/tarot_table_blank.png,
+/// 1 Image d'ambiance). Ce finder ne compte QUE les FACES de cartes
+/// (`assets/images/tarot/<slug>.png`), pour garder l'intention des tests.
+final _cardFaceImages = find.byWidgetPredicate(
+  (w) =>
+      w is Image &&
+      w.image is AssetImage &&
+      (w.image as AssetImage).assetName.contains('images/tarot/'),
+);
+
 void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
 
@@ -201,8 +211,7 @@ void main() {
 
       // --- après 3 choix : « Révéler » + récap, mais AUCUNE face ni appel --
       expect(find.text('Révéler mon tirage'), findsOneWidget);
-      expect(find.text('Tes 3 cartes sont choisies'), findsOneWidget);
-      expect(find.byType(Image), findsNothing);
+      expect(_cardFaceImages, findsNothing);
       expect(posts, isEmpty);
 
       // --- « Révéler » -> POST /api/tirages, 3 clés dans l’ordre des taps --
@@ -211,7 +220,7 @@ void main() {
 
       expect(posts, ['POST /api/tirages']);
       expect(keysSent.single, [deck[21], deck[0], deck[10]]);
-      expect(find.byType(Image), findsNWidgets(3));
+      expect(_cardFaceImages, findsNWidgets(3));
       expect(
         posts.where((p) => p.contains('/api/consultation')),
         isEmpty,

@@ -114,9 +114,55 @@ class AuryelState extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// B10.1 — applique une édition de prénom / date de naissance faite depuis
+  /// « Mon espace ». À n'appeler QU'APRÈS un PATCH backend réussi
+  /// (`AuthController.syncProfileFields` -> `ProfileSyncOutcome.ok`) : local et
+  /// serveur restent alignés. Persiste l'instantané via le repository.
+  Future<void> applyIdentityEdit({
+    String? firstName,
+    DateTime? birthDate,
+  }) async {
+    if (firstName != null) this.firstName = firstName;
+    if (birthDate != null) this.birthDate = birthDate;
+    notifyListeners();
+    await repository.save(_toRecord());
+  }
+
   void setBirthDate(DateTime date) {
     birthDate = date;
     notifyListeners();
+  }
+
+  /// PROFIL SERVEUR (multi-appareil) — applique le profil réel récupéré via
+  /// `GET /api/app/profile` (`AuthController.fetchServerProfile` ->
+  /// `ProfileRestoreOutcome.ok`). Le serveur PRIME pour prénom / date de
+  /// naissance / conseiller préféré dès qu'il renvoie une valeur.
+  ///
+  /// Tolérance profil PARTIEL : un paramètre `null` (le serveur n'a rien
+  /// renvoyé pour ce champ) NE remplace PAS la valeur locale et n'invente
+  /// aucune donnée. L'appelant a déjà résolu `advisorName` depuis le `guide`
+  /// backend via l'unique mapping `advisorByGuideKey` — `null` si le guide est
+  /// inconnu (aucun repli silencieux vers Séléna, pas de choix fabriqué).
+  ///
+  /// Ne touche à AUCUNE autre donnée (quota, Premium, temps de consultation,
+  /// historique, Billing ont leurs propres sources serveur). Persiste
+  /// l'instantané via le repository existant — un lancement hors ligne
+  /// ultérieur réutilisera le dernier profil valide du même compte.
+  Future<void> applyServerProfile({
+    required String userId,
+    String? firstName,
+    DateTime? birthDate,
+    String? advisorName,
+  }) async {
+    if (userId.isNotEmpty) this.userId = userId;
+    if (firstName != null && firstName.isNotEmpty) this.firstName = firstName;
+    if (birthDate != null) this.birthDate = birthDate;
+    if (advisorName != null && advisorName.isNotEmpty) {
+      selectedAdvisor = advisorName;
+    }
+    onboardingCompleted = true;
+    notifyListeners();
+    await repository.save(_toRecord());
   }
 
   void setPortraitData(String text) {
@@ -155,7 +201,23 @@ class AuryelState extends ChangeNotifier {
   /// Reset DEBUG uniquement — efface les données mock d'onboarding pour
   /// permettre de rejouer le parcours. Jamais exposé comme fonctionnalité
   /// utilisateur finale (voir le geste caché sur l'icône profil).
-  Future<void> debugReset() async {
+  Future<void> debugReset() => _wipeIdentity();
+
+  /// RGPD — à appeler UNIQUEMENT après un succès serveur de suppression de
+  /// compte ([AuthController.deleteAccount] -> [AccountDeletionOutcome.ok]).
+  /// Efface l'identité EN MÉMOIRE (prénom, date de naissance, conseiller,
+  /// portrait, userId) ET le snapshot persisté (`repository.clear()`), pour
+  /// qu'aucune donnée de l'ancien utilisateur ne subsiste dans l'app.
+  Future<void> clearForAccountDeletion() => _wipeIdentity();
+
+  /// CHANGEMENT DE COMPTE — à appeler quand un AUTRE utilisateur se connecte
+  /// sur cet appareil (`userId` authentifié ≠ `userId` local persisté). Évite
+  /// d'afficher le prénom / conseiller / date de naissance de l'utilisateur
+  /// précédent. Même effet que [clearForAccountDeletion] (l'app n'a pas encore
+  /// de récupération de profil serveur au login).
+  Future<void> forgetLocalIdentity() => _wipeIdentity();
+
+  Future<void> _wipeIdentity() async {
     await repository.clear();
     userId = null;
     selectedAdvisor = null;

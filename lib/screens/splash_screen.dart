@@ -3,11 +3,15 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 
+import '../data/intro_video_store.dart';
 import '../state/auryel_state.dart';
 import '../state/auth_controller.dart';
 import '../state/consultation_controller.dart';
+import '../state/profile_restore.dart';
+import '../state/session_profile_gate.dart';
 import '../theme/auryel_theme.dart';
 import '../widgets/main_nav_shell.dart';
+import 'intro_video_screen.dart';
 import 'onboarding/email_auth_screen.dart';
 import 'onboarding/first_name_screen.dart';
 
@@ -33,58 +37,121 @@ class _SplashScreenState extends State<SplashScreen> {
     // Restauration de session + durée mini de splash, en parallèle.
     final auth = AuthScope.of(context);
     final consultation = ConsultationScope.of(context);
+    final introSeenFuture = IntroVideoStore().hasSeen();
     await Future.wait([
       auth.restore(),
       Future<void>.delayed(const Duration(milliseconds: 2000)),
     ]);
+    final introSeen = await introSeenFuture;
     if (!mounted) return;
     // Resynchro de l'état consultation UNIQUEMENT une fois la session restaurée
     // et valide (le GET /state exige un Bearer). Lecture seule : aucun POST,
     // aucun crédit consommé.
     if (auth.isSignedIn) {
-      unawaited(consultation.refresh());
+      // Portefeuille (`/state`) + liste des consultations (`/list`, J6-F2).
+      unawaited(consultation.refreshAll());
     }
-    _goToNext(auth);
+    // MULTI-APPAREIL — au démarrage avec session valide, si le profil local est
+    // absent / incomplet / rattaché à un autre compte, on récupère le profil
+    // serveur réel avant d'entrer dans l'app.
+    await _maybeRestoreProfile(auth);
+    if (!mounted) return;
+    _goToNext(auth, introSeen: introSeen);
   }
 
-  void _goToNext(AuthController auth) {
-    if (!mounted) return;
-    final onboardingCompleted =
-        AuryelStateScope.of(context).onboardingCompleted;
+  /// Récupère le profil serveur AU DÉMARRAGE uniquement si nécessaire — un
+  /// profil local complet et du bon `userId` évite tout appel réseau (démarrage
+  /// rapide). Ne déconnecte jamais sur erreur réseau/5xx ; sur 401,
+  /// `AuthController` bascule en `sessionExpired` et [_goToNext] route vers le
+  /// login. Aucune donnée d'un autre compte n'est affichée (oubli local avant
+  /// fetch si `userId` diffère).
+  Future<void> _maybeRestoreProfile(AuthController auth) async {
+    // Pas de fetch en mode dégradé (networkError) : démarrage hors ligne, on
+    // s'appuie sur le dernier profil local valide.
+    if (auth.status != AuthStatus.signedIn) return;
+    final account = auth.account;
+    if (account == null || account.userId.isEmpty) return;
+    final state = AuryelStateScope.of(context);
 
-    final Widget next;
-    if (!onboardingCompleted) {
-      // Parcours d'onboarding depuis le début : prénom (1/5), date de
-      // naissance (2/5), « parle-moi de toi » (3/5), conseiller (4/5),
-      // création du compte (5/5, OTP inclus).
-      next = const FirstNameScreen();
-    } else {
-      // Onboarding terminé : SEUL un vrai jeton donne accès à l'app.
-      // Un onboarding local terminé et/ou un ancien `temp_xxx` ne comptent
-      // jamais comme une authentification.
-      switch (auth.status) {
-        case AuthStatus.signedIn:
-        case AuthStatus.networkError:
-          // Jeton présent et accepté, OU présent mais backend momentanément
-          // injoignable (jeton conservé) → accueil, éventuellement en mode
-          // dégradé/offline.
-          next = const MainNavShell();
-        case AuthStatus.signedOut:
-        case AuthStatus.sessionExpired:
-        case AuthStatus.unknown:
-          // Aucun jeton, ou jeton rejeté en 401 (déjà purgé) → connexion.
-          next = const EmailAuthScreen();
-      }
+    // Profil local complet ET du bon compte -> démarrage direct, aucun appel.
+    if (SessionProfileGate.localProfileUsableAsIs(
+      accountUserId: account.userId,
+      localUserId: state.userId,
+      firstName: state.firstName,
+      birthDate: state.birthDate,
+      selectedAdvisor: state.selectedAdvisor,
+    )) {
+      return;
     }
 
-    Navigator.of(context).pushReplacement(
-      PageRouteBuilder(
-        transitionDuration: const Duration(milliseconds: 450),
-        pageBuilder: (_, animation, secondaryAnimation) => next,
-        transitionsBuilder: (_, animation, secondaryAnimation, child) =>
-            FadeTransition(opacity: animation, child: child),
-      ),
+    if (SessionProfileGate.mustForgetLocalIdentity(
+      accountUserId: account.userId,
+      localUserId: state.userId,
+    )) {
+      await state.forgetLocalIdentity();
+      if (!mounted) return;
+    }
+
+    final restore = await auth.fetchServerProfile();
+    if (!mounted) return;
+    final profile = restore.profile;
+    if (profile != null) {
+      await applyServerProfileToState(state, profile);
+    }
+  }
+
+  static Route<void> _fadeRoute(Widget page) => PageRouteBuilder<void>(
+    transitionDuration: const Duration(milliseconds: 300),
+    pageBuilder: (_, _, _) => page,
+    transitionsBuilder: (_, animation, _, child) =>
+        FadeTransition(opacity: animation, child: child),
+  );
+
+  void _goToNext(AuthController auth, {required bool introSeen}) {
+    if (!mounted) return;
+    final onboardingCompleted = AuryelStateScope.of(context)
+        .onboardingCompleted;
+    final navigator = Navigator.of(context);
+
+    // Priorité : onboarding terminé -> jamais de vidéo ; sinon vidéo déjà vue
+    // -> onboarding direct ; sinon -> vidéo d'intro puis onboarding.
+    final step = IntroGate.decide(
+      onboardingCompleted: onboardingCompleted,
+      introVideoSeen: introSeen,
     );
+
+    final Widget next;
+    switch (step) {
+      case IntroStep.video:
+        next = IntroVideoScreen(
+          onDone: () =>
+              navigator.pushReplacement(_fadeRoute(const FirstNameScreen())),
+        );
+      case IntroStep.onboarding:
+        // Parcours d'onboarding depuis le début : prénom (1/5), date de
+        // naissance (2/5), « parle-moi de toi » (3/5), conseiller (4/5),
+        // création du compte (5/5, email + mot de passe — AUCUN code OTP).
+        next = const FirstNameScreen();
+      case IntroStep.authRouting:
+        // Onboarding terminé : SEUL un vrai jeton donne accès à l'app.
+        // Un onboarding local terminé et/ou un ancien `temp_xxx` ne comptent
+        // jamais comme une authentification.
+        switch (auth.status) {
+          case AuthStatus.signedIn:
+          case AuthStatus.networkError:
+            // Jeton présent et accepté, OU présent mais backend momentanément
+            // injoignable (jeton conservé) → accueil, éventuellement en mode
+            // dégradé/offline.
+            next = const MainNavShell();
+          case AuthStatus.signedOut:
+          case AuthStatus.sessionExpired:
+          case AuthStatus.unknown:
+            // Aucun jeton, ou jeton rejeté en 401 (déjà purgé) → connexion.
+            next = const EmailAuthScreen();
+        }
+    }
+
+    navigator.pushReplacement(_fadeRoute(next));
   }
 
   @override

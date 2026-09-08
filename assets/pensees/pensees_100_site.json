@@ -1,0 +1,902 @@
+[
+  {
+    "id": 1,
+    "publish_date": "2026-09-04",
+    "phrase": "Ce que tu n’oses pas regarder te dirige.",
+    "interpretation": "Ce que tu évites éclaire souvent ce qui te bloque. Aujourd’hui, regarde avec douceur ce que ton cœur repousse : c’est peut-être là que commence ton apaisement.",
+    "image_png": "publications/01_2026-09-04.png",
+    "image_webp": "publications/01_2026-09-04.webp",
+    "active": true
+  },
+  {
+    "id": 2,
+    "publish_date": "2026-09-05",
+    "phrase": "Le silence sait parfois ce que le bruit t’empêche d’entendre.",
+    "interpretation": "Quand tout s’agite autour de toi, reviens quelques instants au calme. Ton intuition parle rarement plus fort que tes peurs : elle parle plus doucement.",
+    "image_png": "publications/02_2026-09-05.png",
+    "image_webp": "publications/02_2026-09-05.webp",
+    "active": true
+  },
+  {
+    "id": 3,
+    "publish_date": "2026-09-06",
+    "phrase": "Ce qui doit grandir en toi demande d’abord de l’espace.",
+    "interpretation": "Tu n’as pas toujours besoin d’ajouter quelque chose à ta vie. Parfois, le chemin commence en laissant partir ce qui encombre ton cœur et ton esprit.",
+    "image_png": "publications/03_2026-09-06.png",
+    "image_webp": "publications/03_2026-09-06.webp",
+    "active": true
+  },
+  {
+    "id": 4,
+    "publish_date": "2026-09-07",
+    "phrase": "Une fin peut être une porte que tu n’avais pas encore vue.",
+    "interpretation": "Certaines séparations ne sont pas là pour te punir. Elles ouvrent parfois un passage vers une version de toi qui n’aurait jamais pu naître dans l’ancien espace.",
+    "image_png": "publications/04_2026-09-07.png",
+    "image_webp": "publications/04_2026-09-07.webp",
+    "active": true
+  },
+  {
+    "id": 5,
+    "publish_date": "2026-09-08",
+    "phrase": "Ton âme n’a pas besoin de courir pour avancer.",
+    "interpretation": "Tout mouvement n’est pas visible. Il existe des périodes où tu progresses en comprenant, en guérissant et en retrouvant ton centre, même si rien ne semble bouger à l’extérieur.",
+    "image_png": "publications/05_2026-09-08.png",
+    "image_webp": "publications/05_2026-09-08.webp",
+    "active": true
+  },
+  {
+    "id": 6,
+    "publish_date": "2026-09-09",
+    "phrase": "Ce qui revient dans ta vie revient peut-être pour être compris autrement.",
+    "interpretation": "Les mêmes émotions ou situations peuvent se répéter jusqu’à ce que ton regard change. Demande-toi non pas seulement « pourquoi encore ? », mais « qu’est-ce que je peux voir différemment ? ».",
+    "image_png": "publications/06_2026-09-09.png",
+    "image_webp": "publications/06_2026-09-09.webp",
+    "active": true
+  },
+  {
+    "id": 7,
+    "publish_date": "2026-09-10",
+    "phrase": "Tu n’as pas à forcer ce qui demande seulement d’être accueilli.",
+    "interpretation": "Certaines réponses apparaissent lorsque tu cesses de lutter contre ce que tu ressens. Accueillir une émotion ne signifie pas lui obéir : cela signifie lui permettre de t’apprendre quelque chose.",
+    "image_png": "publications/07_2026-09-10.png",
+    "image_webp": "publications/07_2026-09-10.webp",
+    "active": true
+  },
+  {
+    "id": 8,
+    "publish_date": "2026-09-11",
+    "phrase": "Ton intuition devient plus claire quand tu arrêtes de chercher des preuves partout.",
+    "interpretation": "Les signes extérieurs peuvent rassurer, mais ton ressenti profond se révèle surtout dans le calme. Observe ce qui reste vrai en toi quand les avis des autres se taisent.",
+    "image_png": "publications/08_2026-09-11.png",
+    "image_webp": "publications/08_2026-09-11.webp",
+    "active": true
+  },
+  {
+    "id": 9,
+    "publish_date": "2026-09-12",
+    "phrase": "Il y a des chemins qui ne s’ouvrent qu’après un renoncement.",
+    "interpretation": "Lâcher une attente, une habitude ou une relation peut sembler être une perte. Pourtant, ce vide peut devenir l’espace exact dont ta vie avait besoin pour prendre une autre direction.",
+    "image_png": "publications/09_2026-09-12.png",
+    "image_webp": "publications/09_2026-09-12.webp",
+    "active": true
+  },
+  {
+    "id": 10,
+    "publish_date": "2026-09-13",
+    "phrase": "La lumière n’efface pas l’ombre : elle t’aide à la traverser.",
+    "interpretation": "Être en paix ne signifie pas ne plus connaître de moments difficiles. Cela signifie apprendre à ne plus laisser l’obscurité décider seule de la direction que tu prends.",
+    "image_png": "publications/10_2026-09-13.png",
+    "image_webp": "publications/10_2026-09-13.webp",
+    "active": true
+  },
+  {
+    "id": 11,
+    "publish_date": "2026-09-14",
+    "phrase": "Ce que ton cœur sait déjà n’a pas toujours besoin d’une nouvelle confirmation.",
+    "interpretation": "Quand une vérité revient encore et encore, observe si tu cherches réellement une réponse ou simplement la permission de croire ce que tu ressens déjà.",
+    "image_png": "publications/11_2026-09-14.png",
+    "image_webp": "publications/11_2026-09-14.webp",
+    "active": true
+  },
+  {
+    "id": 12,
+    "publish_date": "2026-09-15",
+    "phrase": "Parfois, se retrouver commence par arrêter de se fuir.",
+    "interpretation": "Tu peux remplir tes journées, chercher des réponses ou penser aux autres pour éviter ce qui se passe en toi. Quelques minutes de présence sincère peuvent déjà changer ton rapport à toi-même.",
+    "image_png": "publications/12_2026-09-15.png",
+    "image_webp": "publications/12_2026-09-15.webp",
+    "active": true
+  },
+  {
+    "id": 13,
+    "publish_date": "2026-09-16",
+    "phrase": "Tu ne perds pas ce qui te conduit vers toi.",
+    "interpretation": "Certaines pertes font mal tout en révélant ce qui compte réellement. Avec le temps, elles peuvent te rapprocher de tes besoins, de tes limites et de ce que tu veux vraiment construire.",
+    "image_png": "publications/13_2026-09-16.png",
+    "image_webp": "publications/13_2026-09-16.webp",
+    "active": true
+  },
+  {
+    "id": 14,
+    "publish_date": "2026-09-17",
+    "phrase": "Ce qui t’apaise mérite autant d’attention que ce qui t’inquiète.",
+    "interpretation": "L’esprit se fixe facilement sur ce qui menace ou manque. Aujourd’hui, choisis aussi de remarquer ce qui te fait du bien : une présence, un lieu, une pensée, un souffle.",
+    "image_png": "publications/14_2026-09-17.png",
+    "image_webp": "publications/14_2026-09-17.webp",
+    "active": true
+  },
+  {
+    "id": 15,
+    "publish_date": "2026-09-18",
+    "phrase": "Ton énergie suit souvent l’endroit où tu poses ton attention.",
+    "interpretation": "Tu ne contrôles pas tout ce qui arrive, mais tu peux choisir ce que tu nourris le plus longtemps. Reviens vers ce qui t’aide à avancer plutôt que vers ce qui t’épuise sans réponse.",
+    "image_png": "publications/15_2026-09-18.png",
+    "image_webp": "publications/15_2026-09-18.webp",
+    "active": true
+  },
+  {
+    "id": 16,
+    "publish_date": "2026-09-19",
+    "phrase": "Une réponse juste peut commencer par une question plus simple.",
+    "interpretation": "Quand tout devient confus, reviens à l’essentiel : qu’est-ce qui est vrai maintenant ? Qu’est-ce qui te fait du bien ou du mal ? La clarté revient souvent par petites touches.",
+    "image_png": "publications/16_2026-09-19.png",
+    "image_webp": "publications/16_2026-09-19.webp",
+    "active": true
+  },
+  {
+    "id": 17,
+    "publish_date": "2026-09-20",
+    "phrase": "Ce qui est aligné avec toi ne te demandera pas toujours d’être rassuré.",
+    "interpretation": "Une décision juste peut faire peur, mais elle laisse souvent une forme de calme derrière elle. Observe la différence entre l’excitation de l’urgence et la paix d’un choix cohérent.",
+    "image_png": "publications/17_2026-09-20.png",
+    "image_webp": "publications/17_2026-09-20.webp",
+    "active": true
+  },
+  {
+    "id": 18,
+    "publish_date": "2026-09-21",
+    "phrase": "Tu peux honorer le passé sans lui confier ton avenir.",
+    "interpretation": "Ce qui a compté mérite d’être respecté, mais pas forcément répété. Garde l’enseignement, la tendresse ou la leçon, puis laisse ton prochain choix appartenir au présent.",
+    "image_png": "publications/18_2026-09-21.png",
+    "image_webp": "publications/18_2026-09-21.webp",
+    "active": true
+  },
+  {
+    "id": 19,
+    "publish_date": "2026-09-22",
+    "phrase": "Certaines réponses arrivent quand tu cesses de vouloir contrôler le moment.",
+    "interpretation": "Le besoin de savoir immédiatement peut créer plus de tension que la situation elle-même. Laisse parfois la vie te montrer ce que tu ne peux pas encore comprendre aujourd’hui.",
+    "image_png": "publications/19_2026-09-22.png",
+    "image_webp": "publications/19_2026-09-22.webp",
+    "active": true
+  },
+  {
+    "id": 20,
+    "publish_date": "2026-09-23",
+    "phrase": "Ton cœur peut être fatigué sans être perdu.",
+    "interpretation": "La fatigue émotionnelle brouille parfois tout : les envies, les décisions, les certitudes. Avant de conclure que tu ne sais plus où aller, offre-toi d’abord un peu de repos intérieur.",
+    "image_png": "publications/20_2026-09-23.png",
+    "image_webp": "publications/20_2026-09-23.webp",
+    "active": true
+  },
+  {
+    "id": 21,
+    "publish_date": "2026-09-24",
+    "phrase": "Ce que tu pardonnes en toi cesse peu à peu de te poursuivre.",
+    "interpretation": "Tu n’as pas besoin d’aimer toutes tes anciennes décisions. Les regarder avec compréhension permet de récupérer l’énergie que tu dépenses encore à te juger.",
+    "image_png": "publications/21_2026-09-24.png",
+    "image_webp": "publications/21_2026-09-24.webp",
+    "active": true
+  },
+  {
+    "id": 22,
+    "publish_date": "2026-09-25",
+    "phrase": "La paix commence parfois par un non que tu n’osais pas dire.",
+    "interpretation": "Une limite peut sembler dure lorsqu’on a l’habitude de s’adapter. Pourtant, protéger ton espace n’est pas fermer ton cœur : c’est apprendre à ne plus t’abandonner.",
+    "image_png": "publications/22_2026-09-25.png",
+    "image_webp": "publications/22_2026-09-25.webp",
+    "active": true
+  },
+  {
+    "id": 23,
+    "publish_date": "2026-09-26",
+    "phrase": "Tu n’as pas besoin de voir tout le chemin pour reconnaître la prochaine étape.",
+    "interpretation": "La vie ne te donne pas toujours une carte complète. Un pas sincère suffit parfois pour que la suite devienne visible.",
+    "image_png": "publications/23_2026-09-26.png",
+    "image_webp": "publications/23_2026-09-26.webp",
+    "active": true
+  },
+  {
+    "id": 24,
+    "publish_date": "2026-09-27",
+    "phrase": "Ce qui te touche profondément mérite d’être écouté avec douceur.",
+    "interpretation": "Une émotion intense n’est pas forcément une vérité absolue, mais elle porte souvent un message. Écoute ce qu’elle essaie de protéger, de demander ou de réparer en toi.",
+    "image_png": "publications/24_2026-09-27.png",
+    "image_webp": "publications/24_2026-09-27.webp",
+    "active": true
+  },
+  {
+    "id": 25,
+    "publish_date": "2026-09-28",
+    "phrase": "Il existe des rencontres qui t’apprennent surtout à revenir vers toi.",
+    "interpretation": "Toutes les relations ne sont pas faites pour durer de la même façon. Certaines révèlent tes besoins, tes blessures ou tes limites et deviennent malgré tout importantes par ce qu’elles t’ont appris.",
+    "image_png": "publications/25_2026-09-28.png",
+    "image_webp": "publications/25_2026-09-28.webp",
+    "active": true
+  },
+  {
+    "id": 26,
+    "publish_date": "2026-09-29",
+    "phrase": "Ton calme est aussi une forme de réponse.",
+    "interpretation": "Tu n’es pas obligé de réagir à chaque provocation, silence ou incertitude. Parfois, rester centré te permet de voir plus clairement ce qui mérite réellement ton énergie.",
+    "image_png": "publications/26_2026-09-29.png",
+    "image_webp": "publications/26_2026-09-29.webp",
+    "active": true
+  },
+  {
+    "id": 27,
+    "publish_date": "2026-09-30",
+    "phrase": "Ce que tu nourris en secret finit par façonner ta vie.",
+    "interpretation": "Tes pensées répétées, tes habitudes et les histoires que tu te racontes créent peu à peu une direction. Choisis aujourd’hui une pensée que tu veux vraiment voir grandir en toi.",
+    "image_png": "publications/27_2026-09-30.png",
+    "image_webp": "publications/27_2026-09-30.webp",
+    "active": true
+  },
+  {
+    "id": 28,
+    "publish_date": "2026-10-01",
+    "phrase": "Une blessure regardée avec conscience peut devenir une boussole.",
+    "interpretation": "Ce qui t’a fait souffrir peut t’apprendre ce que tu ne veux plus tolérer et ce que tu veux désormais protéger. La douleur ne décide pas de ton avenir, mais elle peut éclairer tes limites.",
+    "image_png": "publications/28_2026-10-01.png",
+    "image_webp": "publications/28_2026-10-01.webp",
+    "active": true
+  },
+  {
+    "id": 29,
+    "publish_date": "2026-10-02",
+    "phrase": "Tu peux avancer sans avoir toutes les réponses.",
+    "interpretation": "La confiance n’est pas toujours la certitude. Elle peut simplement être la décision de continuer avec ce que tu sais aujourd’hui, tout en laissant la suite se révéler.",
+    "image_png": "publications/29_2026-10-02.png",
+    "image_webp": "publications/29_2026-10-02.webp",
+    "active": true
+  },
+  {
+    "id": 30,
+    "publish_date": "2026-10-03",
+    "phrase": "Ce que tu cherches loin de toi est parfois déjà en train de naître en toi.",
+    "interpretation": "Avant de courir vers une nouvelle réponse, observe ce qui change déjà dans ta manière de penser, d’aimer ou de choisir. Certaines transformations commencent silencieusement.",
+    "image_png": "publications/30_2026-10-03.png",
+    "image_webp": "publications/30_2026-10-03.webp",
+    "active": true
+  },
+  {
+    "id": 31,
+    "publish_date": "2026-10-04",
+    "phrase": "Tu n’as pas besoin d’être compris par tout le monde pour rester fidèle à toi-même.",
+    "interpretation": "Chercher l’accord de chacun peut te pousser à te diluer. Certaines personnes comprendront ton chemin plus tard, d’autres jamais, et ce n’est pas une raison suffisante pour t’éloigner de ce qui te semble juste.",
+    "image_png": "publications/31_2026-10-04.png",
+    "image_webp": "publications/31_2026-10-04.webp",
+    "active": true
+  },
+  {
+    "id": 32,
+    "publish_date": "2026-10-05",
+    "phrase": "Ce que tu refuses de perdre peut parfois t’empêcher de recevoir autre chose.",
+    "interpretation": "Serrer trop fort ce qui s’en va laisse peu de place pour ce qui pourrait arriver. Desserrer un peu ta prise n’est pas renoncer : c’est faire de la place à ta vie pour se renouveler.",
+    "image_png": "publications/32_2026-10-05.png",
+    "image_webp": "publications/32_2026-10-05.webp",
+    "active": true
+  },
+  {
+    "id": 33,
+    "publish_date": "2026-10-06",
+    "phrase": "La clarté ne vient pas toujours d’une réponse, parfois d’une limite.",
+    "interpretation": "Tu attends peut-être de tout comprendre avant d’agir. Pourtant, décider ce que tu n’acceptes plus suffit souvent à dissiper le brouillard et à te montrer la direction.",
+    "image_png": "publications/33_2026-10-06.png",
+    "image_webp": "publications/33_2026-10-06.webp",
+    "active": true
+  },
+  {
+    "id": 34,
+    "publish_date": "2026-10-07",
+    "phrase": "Ce que tu ressens aujourd’hui n’a pas à décider de toute ta vie.",
+    "interpretation": "Une émotion forte donne l’impression d’être une vérité définitive. Laisse-lui le temps de passer avant d’en tirer des conclusions : demain, le même sujet aura peut-être un autre visage.",
+    "image_png": "publications/34_2026-10-07.png",
+    "image_webp": "publications/34_2026-10-07.webp",
+    "active": true
+  },
+  {
+    "id": 35,
+    "publish_date": "2026-10-08",
+    "phrase": "Il y a des jours où tenir bon est déjà une victoire invisible.",
+    "interpretation": "Tu ne verras pas toujours de progrès mesurable. Continuer à avancer malgré la fatigue, sans te trahir, compte autant que les journées où tout semble facile.",
+    "image_png": "publications/35_2026-10-08.png",
+    "image_webp": "publications/35_2026-10-08.webp",
+    "active": true
+  },
+  {
+    "id": 36,
+    "publish_date": "2026-10-09",
+    "phrase": "Le bon chemin n’est pas toujours celui qui fait le moins peur.",
+    "interpretation": "La peur signale parfois un danger, parfois seulement un pas important. Observe si ce que tu ressens est un avertissement réel ou simplement l’inconnu qui te demande du courage.",
+    "image_png": "publications/36_2026-10-09.png",
+    "image_webp": "publications/36_2026-10-09.webp",
+    "active": true
+  },
+  {
+    "id": 37,
+    "publish_date": "2026-10-10",
+    "phrase": "Ce qui te respecte te laisse encore de la place pour respirer.",
+    "interpretation": "Une relation, un projet ou un rythme sain ne t’oblige pas à disparaître pour exister. Si tu dois constamment te faire tout petit, ce n’est peut-être pas à toi de changer de taille.",
+    "image_png": "publications/37_2026-10-10.png",
+    "image_webp": "publications/37_2026-10-10.webp",
+    "active": true
+  },
+  {
+    "id": 38,
+    "publish_date": "2026-10-11",
+    "phrase": "Tu peux être en paix avec une décision qui te rend encore triste.",
+    "interpretation": "La tristesse ne veut pas toujours dire que tu t’es trompé. On peut pleurer ce qu’on quitte tout en sachant, au fond, que c’était le bon choix pour soi.",
+    "image_png": "publications/38_2026-10-11.png",
+    "image_webp": "publications/38_2026-10-11.webp",
+    "active": true
+  },
+  {
+    "id": 39,
+    "publish_date": "2026-10-12",
+    "phrase": "Ce que tu répètes devient une direction.",
+    "interpretation": "Tes gestes quotidiens, même minuscules, dessinent lentement ta vie. Choisis aujourd’hui une habitude que tu aimerais retrouver dans un an, et commence par une seule fois.",
+    "image_png": "publications/39_2026-10-12.png",
+    "image_webp": "publications/39_2026-10-12.webp",
+    "active": true
+  },
+  {
+    "id": 40,
+    "publish_date": "2026-10-13",
+    "phrase": "Ton cœur mérite des réponses qui ne demandent pas de t’abandonner.",
+    "interpretation": "Certaines solutions règlent un problème mais en créent un plus profond en toi. Une vraie réponse te permet de rester entier, pas seulement de faire taire l’inconfort.",
+    "image_png": "publications/40_2026-10-13.png",
+    "image_webp": "publications/40_2026-10-13.webp",
+    "active": true
+  },
+  {
+    "id": 41,
+    "publish_date": "2026-10-14",
+    "phrase": "Le temps révèle souvent ce que l’urgence déforme.",
+    "interpretation": "Sous pression, tout paraît grave et définitif. En laissant passer quelques jours, tu verras plus nettement ce qui comptait vraiment et ce qui n’était que de la panique.",
+    "image_png": "publications/41_2026-10-14.png",
+    "image_webp": "publications/41_2026-10-14.webp",
+    "active": true
+  },
+  {
+    "id": 42,
+    "publish_date": "2026-10-15",
+    "phrase": "La douceur envers toi n’est pas un détour, c’est une force.",
+    "interpretation": "Se traiter avec dureté ne rend pas plus efficace, seulement plus épuisé. La bienveillance envers soi permet souvent de tenir plus longtemps et de choisir plus clairement.",
+    "image_png": "publications/42_2026-10-15.png",
+    "image_webp": "publications/42_2026-10-15.webp",
+    "active": true
+  },
+  {
+    "id": 43,
+    "publish_date": "2026-10-16",
+    "phrase": "Ce que tu quittes peut continuer à t’enseigner sans continuer à te retenir.",
+    "interpretation": "Tu peux garder la leçon d’une histoire sans en garder le poids. Remercier ce qui t’a fait grandir n’oblige pas à y rester attaché.",
+    "image_png": "publications/43_2026-10-16.png",
+    "image_webp": "publications/43_2026-10-16.webp",
+    "active": true
+  },
+  {
+    "id": 44,
+    "publish_date": "2026-10-17",
+    "phrase": "Tu n’as pas à expliquer sans fin ce que ton cœur a déjà compris.",
+    "interpretation": "Chercher à convaincre encore et encore est parfois une façon de douter à voix haute. Si tu sais ce qui est juste pour toi, tu n’as pas besoin de l’accord de tout le monde pour l’honorer.",
+    "image_png": "publications/44_2026-10-17.png",
+    "image_webp": "publications/44_2026-10-17.webp",
+    "active": true
+  },
+  {
+    "id": 45,
+    "publish_date": "2026-10-18",
+    "phrase": "Une vérité douce reste une vérité.",
+    "interpretation": "Dire les choses avec délicatesse ne les rend pas moins réelles. Tu peux poser une limite ou nommer un ressenti sans dureté, et cela n’enlève rien à sa valeur.",
+    "image_png": "publications/45_2026-10-18.png",
+    "image_webp": "publications/45_2026-10-18.webp",
+    "active": true
+  },
+  {
+    "id": 46,
+    "publish_date": "2026-10-19",
+    "phrase": "Ce qui te manque n’est pas toujours ce dont tu as besoin.",
+    "interpretation": "Le manque crie fort, surtout le soir. Avant de conclure qu’il te faut absolument telle personne ou telle chose, demande-toi ce que tu cherches vraiment à travers elle.",
+    "image_png": "publications/46_2026-10-19.png",
+    "image_webp": "publications/46_2026-10-19.webp",
+    "active": true
+  },
+  {
+    "id": 47,
+    "publish_date": "2026-10-20",
+    "phrase": "Ton prochain chapitre n’a pas besoin de ressembler au précédent.",
+    "interpretation": "On croit souvent devoir reproduire ce qu’on connaît, même quand cela ne nous convient plus. Tu as le droit d’écrire la suite avec d’autres règles.",
+    "image_png": "publications/47_2026-10-20.png",
+    "image_webp": "publications/47_2026-10-20.webp",
+    "active": true
+  },
+  {
+    "id": 48,
+    "publish_date": "2026-10-21",
+    "phrase": "Ce qui te semble vide peut être un espace en train de se préparer.",
+    "interpretation": "Une période creuse n’est pas toujours un échec. Parfois, elle laisse simplement le temps à quelque chose de neuf de trouver sa place sans être bousculé.",
+    "image_png": "publications/48_2026-10-21.png",
+    "image_webp": "publications/48_2026-10-21.webp",
+    "active": true
+  },
+  {
+    "id": 49,
+    "publish_date": "2026-10-22",
+    "phrase": "Tu peux choisir la paix même sans obtenir toutes les réponses.",
+    "interpretation": "Attendre de tout comprendre avant de te sentir bien peut te retenir longtemps. La paix est parfois une décision que tu prends avant que la situation ne soit close.",
+    "image_png": "publications/49_2026-10-22.png",
+    "image_webp": "publications/49_2026-10-22.webp",
+    "active": true
+  },
+  {
+    "id": 50,
+    "publish_date": "2026-10-23",
+    "phrase": "L’intuition ne crie pas toujours : parfois elle répète doucement la même chose.",
+    "interpretation": "Ce n’est pas forcément un éclair soudain. Remarque ce qui revient calmement en toi depuis des semaines, sans drame : c’est souvent là que ton ressenti profond te parle.",
+    "image_png": "publications/50_2026-10-23.png",
+    "image_webp": "publications/50_2026-10-23.webp",
+    "active": true
+  },
+  {
+    "id": 51,
+    "publish_date": "2026-10-24",
+    "phrase": "Ce que tu laisses entrer chaque jour influence ce qui grandit en toi.",
+    "interpretation": "Les images, les conversations et les pensées que tu fréquentes te façonnent lentement. Choisis avec un peu plus de soin ce à quoi tu donnes ton attention.",
+    "image_png": "publications/51_2026-10-24.png",
+    "image_webp": "publications/51_2026-10-24.webp",
+    "active": true
+  },
+  {
+    "id": 52,
+    "publish_date": "2026-10-25",
+    "phrase": "Une limite posée aujourd’hui peut devenir une paix durable demain.",
+    "interpretation": "Dire non une fois peut être inconfortable sur le moment. Mais cet inconfort bref évite souvent des mois de tension silencieuse et de ressentiment.",
+    "image_png": "publications/52_2026-10-25.png",
+    "image_webp": "publications/52_2026-10-25.webp",
+    "active": true
+  },
+  {
+    "id": 53,
+    "publish_date": "2026-10-26",
+    "phrase": "Tu n’es pas en retard sur ta propre vie.",
+    "interpretation": "Les calendriers des autres ne sont pas des règles. Ton rythme, tes détours et tes recommencements font partie d’un chemin qui n’appartient qu’à toi.",
+    "image_png": "publications/53_2026-10-26.png",
+    "image_webp": "publications/53_2026-10-26.webp",
+    "active": true
+  },
+  {
+    "id": 54,
+    "publish_date": "2026-10-27",
+    "phrase": "Ce qui te ressemble vraiment n’a pas besoin d’être forcé en permanence.",
+    "interpretation": "Quand tout demande un effort constant pour tenir, quelque chose sonne faux. Ce qui te correspond laisse aussi des moments où tu peux simplement être, sans te contraindre.",
+    "image_png": "publications/54_2026-10-27.png",
+    "image_webp": "publications/54_2026-10-27.webp",
+    "active": true
+  },
+  {
+    "id": 55,
+    "publish_date": "2026-10-28",
+    "phrase": "Tu peux aimer un souvenir sans vouloir revivre l’histoire.",
+    "interpretation": "Garder de la tendresse pour ce qui a été ne t’oblige pas à y retourner. Un beau souvenir peut rester beau justement parce qu’il appartient au passé.",
+    "image_png": "publications/55_2026-10-28.png",
+    "image_webp": "publications/55_2026-10-28.webp",
+    "active": true
+  },
+  {
+    "id": 56,
+    "publish_date": "2026-10-29",
+    "phrase": "Le vrai changement commence souvent avant qu’on puisse le montrer.",
+    "interpretation": "Tu peux te transformer intérieurement pendant des mois sans preuve visible. Ne juge pas ton évolution seulement à ce que les autres remarquent.",
+    "image_png": "publications/56_2026-10-29.png",
+    "image_webp": "publications/56_2026-10-29.webp",
+    "active": true
+  },
+  {
+    "id": 57,
+    "publish_date": "2026-10-30",
+    "phrase": "Ce que tu choisis de ne plus porter libère aussi ton avenir.",
+    "interpretation": "Un ressentiment, une culpabilité ou une attente ancienne occupent de l’énergie chaque jour. Déposer ce poids ne réécrit pas le passé, mais rend le présent plus léger.",
+    "image_png": "publications/57_2026-10-30.png",
+    "image_webp": "publications/57_2026-10-30.webp",
+    "active": true
+  },
+  {
+    "id": 58,
+    "publish_date": "2026-10-31",
+    "phrase": "Tu n’as pas besoin d’un signe spectaculaire pour écouter ce qui est évident.",
+    "interpretation": "On attend parfois une confirmation extraordinaire pour s’autoriser à agir. Souvent, ce que tu sais déjà, calmement, suffit largement pour faire le premier pas.",
+    "image_png": "publications/58_2026-10-31.png",
+    "image_webp": "publications/58_2026-10-31.webp",
+    "active": true
+  },
+  {
+    "id": 59,
+    "publish_date": "2026-11-01",
+    "phrase": "Ton énergie mérite une direction, pas seulement une réaction.",
+    "interpretation": "Passer ses journées à répondre aux imprévus des autres épuise sans faire avancer. Réserve un peu de ta force pour ce que toi tu as choisi de construire.",
+    "image_png": "publications/59_2026-11-01.png",
+    "image_webp": "publications/59_2026-11-01.webp",
+    "active": true
+  },
+  {
+    "id": 60,
+    "publish_date": "2026-11-02",
+    "phrase": "Ce qui te blesse régulièrement mérite plus qu’une excuse occasionnelle.",
+    "interpretation": "Un mot gentil de temps en temps ne répare pas un schéma qui se répète. Observe si la situation change vraiment ou si seules les promesses reviennent.",
+    "image_png": "publications/60_2026-11-02.png",
+    "image_webp": "publications/60_2026-11-02.webp",
+    "active": true
+  },
+  {
+    "id": 61,
+    "publish_date": "2026-11-03",
+    "phrase": "Tu peux revenir à toi sans fermer ton cœur aux autres.",
+    "interpretation": "Prendre soin de tes besoins n’est pas de l’égoïsme. On donne souvent plus juste, et plus longtemps, quand on ne se vide pas soi-même en premier.",
+    "image_png": "publications/61_2026-11-03.png",
+    "image_webp": "publications/61_2026-11-03.webp",
+    "active": true
+  },
+  {
+    "id": 62,
+    "publish_date": "2026-11-04",
+    "phrase": "La paix ne demande pas toujours que tout soit réglé.",
+    "interpretation": "Certaines questions resteront ouvertes un moment. Tu peux apprendre à vivre sereinement à côté d’elles, sans attendre qu’elles se ferment pour respirer.",
+    "image_png": "publications/62_2026-11-04.png",
+    "image_webp": "publications/62_2026-11-04.webp",
+    "active": true
+  },
+  {
+    "id": 63,
+    "publish_date": "2026-11-05",
+    "phrase": "Ce que tu veux vraiment devient plus visible quand tu cesses de vouloir plaire.",
+    "interpretation": "En cherchant l’approbation, on finit par confondre ses envies avec celles des autres. Le calme apparaît quand tu écoutes d’abord ce que toi tu préfères.",
+    "image_png": "publications/63_2026-11-05.png",
+    "image_webp": "publications/63_2026-11-05.webp",
+    "active": true
+  },
+  {
+    "id": 64,
+    "publish_date": "2026-11-06",
+    "phrase": "Une absence peut créer un vide sans créer une obligation de retour.",
+    "interpretation": "Le manque de quelqu’un ne prouve pas que cette place doit être reprise. Tu peux ressentir l’espace laissé et choisir malgré tout de ne pas le combler par la même personne.",
+    "image_png": "publications/64_2026-11-06.png",
+    "image_webp": "publications/64_2026-11-06.webp",
+    "active": true
+  },
+  {
+    "id": 65,
+    "publish_date": "2026-11-07",
+    "phrase": "Ton courage n’a pas besoin d’être spectaculaire pour être réel.",
+    "interpretation": "Envoyer un message difficile, poser une question, dire la vérité doucement : ce sont de petits actes qui demandent beaucoup. Ils comptent, même si personne ne les applaudit.",
+    "image_png": "publications/65_2026-11-07.png",
+    "image_webp": "publications/65_2026-11-07.webp",
+    "active": true
+  },
+  {
+    "id": 66,
+    "publish_date": "2026-11-08",
+    "phrase": "Ce qui s’effondre n’était peut-être pas destiné à porter tout ton avenir.",
+    "interpretation": "Quand une chose se défait malgré tes efforts, ce n’est pas toujours un échec de ta part. Parfois, une base fragile cède pour laisser place à quelque chose de plus solide.",
+    "image_png": "publications/66_2026-11-08.png",
+    "image_webp": "publications/66_2026-11-08.webp",
+    "active": true
+  },
+  {
+    "id": 67,
+    "publish_date": "2026-11-09",
+    "phrase": "Tu peux changer de direction sans renier le chemin parcouru.",
+    "interpretation": "Bifurquer n’efface pas ce que tu as vécu ni appris. Tu as le droit de dire : c’était juste hier, et aujourd’hui je choisis autre chose.",
+    "image_png": "publications/67_2026-11-09.png",
+    "image_webp": "publications/67_2026-11-09.webp",
+    "active": true
+  },
+  {
+    "id": 68,
+    "publish_date": "2026-11-10",
+    "phrase": "Ce qui est vrai pour toi mérite d’être entendu avant d’être expliqué.",
+    "interpretation": "Avant de chercher les bons mots pour les autres, accorde-toi un moment pour reconnaître ton ressenti tel qu’il est. Il n’a pas à être parfaitement argumenté pour compter.",
+    "image_png": "publications/68_2026-11-10.png",
+    "image_webp": "publications/68_2026-11-10.webp",
+    "active": true
+  },
+  {
+    "id": 69,
+    "publish_date": "2026-11-11",
+    "phrase": "Une attente prolongée finit parfois par devenir une décision que tu n’as pas prise.",
+    "interpretation": "Ne pas choisir devient aussi un choix, avec le temps. Regarde si tu attends encore par espoir sincère ou seulement par peur de trancher.",
+    "image_png": "publications/69_2026-11-11.png",
+    "image_webp": "publications/69_2026-11-11.webp",
+    "active": true
+  },
+  {
+    "id": 70,
+    "publish_date": "2026-11-12",
+    "phrase": "Ton cœur n’a pas besoin d’être certain pour être sincère.",
+    "interpretation": "On peut aimer, s’engager ou avancer avec des doutes. La sincérité, ce n’est pas l’absence d’hésitation : c’est l’honnêteté avec ce que tu ressens vraiment.",
+    "image_png": "publications/70_2026-11-12.png",
+    "image_webp": "publications/70_2026-11-12.webp",
+    "active": true
+  },
+  {
+    "id": 71,
+    "publish_date": "2026-11-13",
+    "phrase": "Ce que tu refuses de regarder continue souvent à demander ton attention.",
+    "interpretation": "Éviter un sujet ne le fait pas disparaître : il revient par la fatigue, l’irritation ou les nuits agitées. Le regarder un instant, sans te juger, apaise souvent plus qu’on ne le craint.",
+    "image_png": "publications/71_2026-11-13.png",
+    "image_webp": "publications/71_2026-11-13.webp",
+    "active": true
+  },
+  {
+    "id": 72,
+    "publish_date": "2026-11-14",
+    "phrase": "Il existe des réponses qui se trouvent seulement dans le mouvement.",
+    "interpretation": "Certaines questions ne se résolvent pas en y pensant davantage. Un premier pas concret, même petit, fait parfois apparaître ce que la réflexion seule ne pouvait pas montrer.",
+    "image_png": "publications/72_2026-11-14.png",
+    "image_webp": "publications/72_2026-11-14.webp",
+    "active": true
+  },
+  {
+    "id": 73,
+    "publish_date": "2026-11-15",
+    "phrase": "Tu peux te protéger sans devenir dur.",
+    "interpretation": "Poser des limites ne demande pas de fermer complètement ton cœur. On peut rester chaleureux tout en refusant ce qui nous abîme.",
+    "image_png": "publications/73_2026-11-15.png",
+    "image_webp": "publications/73_2026-11-15.webp",
+    "active": true
+  },
+  {
+    "id": 74,
+    "publish_date": "2026-11-16",
+    "phrase": "Ce que tu fais de ton énergie compte plus que ce que tu promets de faire demain.",
+    "interpretation": "Les grandes résolutions rassurent, mais c’est le geste d’aujourd’hui qui construit. Un petit acte réel vaut mieux qu’un plan parfait sans cesse repoussé.",
+    "image_png": "publications/74_2026-11-16.png",
+    "image_webp": "publications/74_2026-11-16.webp",
+    "active": true
+  },
+  {
+    "id": 75,
+    "publish_date": "2026-11-17",
+    "phrase": "La confiance revient souvent après le premier pas, pas avant.",
+    "interpretation": "On attend de se sentir prêt pour agir, alors que c’est souvent l’action qui crée le sentiment d’être capable. Commence petit, la confiance suivra.",
+    "image_png": "publications/75_2026-11-17.png",
+    "image_webp": "publications/75_2026-11-17.webp",
+    "active": true
+  },
+  {
+    "id": 76,
+    "publish_date": "2026-11-18",
+    "phrase": "Ce qui t’a réveillé intérieurement ne te laissera peut-être plus revenir exactement comme avant.",
+    "interpretation": "Après avoir compris quelque chose d’important sur toi, il devient difficile de faire semblant de l’ignorer. Ce n’est pas une perte : c’est le signe que tu as grandi.",
+    "image_png": "publications/76_2026-11-18.png",
+    "image_webp": "publications/76_2026-11-18.webp",
+    "active": true
+  },
+  {
+    "id": 77,
+    "publish_date": "2026-11-19",
+    "phrase": "Tu peux laisser une question ouverte sans laisser ta vie en suspens.",
+    "interpretation": "Toutes les incertitudes n’ont pas besoin d’être résolues pour que tu continues d’avancer. Tu peux vivre pleinement à côté de ce qui n’est pas encore clair.",
+    "image_png": "publications/77_2026-11-19.png",
+    "image_webp": "publications/77_2026-11-19.webp",
+    "active": true
+  },
+  {
+    "id": 78,
+    "publish_date": "2026-11-20",
+    "phrase": "Ce qui te fait du bien n’a pas toujours besoin d’être mérité.",
+    "interpretation": "Le repos, la douceur et la joie ne sont pas des récompenses à mériter. Tu as le droit d’y avoir accès simplement parce que tu es vivant, pas seulement parce que tu as assez fait.",
+    "image_png": "publications/78_2026-11-20.png",
+    "image_webp": "publications/78_2026-11-20.webp",
+    "active": true
+  },
+  {
+    "id": 79,
+    "publish_date": "2026-11-21",
+    "phrase": "Ton histoire ne s’arrête pas à ce que tu traverses aujourd’hui.",
+    "interpretation": "Le moment présent semble parfois occuper tout l’horizon. Rappelle-toi que ce chapitre difficile est une étape, pas la fin du livre.",
+    "image_png": "publications/79_2026-11-21.png",
+    "image_webp": "publications/79_2026-11-21.webp",
+    "active": true
+  },
+  {
+    "id": 80,
+    "publish_date": "2026-11-22",
+    "phrase": "Ce qui te demande de te trahir pour rester n’est peut-être pas vraiment à toi.",
+    "interpretation": "Quand garder une place exige de renier tes valeurs ou tes besoins, le prix est souvent trop élevé. Ce qui te correspond te laisse rester toi-même.",
+    "image_png": "publications/80_2026-11-22.png",
+    "image_webp": "publications/80_2026-11-22.webp",
+    "active": true
+  },
+  {
+    "id": 81,
+    "publish_date": "2026-11-23",
+    "phrase": "Tu peux reconnaître une erreur sans transformer toute ton histoire en échec.",
+    "interpretation": "Une décision maladroite ne définit pas la personne entière que tu es. Apprends d’elle, puis remets-la à sa juste taille : un moment, pas une identité.",
+    "image_png": "publications/81_2026-11-23.png",
+    "image_webp": "publications/81_2026-11-23.webp",
+    "active": true
+  },
+  {
+    "id": 82,
+    "publish_date": "2026-11-24",
+    "phrase": "La vraie paix ressemble parfois à moins de bruit, pas à plus de réponses.",
+    "interpretation": "On cherche souvent la sérénité dans plus d’explications. Elle vient parfois en réduisant simplement les sollicitations, les débats intérieurs et les scénarios que tu rejoues.",
+    "image_png": "publications/82_2026-11-24.png",
+    "image_webp": "publications/82_2026-11-24.webp",
+    "active": true
+  },
+  {
+    "id": 83,
+    "publish_date": "2026-11-25",
+    "phrase": "Ce que tu apprends à accepter en toi devient plus facile à protéger.",
+    "interpretation": "Tant qu’une part de toi te gêne, tu la caches ou tu la négliges. En la regardant avec plus de bienveillance, tu trouves aussi la force de poser des limites autour d’elle.",
+    "image_png": "publications/83_2026-11-25.png",
+    "image_webp": "publications/83_2026-11-25.webp",
+    "active": true
+  },
+  {
+    "id": 84,
+    "publish_date": "2026-11-26",
+    "phrase": "Tu peux te sentir perdu et continuer malgré tout dans la bonne direction.",
+    "interpretation": "Le doute n’est pas toujours un signal d’erreur. On peut avancer justement tout en n’ayant pas encore la vue d’ensemble du chemin.",
+    "image_png": "publications/84_2026-11-26.png",
+    "image_webp": "publications/84_2026-11-26.webp",
+    "active": true
+  },
+  {
+    "id": 85,
+    "publish_date": "2026-11-27",
+    "phrase": "Ce qui t’attend n’a pas besoin que tu sois parfait, seulement présent.",
+    "interpretation": "Attendre d’être totalement prêt peut te faire manquer beaucoup de choses. Souvent, il suffit d’arriver, sincère et disponible, avec ce que tu as aujourd’hui.",
+    "image_png": "publications/85_2026-11-27.png",
+    "image_webp": "publications/85_2026-11-27.webp",
+    "active": true
+  },
+  {
+    "id": 86,
+    "publish_date": "2026-11-28",
+    "phrase": "Ton attention est une forme d’énergie : donne-la avec intention.",
+    "interpretation": "Ce que tu regardes, écoutes et ressasses te nourrit ou te vide peu à peu. Choisis plus consciemment où va ton regard au fil de la journée.",
+    "image_png": "publications/86_2026-11-28.png",
+    "image_webp": "publications/86_2026-11-28.webp",
+    "active": true
+  },
+  {
+    "id": 87,
+    "publish_date": "2026-11-29",
+    "phrase": "Ce que tu ressens quand personne ne regarde mérite aussi d’être entendu.",
+    "interpretation": "On minimise souvent les émotions qu’on n’ose pas montrer. Pourtant, ce que tu vis en privé fait pleinement partie de ta vérité et compte autant que le reste.",
+    "image_png": "publications/87_2026-11-29.png",
+    "image_webp": "publications/87_2026-11-29.webp",
+    "active": true
+  },
+  {
+    "id": 88,
+    "publish_date": "2026-11-30",
+    "phrase": "Tu n’as pas à revenir là où tu as appris pourquoi tu devais partir.",
+    "interpretation": "La nostalgie peut embellir ce que tu as quitté. Rappelle-toi ce qui t’a poussé à t’éloigner : cette raison n’a probablement pas disparu.",
+    "image_png": "publications/88_2026-11-30.png",
+    "image_webp": "publications/88_2026-11-30.webp",
+    "active": true
+  },
+  {
+    "id": 89,
+    "publish_date": "2026-12-01",
+    "phrase": "Une nouvelle version de toi peut avoir besoin de nouvelles limites.",
+    "interpretation": "Ce qui te convenait avant ne te va peut-être plus. Réajuster tes règles, tes horaires ou tes relations n’est pas un caprice : c’est rester en accord avec qui tu deviens.",
+    "image_png": "publications/89_2026-12-01.png",
+    "image_webp": "publications/89_2026-12-01.webp",
+    "active": true
+  },
+  {
+    "id": 90,
+    "publish_date": "2026-12-02",
+    "phrase": "Ce qui te fait respirer plus librement mérite d’être pris au sérieux.",
+    "interpretation": "Ce léger soulagement que tu ressens près de certaines personnes ou dans certains choix est une information précieuse. Ne le range pas trop vite parmi les détails.",
+    "image_png": "publications/90_2026-12-02.png",
+    "image_webp": "publications/90_2026-12-02.webp",
+    "active": true
+  },
+  {
+    "id": 91,
+    "publish_date": "2026-12-03",
+    "phrase": "Tu peux avancer avec tendresse envers la personne que tu étais.",
+    "interpretation": "Se moquer de ses choix passés est une façon de se punir encore. Cette version de toi faisait de son mieux avec ce qu’elle savait : remercie-la, puis continue.",
+    "image_png": "publications/91_2026-12-03.png",
+    "image_webp": "publications/91_2026-12-03.webp",
+    "active": true
+  },
+  {
+    "id": 92,
+    "publish_date": "2026-12-04",
+    "phrase": "Ce que tu attends des autres peut parfois commencer par ce que tu t’accordes à toi-même.",
+    "interpretation": "On réclame souvent aux autres l’attention, le respect ou la patience qu’on se refuse à soi-même. Commencer à te les offrir change aussi ce que tu es prêt à accepter.",
+    "image_png": "publications/92_2026-12-04.png",
+    "image_webp": "publications/92_2026-12-04.webp",
+    "active": true
+  },
+  {
+    "id": 93,
+    "publish_date": "2026-12-05",
+    "phrase": "Une décision peut être difficile et néanmoins libératrice.",
+    "interpretation": "Le fait qu’un choix te coûte ne veut pas dire qu’il est mauvais. Certaines des décisions les plus justes serrent le cœur au moment de les prendre, puis allègent tout le reste.",
+    "image_png": "publications/93_2026-12-05.png",
+    "image_webp": "publications/93_2026-12-05.webp",
+    "active": true
+  },
+  {
+    "id": 94,
+    "publish_date": "2026-12-06",
+    "phrase": "Tu n’as pas besoin de tout comprendre pour commencer à te respecter.",
+    "interpretation": "Le respect de soi n’attend pas la fin de l’analyse. Tu peux poser des limites et prendre soin de toi maintenant, même si tout n’est pas encore élucidé.",
+    "image_png": "publications/94_2026-12-06.png",
+    "image_webp": "publications/94_2026-12-06.webp",
+    "active": true
+  },
+  {
+    "id": 95,
+    "publish_date": "2026-12-07",
+    "phrase": "Ce qui n’est plus nourri finit naturellement par perdre de sa force.",
+    "interpretation": "Une pensée, une rancune ou une habitude s’affaiblit quand tu cesses de lui donner ton temps. Tu n’as pas toujours à la combattre : parfois, il suffit d’arrêter de l’alimenter.",
+    "image_png": "publications/95_2026-12-07.png",
+    "image_webp": "publications/95_2026-12-07.webp",
+    "active": true
+  },
+  {
+    "id": 96,
+    "publish_date": "2026-12-08",
+    "phrase": "Le calme que tu cherches peut commencer par ce que tu décides de ne plus poursuivre.",
+    "interpretation": "Courir après une réponse, une preuve ou l’accord de quelqu’un entretient l’agitation. Renoncer à cette course, même un jour, laisse souvent le calme revenir de lui-même.",
+    "image_png": "publications/96_2026-12-08.png",
+    "image_webp": "publications/96_2026-12-08.webp",
+    "active": true
+  },
+  {
+    "id": 97,
+    "publish_date": "2026-12-09",
+    "phrase": "Tu peux vouloir quelqu’un et choisir malgré tout de ne plus attendre.",
+    "interpretation": "Ressentir un manque ne t’oblige pas à mettre ta vie en pause. On peut honorer ce qu’on éprouve tout en décidant d’avancer pour soi.",
+    "image_png": "publications/97_2026-12-09.png",
+    "image_webp": "publications/97_2026-12-09.webp",
+    "active": true
+  },
+  {
+    "id": 98,
+    "publish_date": "2026-12-10",
+    "phrase": "Ce qui t’habite mérite une place, mais pas forcément le contrôle.",
+    "interpretation": "Une émotion ou un souvenir a le droit d’exister en toi sans diriger tes journées. Lui faire de la place, ce n’est pas lui donner le volant.",
+    "image_png": "publications/98_2026-12-10.png",
+    "image_webp": "publications/98_2026-12-10.webp",
+    "active": true
+  },
+  {
+    "id": 99,
+    "publish_date": "2026-12-11",
+    "phrase": "Une vérité intérieure devient plus forte quand tu cesses de la négocier.",
+    "interpretation": "À force de chercher des arrangements avec ce que tu sais, tu l’affaiblis. Reconnaître clairement ton ressenti, sans le marchander, lui rend toute sa solidité.",
+    "image_png": "publications/99_2026-12-11.png",
+    "image_webp": "publications/99_2026-12-11.webp",
+    "active": true
+  },
+  {
+    "id": 100,
+    "publish_date": "2026-12-12",
+    "phrase": "Tu n’as pas besoin de fermer ton cœur pour fermer une porte.",
+    "interpretation": "Mettre fin à quelque chose ne demande pas de devenir froid. On peut clore un chapitre avec fermeté et garder, malgré tout, sa capacité à aimer.",
+    "image_png": "publications/100_2026-12-12.png",
+    "image_webp": "publications/100_2026-12-12.webp",
+    "active": true
+  }
+]

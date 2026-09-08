@@ -1,10 +1,24 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <!-- Requis pour les appels à l'API Auryel (auth OTP, consultations). -->
     <uses-permission android:name="android.permission.INTERNET"/>
+    <!-- Android 13+ (targetSdk 36) : autorisation d'affichage des notifications.
+         Demandée UNIQUEMENT à l'exécution, via le CTA explicite de
+         NotificationSettingsScreen — jamais automatiquement au démarrage.
+         com.android.vending.BILLING est ajoutée par la Billing Library ;
+         le service FirebaseMessagingService est fusionné par le plugin
+         firebase_messaging. -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
     <application
-        android:label="auryel"
+        android:label="Auryel"
         android:name="${applicationName}"
-        android:icon="@mipmap/ic_launcher">
+        android:icon="@mipmap/ic_launcher"
+        android:allowBackup="false">
+        <!-- allowBackup=false : l'app contient session, profil, consultations et
+             achats. La restauration de compte est côté serveur (email/OTP + IAP
+             restore), pas via Android Backup. Les clés de flutter_secure_storage
+             vivent dans l'AndroidKeystore (jamais sauvegardées) : sauvegarder le
+             blob chiffré sans ses clés le rendrait illisible au restore. Aucune
+             fonctionnalité ne dépend d'Android Auto Backup. -->
         <activity
             android:name=".MainActivity"
             android:exported="true"
