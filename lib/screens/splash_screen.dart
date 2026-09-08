@@ -10,7 +10,7 @@ import '../state/consultation_controller.dart';
 import '../state/profile_restore.dart';
 import '../state/session_profile_gate.dart';
 import '../theme/auryel_theme.dart';
-import '../widgets/main_nav_shell.dart';
+import 'adult_gate.dart';
 import 'intro_video_screen.dart';
 import 'onboarding/email_auth_screen.dart';
 import 'onboarding/first_name_screen.dart';
@@ -142,7 +142,7 @@ class _SplashScreenState extends State<SplashScreen> {
             // Jeton présent et accepté, OU présent mais backend momentanément
             // injoignable (jeton conservé) → accueil, éventuellement en mode
             // dégradé/offline.
-            next = const MainNavShell();
+            next = const AdultGate();
           case AuthStatus.signedOut:
           case AuthStatus.sessionExpired:
           case AuthStatus.unknown:

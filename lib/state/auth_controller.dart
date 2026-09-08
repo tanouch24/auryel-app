@@ -5,6 +5,7 @@ import '../api/ai_report_api.dart';
 import '../api/api_client.dart';
 import '../api/consultation_api.dart';
 import '../api/memory_api.dart';
+import '../api/support_api.dart';
 import '../api/profile_api.dart';
 import '../api/rewards_api.dart';
 import '../api/tirage_api.dart';
@@ -101,6 +102,7 @@ class AuthController extends ChangeNotifier {
     RewardsApi? rewardsApi,
     WellbeingApi? wellbeingApi,
     MemoryApi? memoryApi,
+    SupportApi? supportApi,
     LocalUserData? localUserData,
     InstallationIdStore? installationIdStore,
   }) : _repo = repository,
@@ -112,6 +114,7 @@ class AuthController extends ChangeNotifier {
        _rewardsApi = rewardsApi,
        _wellbeingApi = wellbeingApi,
        _memoryApi = memoryApi,
+       _supportApi = supportApi,
        _localUserData = localUserData ?? LocalUserData(),
        _installationIdStore = installationIdStore;
 
@@ -124,6 +127,7 @@ class AuthController extends ChangeNotifier {
   final RewardsApi? _rewardsApi;
   final WellbeingApi? _wellbeingApi;
   final MemoryApi? _memoryApi;
+  final SupportApi? _supportApi;
   final LocalUserData _localUserData;
   final InstallationIdStore? _installationIdStore;
 
@@ -148,6 +152,9 @@ class AuthController extends ChangeNotifier {
   /// Jeu Auryel (Memory) + récompenses de temps de consultation. `null` si non
   /// câblé (tests hérités) — le jeu reste jouable, sans récompense.
   MemoryApi? get memoryApi => _memoryApi;
+
+  /// « Signaler un problème » (POST /api/app/support). `null` si non câblé.
+  SupportApi? get supportApi => _supportApi;
 
   /// `true` si la suppression réelle de compte est disponible (endpoint câblé).
   bool get accountDeletionAvailable => _accountApi != null;

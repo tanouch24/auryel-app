@@ -6,7 +6,7 @@ import '../../state/auryel_state.dart';
 import '../../state/auth_controller.dart';
 import '../../theme/auryel_theme.dart';
 import '../../widgets/advisors_carousel.dart';
-import '../../widgets/main_nav_shell.dart';
+import '../adult_gate.dart';
 import '../../widgets/onboarding_scaffold.dart';
 import 'email_auth_screen.dart';
 
@@ -126,7 +126,7 @@ class _OtpCodeScreenState extends State<OtpCodeScreen> {
         await state.completeOnboarding(userId: auth.account?.userId);
         if (!mounted) return;
         Navigator.of(context).pushAndRemoveUntil(
-          MaterialPageRoute(builder: (_) => const MainNavShell()),
+          MaterialPageRoute(builder: (_) => const AdultGate()),
           (route) => false,
         );
       case ProfileSyncOutcome.unauthorized:

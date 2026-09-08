@@ -530,7 +530,8 @@ void main() {
     });
 
     testWidgets('9 — réseau KO sur profile : session RESTE connectée, '
-        'MainNavShell, aucune donnée de l\'ancien compte', (t) async {
+        'GATE 18+ fail-closed (jamais MainNavShell), ancien compte oublié',
+        (t) async {
       final repo = _SpyRepo(null);
       final b = bundleWith(
         accountUserId: 'U-new',
@@ -545,26 +546,32 @@ void main() {
       );
       await _login(t, b: b, state: state);
 
-      expect(find.byType(MainNavShell), findsOneWidget);
+      // Changement de compte -> DOB de l'ancien compte oubliée -> le GATE ne
+      // peut pas fast-path -> il re-tente /api/app/profile -> réseau KO ->
+      // FAIL CLOSED : écran d'erreur du gate, jamais MainNavShell.
+      expect(find.byType(MainNavShell), findsNothing);
+      expect(find.text('Réessayer'), findsOneWidget);
       expect(b.auth.status, AuthStatus.signedIn);
       expect(await b.tokens.read(), 'tk');
-      // L'identité de l'ancien compte a été oubliée avant le fetch raté.
       expect(state.firstName, isNull);
       expect(state.selectedAdvisor, isNull);
       expect(find.text('Ancien'), findsNothing);
     });
 
-    testWidgets('10 — 5xx sur profile : session reste connectée', (t) async {
+    testWidgets('10 — 5xx sur profile : session reste connectée, GATE 18+ '
+        'fail-closed', (t) async {
       final repo = _SpyRepo(null);
       final b = bundleWith(accountUserId: 'U', profileStatus: 503);
       final state = _state(repo: repo, userId: null);
       await _login(t, b: b, state: state);
-      expect(find.byType(MainNavShell), findsOneWidget);
+      expect(find.byType(MainNavShell), findsNothing);
+      expect(find.text('Réessayer'), findsOneWidget);
       expect(b.auth.status, AuthStatus.signedIn);
       expect(await b.tokens.read(), 'tk');
     });
 
-    testWidgets('11 — profil partiel (prénom seul) : pas de crash', (t) async {
+    testWidgets('11 — profil partiel (DOB absente) : GATE 18+ demande la date, '
+        'pas de MainNavShell', (t) async {
       final repo = _SpyRepo(null);
       final b = bundleWith(
         accountUserId: 'U',
@@ -572,14 +579,15 @@ void main() {
       );
       final state = _state(repo: repo, userId: null);
       await _login(t, b: b, state: state);
-      expect(find.byType(MainNavShell), findsOneWidget);
+      expect(find.byType(MainNavShell), findsNothing);
+      expect(find.text('Vérification de l’âge'), findsOneWidget);
       expect(state.firstName, 'Solo');
       expect(state.birthDate, isNull);
       expect(state.selectedAdvisor, isNull);
     });
 
     testWidgets(
-      '12 — guide serveur inconnu : pas de crash, conseiller non forcé',
+      '12 — guide inconnu + DOB absente : GATE 18+ demande la date',
       (t) async {
         final repo = _SpyRepo(null);
         final b = bundleWith(
@@ -588,11 +596,30 @@ void main() {
         );
         final state = _state(repo: repo, userId: null);
         await _login(t, b: b, state: state);
-        expect(find.byType(MainNavShell), findsOneWidget);
+        expect(find.byType(MainNavShell), findsNothing);
+        expect(find.text('Vérification de l’âge'), findsOneWidget);
         expect(state.firstName, 'Ana');
         expect(state.selectedAdvisor, isNull);
       },
     );
+
+    testWidgets('12bis — profil complet ADULTE : GATE laisse passer -> '
+        'MainNavShell', (t) async {
+      final repo = _SpyRepo(null);
+      final b = bundleWith(
+        accountUserId: 'U',
+        profile: _profileJson(
+          userId: 'U',
+          guide: 'orion',
+          prenom: 'Ana',
+          dateNaissance: '1994-01-01',
+        ),
+      );
+      final state = _state(repo: repo, userId: null);
+      await _login(t, b: b, state: state);
+      expect(find.byType(MainNavShell), findsOneWidget);
+      expect(state.birthDate, DateTime(1994, 1, 1));
+    });
 
     testWidgets('13 — même compte avec profil local : pas de fuite, serveur '
         'aligne', (t) async {

@@ -46,6 +46,10 @@ dependencies:
   # Sortie vers la gestion d'abonnement Google Play (résiliation / modification).
   # Aucun paiement web, aucun steering — uniquement l'URL OFFICIELLE du store.
   url_launcher: ^6.3.1
+  # « Noter l'appli » — boîte de notation NATIVE du store (Play In-App Review /
+  # StoreKit). Déclenché UNIQUEMENT par un tap explicite de l'utilisateur,
+  # jamais de pop-up automatique, aucun review gating, aucune récompense.
+  in_app_review: ^2.0.10
   # Push Android (FCM). L'app démarre SANS Firebase configuré : sans
   # google-services.json + plugin Google Services, `Firebase.initializeApp()`
   # échoue proprement et le service passe en état « indisponible » (aucun crash,
