@@ -295,7 +295,7 @@ void main() {
         await t.pumpWidget(_host());
         await t.pump(const Duration(seconds: 1));
         expect(
-          find.textContaining('gagne 1 h de consultation offerte'),
+          find.textContaining('gagne 1 h de communication offerte'),
           findsOneWidget,
         );
         expect(find.text('Cliquez ici'), findsOneWidget);
@@ -310,7 +310,7 @@ void main() {
     ) async {
       await t.pumpWidget(_host());
       await t.pump(const Duration(seconds: 1));
-      await t.tap(find.textContaining('gagne 1 h de consultation offerte'));
+      await t.tap(find.textContaining('gagne 1 h de communication offerte'));
       await t.pump();
       await t.pump(const Duration(milliseconds: 400));
       expect(find.byType(DailyMessageSheet), findsOneWidget);

@@ -544,6 +544,81 @@ void main() {
   });
 
   // -------------------------------------------------------------------------
+  // N. flèche retour de l'écran résultat (après un tirage).
+  // -------------------------------------------------------------------------
+  group('Retour — écran résultat', () {
+    testWidgets(
+      'flèche retour absente en phase de choix, présente après la révélation',
+      (tester) async {
+        final e = _env((_, keys) async => _json(_tirageBody(keys), 201));
+        await _pump(tester, e.auth);
+
+        expect(find.byTooltip('Retour'), findsNothing);
+
+        await _selectThree(tester);
+        await _reveal(tester);
+
+        expect(find.byTooltip('Retour'), findsOneWidget);
+      },
+    );
+
+    testWidgets('la flèche retour ferme l\'écran résultat (Navigator.pop)', (
+      tester,
+    ) async {
+      final e = _env((_, keys) async => _json(_tirageBody(keys), 201));
+      final state = AuryelState(
+        repository: LocalOnboardingRepository(),
+        initial: OnboardingRecord(
+          userId: 'u-1',
+          selectedAdvisor: 'Maïa',
+          firstName: 'Nina',
+          birthDate: DateTime(1994, 1, 1),
+          portraitData: 'texte',
+          portraitFeedback: 'ok',
+          onboardingCompleted: true,
+        ),
+      );
+      await tester.pumpWidget(
+        AuthScope(
+          controller: e.auth,
+          child: AuryelStateScope(
+            state: state,
+            child: MaterialApp(
+              home: Scaffold(
+                body: Builder(
+                  builder: (context) => Center(
+                    child: ElevatedButton(
+                      onPressed: () => Navigator.of(context).push(
+                        MaterialPageRoute(builder: (_) => const TirageScreen()),
+                      ),
+                      child: const Text('ouvrir-tirage'),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+
+      await tester.tap(find.text('ouvrir-tirage'));
+      await tester.pumpAndSettle();
+      expect(find.byType(TirageScreen), findsOneWidget);
+
+      await _selectThree(tester);
+      await _reveal(tester);
+      expect(find.text('Lecture de ton tirage'), findsOneWidget);
+
+      await tester.tap(find.byTooltip('Retour'));
+      await tester.pumpAndSettle();
+
+      // L'écran résultat est fermé : retour à l'écran précédent.
+      expect(find.byType(TirageScreen), findsNothing);
+      expect(find.text('ouvrir-tirage'), findsOneWidget);
+    });
+  });
+
+  // -------------------------------------------------------------------------
   // UX-LOT §6-7 — cartes remontées à la révélation + indice de scroll.
   // -------------------------------------------------------------------------
   group('UX-LOT — Tirage révélé', () {

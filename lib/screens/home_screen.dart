@@ -477,8 +477,8 @@ class _ShareRewardCta extends StatelessWidget {
               const SizedBox(width: 8),
               Flexible(
                 child: Text(
-                  'Partage avec tes contacts et gagne 1 h de consultation '
-                  'offerte',
+                  'Partage cette force avec tes contacts et gagne 1 h de '
+                  'communication offerte.',
                   textAlign: TextAlign.center,
                   style: AuryelText.body(
                     fontSize: 12,

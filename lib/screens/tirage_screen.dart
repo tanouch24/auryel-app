@@ -250,6 +250,26 @@ class _TirageScreenState extends State<TirageScreen> {
                   ? _buildReveal(context)
                   : _buildSelection(context),
             ),
+            // Flèche retour de l'écran résultat : ferme le tirage et revient à
+            // l'écran précédent (hub « Tirage & Jeu »). Même idiome que les
+            // autres boutons retour de l'app (icône `arrowLeft`, `textMuted`,
+            // zone tactile `IconButton`).
+            if (_revealed)
+              Positioned(
+                top: 4,
+                left: 6,
+                child: SafeArea(
+                  child: IconButton(
+                    onPressed: () => Navigator.of(context).maybePop(),
+                    tooltip: 'Retour',
+                    icon: const PhosphorIcon(
+                      PhosphorIconsRegular.arrowLeft,
+                      size: 20,
+                      color: AuryelColors.textMuted,
+                    ),
+                  ),
+                ),
+              ),
             // Cœur « j'aime » local du tirage (inchangé).
             const Positioned(
               top: 4,

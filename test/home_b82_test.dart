@@ -63,7 +63,7 @@ Widget _hostNoAnim() => AuryelStateScope(
   ),
 );
 
-const _shareCta = 'gagne 1 h de consultation offerte';
+const _shareCta = 'gagne 1 h de communication offerte';
 
 void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
@@ -82,6 +82,24 @@ void main() {
     expect(find.text('Clique ici pour voir l’interprétation'), findsNothing);
     expect(find.textContaining(_shareCta), findsOneWidget);
     expect(find.textContaining('/ 30 jours'), findsOneWidget);
+  });
+
+  testWidgets('C quater. le wording exact du CTA de partage est affiché', (
+    t,
+  ) async {
+    await t.pumpWidget(_host());
+    await t.pump(const Duration(seconds: 1));
+    expect(
+      find.text(
+        'Partage cette force avec tes contacts et gagne 1 h de '
+        'communication offerte.',
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.textContaining('gagne 1 h de consultation offerte'),
+      findsNothing,
+    );
   });
 
   testWidgets('C ter. tap sur le CTA ouvre l\'aperçu de LA publication du jour '
