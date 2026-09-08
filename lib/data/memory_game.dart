@@ -6,17 +6,56 @@ import 'package:flutter/foundation.dart';
 import 'tarot_deck.dart';
 
 /// Niveaux du Jeu Auryel (jeu de paires).
+///
+/// [apiDifficulty] mappe l'enum sur les chaînes du backend (easy/medium/hard).
+/// [rewardThresholdSeconds] / [rewardMinutes] sont les VALEURS D'AFFICHAGE de la
+/// règle de récompense (« réussir en moins de N s pour gagner M min de
+/// consultation ») — la décision réelle est prise UNIQUEMENT par le serveur.
 enum GameDifficulty {
-  facile(cardCount: 8, label: 'Facile'),
-  moyen(cardCount: 12, label: 'Moyen'),
-  intense(cardCount: 16, label: 'Intense');
+  facile(
+    cardCount: 8,
+    label: 'Facile',
+    apiDifficulty: 'easy',
+    rewardThresholdSeconds: 20,
+    rewardMinutes: 5,
+  ),
+  moyen(
+    cardCount: 12,
+    label: 'Moyen',
+    apiDifficulty: 'medium',
+    rewardThresholdSeconds: 40,
+    rewardMinutes: 10,
+  ),
+  intense(
+    cardCount: 16,
+    label: 'Difficile',
+    apiDifficulty: 'hard',
+    rewardThresholdSeconds: 80,
+    rewardMinutes: 15,
+  );
 
-  const GameDifficulty({required this.cardCount, required this.label});
+  const GameDifficulty({
+    required this.cardCount,
+    required this.label,
+    required this.apiDifficulty,
+    required this.rewardThresholdSeconds,
+    required this.rewardMinutes,
+  });
 
   final int cardCount;
   final String label;
+  final String apiDifficulty;
+  final int rewardThresholdSeconds;
+  final int rewardMinutes;
 
   int get pairCount => cardCount ~/ 2;
+
+  static GameDifficulty? fromApi(String value) {
+    for (final d in GameDifficulty.values) {
+      if (d.apiDifficulty == value) return d;
+    }
+    return null;
+  }
 }
 
 /// Une carte du plateau. `pairKey` identifie la paire ; `faceAsset` est

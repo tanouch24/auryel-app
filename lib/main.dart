@@ -8,6 +8,7 @@ import 'api/api_client.dart';
 import 'api/auth_api.dart';
 import 'api/billing_api.dart';
 import 'api/consultation_api.dart';
+import 'api/memory_api.dart';
 import 'api/profile_api.dart';
 import 'api/rewards_api.dart';
 import 'api/tirage_api.dart';
@@ -49,6 +50,7 @@ void main() async {
     accountApi: AccountApi(apiClient),
     rewardsApi: RewardsApi(apiClient),
     wellbeingApi: WellbeingApi(apiClient),
+    memoryApi: MemoryApi(apiClient),
     // Signal anti-abus « heure gratuite » (identifiant d'INSTALLATION, pas de
     // compte). Généré LAZY au 1er `auth.installationId()` ; rien n'est envoyé
     // au backend tant que le contrat ne l'accepte pas (cf. rapport / doc).

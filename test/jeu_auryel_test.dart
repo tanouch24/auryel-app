@@ -73,7 +73,7 @@ void main() {
     expect(find.text('Commencer'), findsOneWidget);
     expect(find.text('Facile'), findsOneWidget);
     expect(find.text('Moyen'), findsOneWidget);
-    expect(find.text('Intense'), findsOneWidget);
+    expect(find.text('Difficile'), findsOneWidget);
     // Aucun vestige de placeholder.
     expect(find.textContaining('prochaine étape'), findsNothing);
     expect(find.textContaining('Bientôt'), findsNothing);
@@ -88,7 +88,7 @@ void main() {
   for (final (label, count) in const [
     ('Facile', 8),
     ('Moyen', 12),
-    ('Intense', 16),
+    ('Difficile', 16),
   ]) {
     testWidgets('16/17/18 — niveau $label pose $count cartes / '
         '${count ~/ 2} paires', (t) async {
@@ -190,7 +190,7 @@ void main() {
 
         await t.pumpWidget(_host());
         await t.pumpAndSettle();
-        await _startLevel(t, 'Intense');
+        await _startLevel(t, 'Difficile');
 
         expect(t.takeException(), isNull, reason: '${w.toInt()} dp');
         // La grille est présente et scrollable (plateau complet accessible).

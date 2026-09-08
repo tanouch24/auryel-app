@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:phosphor_icons/phosphor_icons.dart';
 
+import '../api/memory_api.dart';
 import '../config/legal_texts.dart';
+import '../data/memory_game.dart';
 import '../data/birth_date_parser.dart';
 import '../data/daily_like_store.dart';
 import '../data/daily_share_tracker.dart';
@@ -75,6 +77,11 @@ class _DashboardScreenState extends State<DashboardScreen> {
   int _shareTarget = 30;
   bool _serverShareRequested = false;
 
+  /// Éligibilité Memory (`GET /api/app/memory/progress`) — lecture seule,
+  /// source de vérité serveur. `null` tant qu'indisponible (endpoint absent,
+  /// réseau, pas de session) : le bloc Memory n'affiche alors que la règle.
+  MemoryProgress? _memoryProgress;
+
   @override
   void initState() {
     super.initState();
@@ -88,6 +95,25 @@ class _DashboardScreenState extends State<DashboardScreen> {
     if (_serverShareRequested) return;
     _serverShareRequested = true;
     _loadServerShareProgress();
+    _loadMemoryProgress();
+  }
+
+  /// Lecture SEULE de l'éligibilité Memory. Aucun effet de bord : ne joue
+  /// aucune partie, ne crédite rien. Indisponible -> `_memoryProgress` reste
+  /// `null` et le bloc affiche seulement la règle.
+  Future<void> _loadMemoryProgress() async {
+    final auth = AuthScope.maybeOf(context);
+    final api = auth?.memoryApi;
+    if (auth == null || api == null) return;
+    try {
+      final token = await auth.currentToken();
+      if (token == null || token.isEmpty || !mounted) return;
+      final progress = await api.getProgress(token);
+      if (!mounted) return;
+      setState(() => _memoryProgress = progress);
+    } catch (_) {
+      /* bloc Memory affiché sans état d'éligibilité */
+    }
   }
 
   Future<void> _loadCounters() async {
@@ -424,6 +450,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   shareDays: _serverShareCount ?? _shareDays,
                   target: _shareTarget,
                   onGenerate: _openPublication,
+                  memoryProgress: _memoryProgress,
                 ),
                 const SizedBox(height: 16),
                 _AccountSection(
@@ -989,6 +1016,7 @@ class _RewardsSection extends StatelessWidget {
     required this.shareDays,
     required this.target,
     required this.onGenerate,
+    this.memoryProgress,
   });
 
   /// Jours de partage à afficher — serveur si disponible, sinon cache local.
@@ -997,6 +1025,9 @@ class _RewardsSection extends StatelessWidget {
   /// Palier (30 en V1) — vient de la réponse serveur quand disponible.
   final int target;
   final VoidCallback onGenerate;
+
+  /// Éligibilité Memory (source serveur). `null` = règle affichée sans état.
+  final MemoryProgress? memoryProgress;
 
   @override
   Widget build(BuildContext context) {
@@ -1068,6 +1099,8 @@ class _RewardsSection extends StatelessWidget {
               color: AuryelColors.textMuted,
             ),
           ),
+          const SizedBox(height: 16),
+          _MemoryRewardBlock(progress: memoryProgress),
           const SizedBox(height: 14),
           Text(
             'Parrainage',
@@ -1088,6 +1121,123 @@ class _RewardsSection extends StatelessWidget {
           _Pill(text: 'À venir'),
         ],
       ),
+    );
+  }
+}
+
+/// Bloc « Le Jeu Auryel » de la section récompenses : la règle (jusqu'à 30 min
+/// / 7 jours) + l'état d'éligibilité par niveau. Indépendant du partage (30 j =
+/// 1 h) et du parcours bien-être (30 journées = 15 min). La source de vérité
+/// est le serveur : [progress] est `null` tant qu'il n'a pas répondu.
+class _MemoryRewardBlock extends StatelessWidget {
+  const _MemoryRewardBlock({this.progress});
+
+  final MemoryProgress? progress;
+
+  static String? _humanizeUntil(String? iso) {
+    if (iso == null || iso.isEmpty) return null;
+    final dt = DateTime.tryParse(iso);
+    if (dt == null) return null;
+    final diff = dt.difference(DateTime.now());
+    if (diff.inSeconds <= 0) return null;
+    if (diff.inHours >= 24) return '${(diff.inHours / 24).ceil()} j';
+    if (diff.inHours >= 1) return '${diff.inHours} h';
+    return 'moins d’une heure';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(
+          'Le Jeu Auryel',
+          style: AuryelText.display(fontSize: 14, fontWeight: FontWeight.w600),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          'Jusqu’à 30 min de consultation tous les 7 jours — une récompense '
+          'par niveau.',
+          style: AuryelText.body(
+            fontSize: 11.5,
+            height: 1.4,
+            fontWeight: FontWeight.w600,
+            color: AuryelColors.goldLight,
+          ),
+        ),
+        const SizedBox(height: 8),
+        for (final d in GameDifficulty.values)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 4),
+            child: _MemoryRewardRow(
+              label: d.label,
+              minutes: d.rewardMinutes,
+              status: () {
+                final p = progress?.forDifficulty(d.apiDifficulty);
+                if (p == null) return null;
+                if (p.eligibleNow) return 'disponible';
+                final until = _humanizeUntil(p.nextEligibleAt);
+                return until == null
+                    ? 'déjà obtenue'
+                    : 'à nouveau dans $until';
+              }(),
+            ),
+          ),
+        const SizedBox(height: 4),
+        Text(
+          'Les seuils de temps et le crédit sont gérés par nos serveurs.',
+          style: AuryelText.body(
+            fontSize: 10.5,
+            height: 1.4,
+            color: AuryelColors.textMuted,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _MemoryRewardRow extends StatelessWidget {
+  const _MemoryRewardRow({
+    required this.label,
+    required this.minutes,
+    required this.status,
+  });
+
+  final String label;
+  final int minutes;
+  final String? status;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Expanded(
+          child: Text(
+            '$label — +$minutes min',
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: AuryelText.body(
+              fontSize: 11.5,
+              color: AuryelColors.textSecondary,
+            ),
+          ),
+        ),
+        if (status != null) ...[
+          const SizedBox(width: 8),
+          Text(
+            status!,
+            textAlign: TextAlign.right,
+            style: AuryelText.body(
+              fontSize: 10.5,
+              fontWeight: FontWeight.w600,
+              color: status == 'disponible'
+                  ? AuryelColors.goldLight
+                  : AuryelColors.textMuted,
+            ),
+          ),
+        ],
+      ],
     );
   }
 }
