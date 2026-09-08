@@ -14,6 +14,7 @@ import 'package:auryel/api/profile_api.dart';
 import 'package:auryel/api/tirage_api.dart';
 import 'package:auryel/api/wellbeing_api.dart';
 import 'package:auryel/data/auth_repository.dart';
+import 'package:auryel/data/daily_thought.dart';
 import 'package:auryel/data/meditation_audio.dart';
 import 'package:auryel/data/token_store.dart';
 import 'package:auryel/screens/meditation_screen.dart';
@@ -21,6 +22,7 @@ import 'package:auryel/screens/tirage_screen.dart';
 import 'package:auryel/screens/wellbeing_journey_screen.dart';
 import 'package:auryel/state/auth_controller.dart';
 import 'package:auryel/state/wellbeing_controller.dart';
+import 'package:auryel/widgets/daily_message_sheet.dart';
 
 // ===========================================================================
 // J7 — « Mon parcours bien-être » : API parsing, contrôleur, écran, récompense.
@@ -461,6 +463,63 @@ void main() {
         expect(bodies.single, {'mission_id': 'moment'});
       },
     );
+
+    testWidgets('19 CONSULTER la Pensée du jour (ouvrir la feuille) -> '
+        'POST /api/app/wellbeing/mission { pensee }, indépendant du partage', (
+      t,
+    ) async {
+      final hits = <String>[];
+      final bodies = <Map<String, dynamic>>[];
+      final client = ApiClient(
+        httpClient: MockClient((req) async {
+          hits.add('${req.method} ${req.url.path}');
+          if (req.method == 'POST') {
+            bodies.add(jsonDecode(req.body) as Map<String, dynamic>);
+          }
+          return _json(_progress());
+        }),
+        baseUrl: 'http://test.local',
+      );
+      final thought = DailyThought(
+        id: 1,
+        publishDate: DateTime(2026, 1, 1),
+        phrase: 'x',
+        interpretation: 'y',
+        imageAsset: 'assets/pensees/publications/01.webp',
+      );
+      await t.pumpWidget(
+        AuthScope(
+          controller: _authWithToken(client, 'tok'),
+          child: MaterialApp(
+            home: Builder(
+              builder: (ctx) => Scaffold(
+                body: Center(
+                  child: ElevatedButton(
+                    onPressed: () => showDailyThoughtSheet(
+                      ctx,
+                      thought: thought,
+                      wellbeingApi: WellbeingApi(client),
+                      onShare: ({imageBytes, required text}) async {},
+                    ),
+                    child: const Text('open'),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+      await t.tap(find.text('open'));
+      await t.pump();
+      await t.pump();
+
+      expect(hits, contains('POST /api/app/wellbeing/mission'));
+      expect(bodies.single, {'mission_id': 'pensee'});
+      // aucune requête vers la récompense de partage J5
+      expect(hits.where((h) => h.contains('rewards')), isEmpty);
+      await t.tap(find.text('Fermer'));
+      await t.pumpAndSettle();
+    });
 
     testWidgets('18 sans token -> aucun POST (sync non bloquante)', (t) async {
       final hits = <String>[];

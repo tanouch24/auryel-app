@@ -5,6 +5,7 @@ import 'package:flutter/services.dart' show AssetBundle, rootBundle;
 import 'package:phosphor_icons/phosphor_icons.dart';
 import 'package:share_plus/share_plus.dart';
 
+import '../api/wellbeing_api.dart';
 import '../data/daily_share_tracker.dart';
 import '../data/daily_thought.dart';
 import '../data/share_reward_repository.dart';
@@ -55,12 +56,32 @@ Future<void> showDailyThoughtSheet(
   AssetBundle? bundle,
   ShareRewardRepository? shareReward,
   VoidCallback? onRewardCredited,
+  WellbeingApi? wellbeingApi,
 }) {
   // Défaut PRODUCTION : la progression 30 jours devient serveur-autoritative
   // dès qu'un backend récompense est câblé (AuthScope.rewardsApi). Sinon,
   // `recordShare()` renvoie `null` et l'affichage retombe sur le cache local.
   final auth = AuthScope.maybeOf(context);
   final consultation = ConsultationScope.maybeReadOf(context);
+
+  // PARCOURS BIEN-ÊTRE (J7) — OUVRIR cette feuille = « CONSULTER la Pensée du
+  // jour ». Événement distinct du PARTAGE : on enregistre la mission `pensee`
+  // (1 fois / jour côté serveur, idempotent). Fire-and-forget, toutes erreurs
+  // absorbées : aucun impact sur l'affichage ni le partage. AUCUN lien avec la
+  // récompense de partage J5.
+  final wbApi = wellbeingApi ?? auth?.wellbeingApi;
+  if (wbApi != null && auth != null) {
+    () async {
+      try {
+        final token = await auth.currentToken();
+        if (token != null && token.isNotEmpty) {
+          await wbApi.recordMission(bearer: token, missionId: 'pensee');
+        }
+      } catch (_) {
+        /* progression serveur non bloquante */
+      }
+    }();
+  }
   final reward =
       shareReward ??
       (auth == null
