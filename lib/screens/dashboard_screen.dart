@@ -3,6 +3,7 @@ import 'package:phosphor_icons/phosphor_icons.dart';
 
 import '../api/memory_api.dart';
 import '../config/legal_texts.dart';
+import '../data/app_review_service.dart';
 import '../data/memory_game.dart';
 import '../data/birth_date_parser.dart';
 import '../data/daily_like_store.dart';
@@ -29,6 +30,7 @@ import 'legal_document_screen.dart';
 import 'notification_settings_screen.dart';
 import 'onboarding/email_auth_screen.dart';
 import 'premium_screen.dart';
+import 'support_screen.dart';
 
 /// B10 — « Mon espace » : ouvert depuis l'icône profil de l'accueil (jamais un
 /// 5e onglet). Écran scrollable, DA Auryel (fond sombre, or, cartes fines).
@@ -44,6 +46,7 @@ class DashboardScreen extends StatefulWidget {
     this.thoughtRepository,
     this.showBackButton = true,
     this.subscriptionManager,
+    this.reviewService,
   });
 
   /// Injecté par les tests ; en production la source est le pack local
@@ -58,6 +61,9 @@ class DashboardScreen extends StatefulWidget {
   /// poussé comme écran secondaire (icône profil de l'Accueil).
   final bool showBackButton;
 
+  /// Test uniquement : sinon [InAppReviewService] (boîte de notation native).
+  final AppReviewService? reviewService;
+
   @override
   State<DashboardScreen> createState() => _DashboardScreenState();
 }
@@ -69,6 +75,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
   int _likedTarot = 0;
   int _shareDays = 0;
   bool _savingBirthDate = false;
+
+  late final AppReviewService _review =
+      widget.reviewService ?? InAppReviewService();
+  bool _rating = false;
 
   /// Progression partage SERVEUR (`GET /api/app/rewards/share-progress`) — fait
   /// autorité quand disponible ; sinon on retombe sur le cache local
@@ -150,6 +160,34 @@ class _DashboardScreenState extends State<DashboardScreen> {
       _serverShareCount = progress.count;
       _shareTarget = progress.target;
     });
+  }
+
+  void _openSupport() {
+    Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => const SupportScreen()),
+    );
+  }
+
+  /// « Noter l'appli » — VOLONTAIRE (tap explicite). Ouvre la boîte de
+  /// notation native ; jamais de pop-up automatique, aucun review gating,
+  /// aucune récompense, aucun wording « 5 étoiles ». `requestReview()` ne
+  /// garantit pas l'apparition de la boîte : ce n'est pas une erreur.
+  Future<void> _rateApp() async {
+    if (_rating) return;
+    setState(() => _rating = true);
+    final messenger = ScaffoldMessenger.of(context);
+    final outcome = await _review.rate();
+    if (!mounted) return;
+    setState(() => _rating = false);
+    if (outcome == AppReviewOutcome.unavailable) {
+      messenger.showSnackBar(
+        const SnackBar(
+          content: Text(
+            'La notation n’est pas disponible pour le moment.',
+          ),
+        ),
+      );
+    }
   }
 
   Future<void> _logout() async {
@@ -472,6 +510,27 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         builder: (_) => const NotificationSettingsScreen(),
                       ),
                     ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                _Section(
+                  title: 'Aide',
+                  icon: PhosphorIconsRegular.lifebuoy,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      _LinkRow(
+                        label: 'Signaler un problème',
+                        icon: PhosphorIconsRegular.chatCircleText,
+                        onTap: _openSupport,
+                      ),
+                      const SizedBox(height: 4),
+                      _LinkRow(
+                        label: 'Noter l’appli',
+                        icon: PhosphorIconsRegular.star,
+                        onTap: _rating ? () {} : _rateApp,
+                      ),
+                    ],
                   ),
                 ),
                 const SizedBox(height: 16),

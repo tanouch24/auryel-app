@@ -186,3 +186,15 @@ int computeAge(DateTime birthDate, {DateTime? now}) {
 /// jamais d'exception).
 bool meetsMinimumAge(DateTime birthDate, {DateTime? now}) =>
     computeAge(birthDate, now: now) >= kMinimumUserAge;
+
+/// `true` si [d] est une date de naissance EXPLOITABLE pour un contrôle d'âge :
+/// non nulle, pas dans le futur, année ≥ 1900. Sert au GATE 18+ à distinguer
+/// « date absente / malformée / incohérente » (⇒ demander une correction) de
+/// « date valide mais mineure » (⇒ écran bloqué). Une date future n'est JAMAIS
+/// traitée comme un âge (négatif) : elle est « non exploitable ».
+bool isUsableBirthDate(DateTime? d, {DateTime? now}) {
+  if (d == null) return false;
+  final today = _dateOnly(now ?? DateTime.now());
+  final birth = _dateOnly(d);
+  return birth.year >= 1900 && !birth.isAfter(today);
+}

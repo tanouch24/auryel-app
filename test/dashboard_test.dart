@@ -14,6 +14,7 @@ import 'package:auryel/api/profile_api.dart';
 import 'package:auryel/api/rewards_api.dart';
 import 'package:auryel/api/tirage_api.dart';
 import 'package:auryel/data/auth_repository.dart';
+import 'package:auryel/data/app_review_service.dart';
 import 'package:auryel/data/consultation.dart';
 import 'package:auryel/data/daily_like_store.dart';
 import 'package:auryel/data/daily_share_tracker.dart';
@@ -25,6 +26,7 @@ import 'package:auryel/screens/auryel_experience_screen.dart';
 import 'package:auryel/screens/bibliotheque_screen.dart';
 import 'package:auryel/screens/dashboard_screen.dart';
 import 'package:auryel/screens/home_screen.dart';
+import 'package:auryel/screens/support_screen.dart';
 import 'package:auryel/screens/wellbeing_journey_screen.dart';
 import 'package:auryel/widgets/daily_message_sheet.dart';
 import 'package:auryel/state/auryel_state.dart';
@@ -133,11 +135,15 @@ Widget _dash({
   ConsultationController? consultation,
   AuthController? auth,
   AuryelState? state,
+  AppReviewService? reviewService,
 }) {
   Widget tree = AuryelStateScope(
     state: state ?? _state(),
     child: MaterialApp(
-      home: DashboardScreen(thoughtRepository: _thoughtRepo()),
+      home: DashboardScreen(
+        thoughtRepository: _thoughtRepo(),
+        reviewService: reviewService,
+      ),
     ),
   );
   if (consultation != null) {
@@ -771,5 +777,70 @@ void main() {
         expect(find.text('AURYEL'), findsOneWidget);
       },
     );
+  }
+
+  // ---------------------------------------------------------------------
+  // AIDE — « Signaler un problème » + « Noter l'appli »
+  // ---------------------------------------------------------------------
+  group('Aide', () {
+    testWidgets('section Aide : les deux entrées sont visibles', (t) async {
+      await t.pumpWidget(_dash());
+      await t.pump();
+      await t.scrollUntilVisible(find.text('Signaler un problème'), 300);
+      expect(find.text('AIDE'), findsOneWidget);
+      expect(find.text('Signaler un problème'), findsOneWidget);
+      expect(find.text('Noter l’appli'), findsOneWidget);
+    });
+
+    testWidgets('« Signaler un problème » ouvre le formulaire', (t) async {
+      await t.pumpWidget(_dash());
+      await t.pump();
+      await t.scrollUntilVisible(find.text('Signaler un problème'), 300);
+      await t.tap(find.text('Signaler un problème'));
+      await t.pumpAndSettle();
+      expect(find.byType(SupportScreen), findsOneWidget);
+      expect(find.text('SUJET'), findsOneWidget);
+    });
+
+    testWidgets('« Noter l’appli » appelle le service de notation, '
+        'aucune récompense / wallet touché', (t) async {
+      final rec = RecordingReviewService();
+      await t.pumpWidget(_dash(reviewService: rec));
+      await t.pump();
+      await t.scrollUntilVisible(find.text('Noter l’appli'), 300);
+      await t.tap(find.text('Noter l’appli'));
+      await t.pumpAndSettle();
+      expect(rec.calls, 1);
+      // aucun wording orienté
+      expect(find.textContaining('5 étoiles'), findsNothing);
+      expect(find.textContaining('Merci pour'), findsNothing);
+    });
+
+    testWidgets('« Noter l’appli » : service indisponible -> message neutre',
+        (t) async {
+      final rec = RecordingReviewService()
+        ..result = AppReviewOutcome.unavailable;
+      await t.pumpWidget(_dash(reviewService: rec));
+      await t.pump();
+      await t.scrollUntilVisible(find.text('Noter l’appli'), 300);
+      await t.tap(find.text('Noter l’appli'));
+      await t.pumpAndSettle();
+      expect(
+        find.text('La notation n’est pas disponible pour le moment.'),
+        findsOneWidget,
+      );
+    });
+  });
+}
+
+/// Faux service de notation — compte les appels, pilote le résultat.
+class RecordingReviewService implements AppReviewService {
+  int calls = 0;
+  AppReviewOutcome result = AppReviewOutcome.requested;
+
+  @override
+  Future<AppReviewOutcome> rate() async {
+    calls++;
+    return result;
   }
 }

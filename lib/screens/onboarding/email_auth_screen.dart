@@ -7,7 +7,7 @@ import '../../state/profile_restore.dart';
 import '../../state/session_profile_gate.dart';
 import '../../theme/auryel_theme.dart';
 import '../../widgets/auth_fields.dart';
-import '../../widgets/main_nav_shell.dart';
+import '../adult_gate.dart';
 import '../../widgets/onboarding_scaffold.dart';
 import 'first_name_screen.dart';
 
@@ -104,7 +104,7 @@ class _EmailAuthScreenState extends State<EmailAuthScreen> {
       await state.completeOnboarding(userId: newUserId);
       if (!mounted) return;
       Navigator.of(context).pushAndRemoveUntil(
-        MaterialPageRoute(builder: (_) => const MainNavShell()),
+        MaterialPageRoute(builder: (_) => const AdultGate()),
         (route) => false,
       );
     } on ApiUnauthorizedException {
