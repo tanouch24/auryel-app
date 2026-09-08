@@ -33,13 +33,24 @@ class ChatScreen extends StatefulWidget {
   const ChatScreen({
     super.key,
     required this.advisor,
+    this.consultationId,
     this.tirageId,
     this.aiReportApi,
   });
 
-  /// Conseiller choisi (affiché tant que le backend n'a pas renvoyé de
-  /// consultation). Ensuite `consultation.advisor_id` prime.
+  /// Conseiller du fil. Sur le chemin multi-consultations (J6-F2), il est
+  /// AUTORITAIRE : il correspond au `advisor_id` du fil ciblé et n'est jamais
+  /// remplacé par `AuryelState.selectedAdvisor` ni par `kAdvisors.first`. Sur le
+  /// chemin hérité (sans [consultationId]), il sert d'affichage tant que le
+  /// backend n'a pas renvoyé de consultation, puis `consultation.advisor_id`
+  /// prime.
   final AdvisorInfo advisor;
+
+  /// J6-F2 — identifiant EXACT du fil à reprendre. Fourni, ChatScreen cible ce
+  /// fil précis : historique via `?consultation_id=<id>`, chaque envoi porte
+  /// `consultation_id`, aucun repli vers « le dernier fil du compte ». Absent
+  /// -> comportement hérité (fil courant choisi par le backend).
+  final String? consultationId;
 
   /// Signalement d'une réponse IA. Test uniquement en injection directe ; en
   /// production on retombe sur `AuthScope.maybeOf(context)?.aiReportApi`.
@@ -115,6 +126,17 @@ class _ChatScreenState extends State<ChatScreen> {
     super.didChangeDependencies();
     if (_seeded) return;
     _seeded = true;
+    _auth = AuthScope.maybeOf(context);
+
+    // J6-F2 — fil ciblé explicitement : on reprend CE fil, jamais « le dernier
+    // du compte ». Le conseiller fourni fait autorité. Historique en lecture
+    // seule via `?consultation_id=<id>`.
+    if (widget.consultationId != null && widget.consultationId!.isNotEmpty) {
+      _firstMessageConfirmed = true; // fil existant -> pas de confirmation
+      _loadHistory();
+      return;
+    }
+
     // F4 / TIMER-D.1 — reprise d'une consultation LOGIQUE déjà ouverte : on
     // part du state partagé, pas d'un écran vierge. `hasResumableConsultation`
     // (et non `hasActiveSession`) : l'historique reste visible même hors
@@ -125,10 +147,13 @@ class _ChatScreenState extends State<ChatScreen> {
       _consultation = controller.active;
       _firstMessageConfirmed =
           true; // consultation existante -> pas de confirmation
-      _auth = AuthScope.maybeOf(context);
       _loadHistory();
     }
   }
+
+  /// Identifiant du fil courant : le fil ciblé (J6-F2) prime, sinon la
+  /// consultation logique du state partagé.
+  String? get _threadId => widget.consultationId ?? _consultation?.id;
 
   /// Charge l'historique de la consultation active. Lecture seule : aucun
   /// crédit, aucun POST. N'injecte les messages QUE si le `consultation_id`
@@ -138,7 +163,7 @@ class _ChatScreenState extends State<ChatScreen> {
   Future<void> _loadHistory() async {
     if (_historyRequested) return;
     final auth = _auth;
-    final activeId = _consultation?.id;
+    final activeId = _threadId;
     if (auth == null || activeId == null || activeId.isEmpty) return;
 
     _historyRequested = true;
@@ -154,11 +179,22 @@ class _ChatScreenState extends State<ChatScreen> {
         setState(() => _historyLoading = false);
         return;
       }
-      final res = await auth.consultationApi.getMessages(bearer: token);
+      // J6-F2 — fil ciblé : `?consultation_id=<id>`. Chemin hérité : aucune
+      // query (le backend renvoie le fil courant).
+      final res = await auth.consultationApi.getMessages(
+        bearer: token,
+        consultationId: widget.consultationId,
+      );
       if (!mounted) return;
 
-      // consultation_id inattendu -> on n'injecte AUCUN message.
+      // consultation_id inattendu / inaccessible -> on n'injecte AUCUN message
+      // (jamais l'historique d'un autre fil), et on affiche le bandeau d'erreur
+      // contrôlée si le fil ciblé est introuvable.
       if (res.consultationId == null || res.consultationId != activeId) {
+        if (widget.consultationId != null) {
+          _failHistory();
+          return;
+        }
         setState(() => _historyLoading = false);
         return;
       }
@@ -208,8 +244,12 @@ class _ChatScreenState extends State<ChatScreen> {
     super.dispose();
   }
 
-  AdvisorInfo get _headerAdvisor =>
-      advisorByGuideKey(_consultation?.advisorId) ?? widget.advisor;
+  AdvisorInfo get _headerAdvisor {
+    // J6-F2 — fil ciblé : le conseiller fourni fait autorité (il correspond au
+    // `advisor_id` du fil). Aucun repli vers `selectedAdvisor` / `kAdvisors`.
+    if (widget.consultationId != null) return widget.advisor;
+    return advisorByGuideKey(_consultation?.advisorId) ?? widget.advisor;
+  }
 
   bool get _canSend {
     if (_sending || _noCredit) return false;
@@ -252,6 +292,9 @@ class _ChatScreenState extends State<ChatScreen> {
       final res = await auth.consultationApi.sendMessage(
         bearer: token,
         message: text,
+        // J6-F2 — chemin multi-consultations : chaque envoi cible le fil exact.
+        // Chemin hérité (consultationId null) : body inchangé.
+        consultationId: widget.consultationId,
         tirageId: _pendingTirageId,
       );
       if (!mounted) return;
@@ -376,7 +419,7 @@ class _ChatScreenState extends State<ChatScreen> {
     final auth = AuthScope.maybeOf(context);
     final api = widget.aiReportApi ?? auth?.aiReportApi;
     final consultationId =
-        _consultation?.id ?? ConsultationScope.maybeReadOf(context)?.active?.id;
+        _threadId ?? ConsultationScope.maybeReadOf(context)?.active?.id;
     final messenger = ScaffoldMessenger.of(context);
 
     final submitted = await showAiReportSheet(

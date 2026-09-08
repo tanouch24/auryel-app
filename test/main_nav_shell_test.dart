@@ -118,11 +118,11 @@ void main() {
     expect(find.text('Le Jeu Auryel'), findsOneWidget);
     expect(find.byType(TirageScreen), findsNothing);
 
-    // Consultation (feed vertical des conseillers).
+    // Consultation (J6-F2 : LISTE des discussions en cours).
     await tester.tap(_tab('Consultation'));
     await tester.pumpAndSettle();
     expect(find.byType(ConsultationScreen), findsOneWidget);
-    expect(find.byType(PageView), findsOneWidget);
+    expect(find.text('Consultations en cours'), findsOneWidget);
 
     // Méditation : vrai écran « Ton Moment ».
     await tester.tap(_tab('Méditation'));

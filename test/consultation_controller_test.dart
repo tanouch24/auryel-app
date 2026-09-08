@@ -23,6 +23,7 @@ import 'package:auryel/state/auryel_state.dart';
 import 'package:auryel/state/auth_controller.dart';
 import 'package:auryel/state/consultation_controller.dart';
 import 'package:auryel/widgets/advisors_carousel.dart';
+import 'package:auryel/widgets/main_nav_scope.dart';
 
 // ===========================================================================
 // Fixtures
@@ -556,7 +557,7 @@ void main() {
   // D. Accueil
   // =========================================================================
   group('D. Accueil', () {
-    testWidgets('consultation active -> "Reprendre" + "Consultation en cours" '
+    testWidgets('consultation active -> "Consultation en cours" (CTA + ligne) '
         '+ portefeuille "3 h"', (t) async {
       final rig = _rig((req) async {
         if (req.url.path == '/api/consultation/state') {
@@ -576,7 +577,9 @@ void main() {
       rig.controller.dispose(); // coupe le Timer.periodic avant les invariants
       await t.pumpAndSettle(); // vide les timers flutter_animate de l'accueil
 
-      expect(find.text('Reprendre'), findsOneWidget);
+      // J6-F2 §9 — « Consultation en cours » (jamais « Reprendre »).
+      expect(find.text('Consultation en cours'), findsOneWidget);
+      expect(find.text('Reprendre'), findsNothing);
       expect(
         find.textContaining('Consultation en cours avec Séléna'),
         findsOneWidget,
@@ -601,14 +604,13 @@ void main() {
       await _pumpWithin(t, rig, const HomeScreen());
       await t.pumpAndSettle();
 
-      expect(find.text('Consulter'), findsOneWidget);
+      expect(find.text('Commencer une consultation'), findsOneWidget);
       expect(find.text('Reprendre'), findsNothing);
     });
 
     // F5-C — états du bloc consultation dérivés du quota RÉEL (lecture seule).
-    testWidgets('first_free_available -> "Consulter" + "1 h offerte"', (
-      t,
-    ) async {
+    testWidgets('first_free_available -> "Commencer une consultation" + "1 h '
+        'offerte"', (t) async {
       final rig = _rig((req) async {
         if (req.url.path == '/api/consultation/state') {
           return _json(_noState(isPremium: false, firstFree: true));
@@ -618,7 +620,7 @@ void main() {
       await rig.controller.refresh();
       await _pumpWithin(t, rig, const HomeScreen());
       await t.pumpAndSettle();
-      expect(find.text('Consulter'), findsOneWidget);
+      expect(find.text('Commencer une consultation'), findsOneWidget);
       // Bloc compact « TEMPS DISPONIBLE » : valeur mise en avant.
       expect(find.text('TEMPS DISPONIBLE'), findsOneWidget);
       expect(find.text('1 h offerte'), findsOneWidget);
@@ -641,7 +643,9 @@ void main() {
       },
     );
 
-    testWidgets('temps disponible -> CTA "Consulter"', (t) async {
+    testWidgets('temps disponible -> CTA "Commencer une consultation"', (
+      t,
+    ) async {
       final rig = _rig((req) async {
         if (req.url.path == '/api/consultation/state') {
           return _json(_noState(timeTotal: 12000)); // ~3 h 20
@@ -651,7 +655,7 @@ void main() {
       await rig.controller.refresh();
       await _pumpWithin(t, rig, const HomeScreen());
       await t.pumpAndSettle();
-      expect(find.text('Consulter'), findsOneWidget);
+      expect(find.text('Commencer une consultation'), findsOneWidget);
     });
 
     testWidgets('ni gratuite, ni temps -> S’abonner', (t) async {
@@ -688,7 +692,8 @@ void main() {
       expect(find.text('S’abonner'), findsOneWidget);
     });
 
-    testWidgets('tap CTA -> ouvre ChatScreen sans POST', (t) async {
+    testWidgets('J6-F2 §21 : tap CTA -> demande l\'onglet Consultation, jamais '
+        'ChatScreen, aucun POST', (t) async {
       final rig = _rig((req) async {
         if (req.url.path == '/api/consultation/state') {
           return _json(
@@ -702,15 +707,37 @@ void main() {
       });
       await rig.controller.refresh();
 
-      await _pumpWithin(t, rig, const HomeScreen());
+      final tabs = <int>[];
+      await t.pumpWidget(
+        AuthScope(
+          controller: rig.auth,
+          child: ConsultationScope(
+            controller: rig.controller,
+            child: AuryelStateScope(
+              state: _completedState(),
+              child: MaterialApp(
+                home: MainNavScope(
+                  goToTab: tabs.add,
+                  currentIndex: kTabHome,
+                  child: const Scaffold(body: HomeScreen()),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
       await t.pump();
 
-      await t.ensureVisible(find.text('Reprendre'));
-      await t.tap(find.text('Reprendre'));
+      await t.ensureVisible(find.text('Consultation en cours'));
+      await t.tap(find.text('Consultation en cours'));
       await t.pumpAndSettle();
       rig.controller.dispose();
 
-      expect(find.text('Écris ton message…'), findsOneWidget);
+      expect(tabs, contains(kTabConsultation));
+      expect(
+        find.text('Écris ton message…'),
+        findsNothing,
+      ); // pas de ChatScreen
       expect(_messagePosts(rig), 0);
     });
   });

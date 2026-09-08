@@ -28,6 +28,7 @@ import 'package:auryel/state/auth_controller.dart';
 import 'package:auryel/state/consultation_controller.dart';
 import 'package:auryel/state/purchase_controller.dart';
 import 'package:auryel/widgets/advisors_carousel.dart';
+import 'package:auryel/widgets/main_nav_scope.dart';
 
 /// Gateway IAP inerte pour les tests d'UI qui n'exercent pas l'achat.
 class _NullGateway implements IapGateway {
@@ -562,7 +563,8 @@ void main() {
     },
   );
 
-  testWidgets('CTA Accueil -> ouvre ChatScreen', (t) async {
+  testWidgets('J6-F2 §12 : CTA Accueil -> onglet Consultation, jamais '
+      'ChatScreen', (t) async {
     final e = _env((_) async => _json(_okBody()));
     final state = AuryelState(
       repository: LocalOnboardingRepository(),
@@ -576,25 +578,30 @@ void main() {
         onboardingCompleted: true,
       ),
     );
+    final tabs = <int>[];
     await t.pumpWidget(
       AuthScope(
         controller: e.auth,
         child: AuryelStateScope(
           state: state,
-          child: const MaterialApp(home: HomeScreen()),
+          child: MaterialApp(
+            home: MainNavScope(
+              goToTab: tabs.add,
+              currentIndex: kTabHome,
+              child: const Scaffold(body: HomeScreen()),
+            ),
+          ),
         ),
       ),
     );
     await t.pumpAndSettle();
 
-    await t.ensureVisible(find.text('Consulter'));
-    await t.tap(find.text('Consulter'));
+    await t.ensureVisible(find.text('Commencer une consultation'));
+    await t.tap(find.text('Commencer une consultation'));
     await t.pumpAndSettle();
 
-    expect(
-      find.text('Écris ton message…'),
-      findsOneWidget,
-    ); // hint du ChatScreen
+    expect(tabs, contains(kTabConsultation));
+    expect(find.text('Écris ton message…'), findsNothing); // pas de ChatScreen
   });
 }
 

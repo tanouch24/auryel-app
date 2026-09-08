@@ -277,13 +277,16 @@ void main() {
   group('Temps disponible (bloc compact)', () {
     testWidgets(
       'sans ConsultationScope -> « TEMPS DISPONIBLE » + « 1 h offerte » '
-      '+ CTA « Consulter »',
+      '+ CTA « Commencer une consultation »',
       (t) async {
         await t.pumpWidget(_host());
         await t.pump(const Duration(seconds: 1));
         expect(find.text('TEMPS DISPONIBLE'), findsOneWidget);
         expect(find.text('1 h offerte'), findsOneWidget);
-        expect(find.text('Consulter'), findsOneWidget);
+        // J6-F2 §11 — aucune discussion -> « Commencer une consultation »
+        // (jamais « Consulter » qui ouvrait un ChatScreen sur selectedAdvisor).
+        expect(find.text('Commencer une consultation'), findsOneWidget);
+        expect(find.text('Consulter'), findsNothing);
       },
     );
   });

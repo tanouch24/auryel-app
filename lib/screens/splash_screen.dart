@@ -48,7 +48,8 @@ class _SplashScreenState extends State<SplashScreen> {
     // et valide (le GET /state exige un Bearer). Lecture seule : aucun POST,
     // aucun crédit consommé.
     if (auth.isSignedIn) {
-      unawaited(consultation.refresh());
+      // Portefeuille (`/state`) + liste des consultations (`/list`, J6-F2).
+      unawaited(consultation.refreshAll());
     }
     // MULTI-APPAREIL — au démarrage avec session valide, si le profil local est
     // absent / incomplet / rattaché à un autre compte, on récupère le profil

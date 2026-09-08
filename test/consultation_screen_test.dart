@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
@@ -11,44 +13,139 @@ import 'package:auryel/api/profile_api.dart';
 import 'package:auryel/api/tirage_api.dart';
 import 'package:auryel/data/advisor_audio.dart';
 import 'package:auryel/data/auth_repository.dart';
-import 'package:auryel/data/consultation.dart';
 import 'package:auryel/data/onboarding_record.dart';
 import 'package:auryel/data/onboarding_repository.dart';
 import 'package:auryel/data/token_store.dart';
+import 'package:auryel/screens/advisor_selector_screen.dart';
+import 'package:auryel/screens/chat_screen.dart';
 import 'package:auryel/screens/consultation_screen.dart';
 import 'package:auryel/state/auryel_state.dart';
 import 'package:auryel/state/auth_controller.dart';
 import 'package:auryel/state/consultation_controller.dart';
-import 'package:auryel/widgets/advisors_carousel.dart';
 import 'package:auryel/widgets/main_nav_scope.dart';
 
 // ===========================================================================
-// LOT « ONGLET CENTRAL CONSULTATION » — feed vertical des 10 conseillers +
-// audio immersif (un seul lecteur, mute persistant, arrêt hors onglet).
+// J6-F2 — onglet CONSULTATION = LISTE « Consultations en cours ».
+// Il N'Y A PAS de conseiller référent : aucun fil n'est choisi via
+// selectedAdvisor, aucun repli kAdvisors.first, aucun changeAdvisor.
 // ===========================================================================
 
 class _FakeAudio implements AdvisorAudio {
-  final List<String> calls = [];
-  String? lastAsset;
-
   @override
-  Future<void> play(String assetPath, {Duration fadeIn = Duration.zero}) async {
-    lastAsset = assetPath;
-    calls.add('play:$assetPath');
-  }
-
+  Future<void> play(
+    String assetPath, {
+    Duration fadeIn = Duration.zero,
+  }) async {}
   @override
-  Future<void> stop() async => calls.add('stop');
-
+  Future<void> stop() async {}
   @override
-  void dispose() => calls.add('dispose');
+  void dispose() {}
+}
+
+http.Response _json(Object body, [int status = 200]) => http.Response(
+  jsonEncode(body),
+  status,
+  headers: {'content-type': 'application/json'},
+);
+
+Map<String, dynamic> _summary({
+  required String id,
+  required String advisorId,
+  bool windowActive = false,
+  Object? preview = 'dernier message',
+}) => {
+  'id': id,
+  'advisor_id': advisorId,
+  'started_at': '2026-09-01T10:00:00Z',
+  'last_activity_at': '2026-09-01T10:05:00Z',
+  'window_active': windowActive,
+  'preview': ?preview,
+};
+
+Map<String, dynamic> _openBody({
+  required String id,
+  required String advisorId,
+}) => {
+  'consultation': {
+    'id': id,
+    'advisor_id': advisorId,
+    'started_at': '2026-09-01T10:00:00Z',
+    'expires_at': '2026-09-01T12:00:00Z',
+    'credit_source': 'time',
+    'opened_now': true,
+  },
+};
+
+typedef _Rig = ({
+  ConsultationController controller,
+  AuthController auth,
+  List<String> hits,
+  List<Map<String, dynamic>> openBodies,
+  List<Uri> messageGets,
+});
+
+_Rig _rig({List<Map<String, dynamic>> list = const [], String? token = 'tok'}) {
+  final hits = <String>[];
+  final openBodies = <Map<String, dynamic>>[];
+  final messageGets = <Uri>[];
+  var current = List<Map<String, dynamic>>.from(list);
+
+  final client = ApiClient(
+    httpClient: MockClient((req) async {
+      hits.add('${req.method} ${req.url.path}');
+      final path = req.url.path;
+      if (path == '/api/consultation/list') {
+        return _json({'consultations': current});
+      }
+      if (path == '/api/consultation/open') {
+        final body = jsonDecode(req.body) as Map<String, dynamic>;
+        openBodies.add(body);
+        final advisorId = body['advisor_id'] as String;
+        final id = 'c-new-$advisorId';
+        current = [
+          ...current,
+          _summary(id: id, advisorId: advisorId, preview: null),
+        ];
+        return _json(_openBody(id: id, advisorId: advisorId));
+      }
+      if (path == '/api/consultation/messages') {
+        messageGets.add(req.url);
+        final wanted = req.url.queryParameters['consultation_id'];
+        return _json({'consultation_id': wanted, 'messages': <dynamic>[]});
+      }
+      if (path == '/api/consultation/state') {
+        return _json({'consultation': null, 'quota': null});
+      }
+      return _json({}, 404);
+    }),
+    baseUrl: 'http://test.local',
+  );
+  final capi = ConsultationApi(client);
+  final auth = AuthController(
+    repository: AuthRepository(
+      api: AuthApi(client),
+      tokenStore: InMemoryTokenStore(token),
+    ),
+    profileApi: ProfileApi(client),
+    consultationApi: capi,
+    tirageApi: TirageApi(client),
+  );
+  final controller = ConsultationController(api: capi, auth: auth);
+  addTearDown(controller.dispose);
+  return (
+    controller: controller,
+    auth: auth,
+    hits: hits,
+    openBodies: openBodies,
+    messageGets: messageGets,
+  );
 }
 
 AuryelState _state() => AuryelState(
   repository: LocalOnboardingRepository(),
   initial: OnboardingRecord(
     userId: 'u',
-    selectedAdvisor: 'Séléna',
+    selectedAdvisor: 'Séléna', // ne doit JAMAIS servir à reprendre un fil
     firstName: 'N',
     birthDate: DateTime(1994, 1, 1),
     portraitData: 'x',
@@ -57,81 +154,29 @@ AuryelState _state() => AuryelState(
   ),
 );
 
-ConsultationController _controllerNoHttp() {
-  final client = ApiClient(
-    httpClient: MockClient((_) async => http.Response('{}', 404)),
-    baseUrl: 'http://test.local',
-  );
-  final api = ConsultationApi(client);
-  final auth = AuthController(
-    repository: AuthRepository(
-      api: AuthApi(client),
-      tokenStore: InMemoryTokenStore('t'),
-    ),
-    profileApi: ProfileApi(client),
-    consultationApi: api,
-    tirageApi: TirageApi(client),
-  );
-  final c = ConsultationController(api: api, auth: auth);
-  addTearDown(c.dispose);
-  return c;
-}
-
-Map<String, dynamic> _time({int total = 3600, bool windowActive = false}) => {
-  'first_free_remaining_seconds': total,
-  'premium_remaining_seconds': 0,
-  'purchased_remaining_seconds': 0,
-  'total_remaining_seconds': total,
-  'window_active': windowActive,
-  'window_expires_at': windowActive ? '2999-01-01T00:05:00Z' : null,
-};
-
-Map<String, dynamic> _quota() => {
-  'is_premium': false,
-  'monthly_limit': 8,
-  'monthly_used': 0,
-  'monthly_remaining': 8,
-  'earned_available': 0,
-  'first_free_available': true,
-  'period_start': '2026-08-01T00:00:00Z',
-  'period_end': '2026-09-01T00:00:00Z',
-};
-
-void _injectActiveSession(ConsultationController c, String advisorId) {
-  c.updateFromMessageResponse(
-    ConsultationMessageResponse.fromJson({
-      'reply': 'x',
-      'consultation': {
-        'id': 'c-1',
-        'advisor_id': advisorId,
-        'started_at': '2026-09-01T10:00:00Z',
-        'expires_at': '2026-09-01T12:00:00Z',
-        'seconds_remaining': 9000,
-        'credit_source': 'time',
-      },
-      'time': _time(total: 9000, windowActive: false),
-      'quota': _quota(),
-    }),
-  );
-}
-
-Widget _host({
-  ConsultationController? controller,
-  _FakeAudio? audio,
+Future<void> _pump(
+  WidgetTester t,
+  _Rig rig, {
   int currentIndex = kTabConsultation,
-  ValueChanged<int>? goToTab,
+  List<int>? tabTaps,
 }) {
-  Widget screen = ConsultationScreen(audioOverride: audio);
-  if (controller != null) {
-    screen = ConsultationScope(controller: controller, child: screen);
-  }
-  return AuryelStateScope(
-    state: _state(),
-    child: MaterialApp(
-      home: MainNavScope(
-        goToTab: goToTab ?? (_) {},
-        currentIndex: currentIndex,
-        child: Scaffold(body: screen),
+  return t.pumpWidget(
+    AuthScope(
+      controller: rig.auth,
+      child: ConsultationScope(
+        controller: rig.controller,
+        child: AuryelStateScope(
+          state: _state(),
+          child: MaterialApp(
+            home: MainNavScope(
+              goToTab: tabTaps?.add ?? (_) {},
+              currentIndex: currentIndex,
+              child: Scaffold(
+                body: ConsultationScreen(audioOverride: _FakeAudio()),
+              ),
+            ),
+          ),
+        ),
       ),
     ),
   );
@@ -140,170 +185,241 @@ Widget _host({
 void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
 
-  group('Feed vertical', () {
-    testWidgets(
-      '10 conseillers dans un PageView vertical, 1 visible à la fois',
-      (t) async {
-        final audio = _FakeAudio();
-        await t.pumpWidget(_host(audio: audio));
-        await t.pumpAndSettle();
+  testWidgets('1 titre « Consultations en cours » + refresh au chargement', (
+    t,
+  ) async {
+    final rig = _rig();
+    await _pump(t, rig);
+    await t.pumpAndSettle();
+    expect(find.text('Consultations en cours'), findsOneWidget);
+    expect(rig.hits, contains('GET /api/consultation/list'));
+  });
 
-        final pv = t.widget<PageView>(find.byType(PageView));
-        expect(pv.scrollDirection, Axis.vertical);
-        // 1er conseiller visible + son CTA nominatif.
-        expect(find.text('Consulter Séléna'), findsOneWidget);
-        expect(find.text('Consulter Luna'), findsNothing);
-        // temps disponible affiché.
-        expect(find.textContaining('Temps disponible'), findsOneWidget);
-        expect(find.text('1 h offerte'), findsOneWidget);
-      },
+  testWidgets('2/3 liste vide propre + CTA « Choisir un conseiller »', (
+    t,
+  ) async {
+    final rig = _rig(list: const []);
+    await _pump(t, rig);
+    await t.pumpAndSettle();
+    expect(
+      find.text('Tu n’as pas encore de consultation en cours.'),
+      findsOneWidget,
     );
-
-    testWidgets('swipe vertical -> conseiller suivant', (t) async {
-      final audio = _FakeAudio();
-      await t.pumpWidget(_host(audio: audio));
-      await t.pumpAndSettle();
-
-      await t.fling(find.byType(PageView), const Offset(0, -400), 1200);
-      await t.pumpAndSettle();
-
-      expect(find.text('Consulter Luna'), findsOneWidget);
-      expect(find.text('Consulter Séléna'), findsNothing);
-    });
+    expect(find.text('Choisir un conseiller'), findsOneWidget);
+    expect(find.text('Demander un autre avis'), findsNothing);
   });
 
-  group('Audio', () {
-    testWidgets('autoplay au montage + un seul lecteur ; swipe stoppe le '
-        'précédent avant de jouer le suivant', (t) async {
-      final audio = _FakeAudio();
-      await t.pumpWidget(_host(audio: audio));
-      await t.pumpAndSettle();
-
-      expect(audio.lastAsset, kAdvisors[0].voicePath); // Séléna
-      audio.calls.clear();
-
-      await t.fling(find.byType(PageView), const Offset(0, -400), 1200);
-      await t.pumpAndSettle();
-
-      final stopIdx = audio.calls.indexOf('stop');
-      final playIdx = audio.calls.indexWhere(
-        (c) => c == 'play:${kAdvisors[1].voicePath}',
-      );
-      expect(stopIdx, isNonNegative);
-      expect(playIdx, isNonNegative);
-      expect(stopIdx, lessThan(playIdx), reason: 'stop AVANT le play suivant');
-    });
-
-    testWidgets('quitter l\'onglet CONSULTATION arrête l\'audio', (t) async {
-      final audio = _FakeAudio();
-      await t.pumpWidget(_host(audio: audio, currentIndex: kTabConsultation));
-      await t.pumpAndSettle();
-      audio.calls.clear();
-
-      // L'utilisateur passe sur un autre onglet.
-      await t.pumpWidget(_host(audio: audio, currentIndex: kTabHome));
-      await t.pumpAndSettle();
-
-      expect(audio.calls, contains('stop'));
-    });
-
-    testWidgets('bouton mute : coupe l\'audio, préférence persistée, pas '
-        'd\'autoplay au remontage', (t) async {
-      final audio = _FakeAudio();
-      await t.pumpWidget(_host(audio: audio));
-      await t.pumpAndSettle();
-
-      await t.tap(find.bySemanticsLabel('Couper le son des présentations'));
-      await t.pumpAndSettle();
-      expect(audio.calls, contains('stop'));
-
-      final prefs = await SharedPreferences.getInstance();
-      expect(prefs.getBool('auryel.consultation.audio_muted.v1'), isTrue);
-
-      // Remontage : muted -> aucun play.
-      final audio2 = _FakeAudio();
-      await t.pumpWidget(_host(audio: audio2));
-      await t.pumpAndSettle();
-      expect(audio2.calls.where((c) => c.startsWith('play:')), isEmpty);
-      expect(
-        find.bySemanticsLabel('Activer le son des présentations'),
-        findsOneWidget,
-      );
-    });
-
-    testWidgets('lifecycle : passage en arrière-plan arrête l\'audio', (
-      t,
-    ) async {
-      final audio = _FakeAudio();
-      await t.pumpWidget(_host(audio: audio));
-      await t.pumpAndSettle();
-      audio.calls.clear();
-
-      t.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
-      await t.pumpAndSettle();
-      expect(audio.calls, contains('stop'));
-    });
-  });
-
-  group('Session active', () {
-    testWidgets('priorité « Reprendre » ; le conseiller de session est '
-        'conservé ; un autre conseiller ne le remplace pas', (t) async {
-      final c = _controllerNoHttp();
-      _injectActiveSession(c, 'ezra');
-      await t.pumpWidget(_host(controller: c, audio: _FakeAudio()));
-      await t.pumpAndSettle();
-
-      // Bandeau prioritaire.
-      expect(
-        find.textContaining('Consultation en cours avec Ezra'),
-        findsWidgets,
-      );
-      expect(find.text('Reprendre ma consultation'), findsWidgets);
-
-      // Page 1 = Séléna (autre conseiller) : PAS de « Consulter Séléna ».
-      expect(find.text('Consulter Séléna'), findsNothing);
-      expect(
-        find.textContaining('Ta consultation en cours reste avec Ezra'),
-        findsOneWidget,
-      );
-      expect(
-        find.text('Choisir Séléna pour ma prochaine consultation'),
-        findsOneWidget,
-      );
-    });
-  });
-
-  group('Accessibilité & responsive', () {
-    testWidgets('CTA principal + bouton mute portent une sémantique bouton', (
-      t,
-    ) async {
-      await t.pumpWidget(_host(audio: _FakeAudio()));
-      await t.pumpAndSettle();
-      expect(
-        find.byWidgetPredicate(
-          (w) =>
-              w is Semantics &&
-              w.properties.button == true &&
-              (w.properties.label ?? '').contains('Consulter Séléna'),
+  testWidgets('4/5/6 plusieurs consultations : Ezra + Séléna séparés, bon '
+      'aperçu par fil', (t) async {
+    final rig = _rig(
+      list: [
+        _summary(id: 'c-ezra', advisorId: 'ezra', preview: 'aperçu Ezra'),
+        _summary(
+          id: 'c-selena',
+          advisorId: 'selena',
+          preview: 'aperçu Séléna',
+          windowActive: true,
         ),
-        findsWidgets,
-      );
-      expect(
-        find.bySemanticsLabel('Couper le son des présentations'),
-        findsOneWidget,
-      );
-    });
+      ],
+    );
+    await _pump(t, rig);
+    await t.pumpAndSettle();
 
-    for (final w in const [360.0, 384.0, 430.0]) {
-      testWidgets('aucun overflow à ${w.toInt()} dp', (t) async {
-        t.view.devicePixelRatio = 1.0;
-        t.view.physicalSize = Size(w, 820);
-        addTearDown(t.view.reset);
-        await t.pumpWidget(_host(audio: _FakeAudio()));
-        await t.pumpAndSettle();
-        expect(find.byType(PageView), findsOneWidget);
-        expect(t.takeException(), isNull);
-      });
-    }
+    expect(find.text('Ezra'), findsOneWidget);
+    expect(find.text('Séléna'), findsOneWidget);
+    // aperçu rattaché au bon fil.
+    expect(
+      find.descendant(
+        of: find.ancestor(
+          of: find.text('Ezra'),
+          matching: find.byType(InkWell),
+        ),
+        matching: find.text('aperçu Ezra'),
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(
+        of: find.ancestor(
+          of: find.text('Séléna'),
+          matching: find.byType(InkWell),
+        ),
+        matching: find.text('aperçu Séléna'),
+      ),
+      findsOneWidget,
+    );
+    // statut léger « En cours » sur le fil windowActive.
+    expect(find.text('En cours'), findsOneWidget);
+    // CTA permanent.
+    expect(find.text('Demander un autre avis'), findsOneWidget);
   });
+
+  testWidgets('7/8/9/10 tap Ezra -> ChatScreen(id Ezra, advisor Ezra) ; tap '
+      'Séléna -> ChatScreen(id Séléna) ; selectedAdvisor non utilisé', (
+    t,
+  ) async {
+    final rig = _rig(
+      list: [
+        _summary(id: 'c-ezra', advisorId: 'ezra'),
+        _summary(id: 'c-selena', advisorId: 'selena'),
+      ],
+    );
+    await _pump(t, rig);
+    await t.pumpAndSettle();
+
+    await t.tap(find.text('Ezra'));
+    await t.pumpAndSettle();
+    var chat = t.widget<ChatScreen>(find.byType(ChatScreen));
+    expect(chat.consultationId, 'c-ezra');
+    expect(chat.advisor.guideKey, 'ezra'); // pas « selena » (selectedAdvisor)
+    // historique ciblé par consultation_id.
+    expect(rig.messageGets.last.queryParameters['consultation_id'], 'c-ezra');
+
+    await t.tap(find.byIcon(Icons.arrow_back_ios_new));
+    await t.pumpAndSettle();
+
+    await t.tap(find.text('Séléna'));
+    await t.pumpAndSettle();
+    chat = t.widget<ChatScreen>(find.byType(ChatScreen));
+    expect(chat.consultationId, 'c-selena');
+    expect(chat.advisor.guideKey, 'selena');
+  });
+
+  testWidgets('11 advisor inconnu -> erreur contrôlée, aucun ChatScreen', (
+    t,
+  ) async {
+    final rig = _rig(
+      list: [_summary(id: 'c-x', advisorId: 'inconnu_xyz')],
+    );
+    await _pump(t, rig);
+    await t.pumpAndSettle();
+
+    await t.tap(find.text('Conseiller')); // nom de repli de la carte
+    await t.pumpAndSettle();
+
+    expect(find.byType(ChatScreen), findsNothing);
+    expect(
+      find.text('Cette consultation est momentanément indisponible.'),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('12/13 « Demander un autre avis » -> conseiller déjà existant '
+      'rouvre le fil existant (pas de POST /open)', (t) async {
+    final rig = _rig(
+      list: [_summary(id: 'c-ezra', advisorId: 'ezra')],
+    );
+    await _pump(t, rig);
+    await t.pumpAndSettle();
+
+    await t.tap(find.text('Demander un autre avis'));
+    await t.pumpAndSettle();
+    expect(find.byType(AdvisorSelectorScreen), findsOneWidget);
+
+    // Ezra = kAdvisors[7] : on fait défiler le feed vertical jusqu'à sa page.
+    for (var i = 0; i < 7; i++) {
+      await t.fling(find.byType(PageView), const Offset(0, -500), 1400);
+      await t.pumpAndSettle();
+    }
+    await t.tap(find.text('Reprendre avec Ezra'));
+    await t.pumpAndSettle();
+    await t.pump(const Duration(milliseconds: 200));
+    await t.pumpAndSettle();
+
+    final chat = t.widget<ChatScreen>(find.byType(ChatScreen));
+    expect(chat.consultationId, 'c-ezra'); // le fil EXISTANT
+    expect(chat.advisor.guideKey, 'ezra');
+    expect(rig.hits.where((h) => h == 'POST /api/consultation/open'), isEmpty);
+  });
+
+  testWidgets('14/15 nouveau conseiller -> openAdvisor(guideKey) puis '
+      'ChatScreen sur le fil renvoyé ; aucun PATCH profil', (t) async {
+    final rig = _rig(
+      list: [_summary(id: 'c-ezra', advisorId: 'ezra')],
+    );
+    await _pump(t, rig);
+    await t.pumpAndSettle();
+
+    await t.tap(find.text('Demander un autre avis'));
+    await t.pumpAndSettle();
+    // Séléna = kAdvisors[0], page visible d'emblée ; pas de fil -> « Demander
+    // un avis ».
+    await t.tap(find.text('Demander un avis avec Séléna'));
+    await t.pumpAndSettle();
+    await t.pump(const Duration(milliseconds: 200));
+    await t.pumpAndSettle();
+
+    expect(rig.openBodies.single, {'advisor_id': 'selena'});
+    final chat = t.widget<ChatScreen>(find.byType(ChatScreen));
+    expect(chat.consultationId, 'c-new-selena');
+    expect(chat.advisor.guideKey, 'selena');
+    expect(rig.hits.any((h) => h.contains('profile')), isFalse);
+  });
+
+  testWidgets('16/28 retour du chat -> LISTE, refresh, aucun fil rouvert '
+      'automatiquement', (t) async {
+    final rig = _rig(
+      list: [_summary(id: 'c-ezra', advisorId: 'ezra')],
+    );
+    await _pump(t, rig);
+    await t.pumpAndSettle();
+
+    await t.tap(find.text('Ezra'));
+    await t.pumpAndSettle();
+    expect(find.byType(ChatScreen), findsOneWidget);
+
+    final listGetsBefore = rig.hits
+        .where((h) => h == 'GET /api/consultation/list')
+        .length;
+
+    await t.tap(find.byIcon(Icons.arrow_back_ios_new));
+    await t.pumpAndSettle();
+
+    // De retour sur la liste.
+    expect(find.text('Consultations en cours'), findsOneWidget);
+    expect(find.byType(ChatScreen), findsNothing);
+    // refresh au retour.
+    expect(
+      rig.hits.where((h) => h == 'GET /api/consultation/list').length,
+      greaterThan(listGetsBefore),
+    );
+  });
+
+  testWidgets('29 wallet / temps disponible affiché', (t) async {
+    final rig = _rig(
+      list: [_summary(id: 'c-ezra', advisorId: 'ezra')],
+    );
+    await _pump(t, rig);
+    await t.pumpAndSettle();
+    expect(find.textContaining('Temps disponible'), findsOneWidget);
+  });
+
+  testWidgets('30 aucun ancien CTA « Reprendre » (nu) dans l\'onglet', (
+    t,
+  ) async {
+    final rig = _rig(
+      list: [_summary(id: 'c-ezra', advisorId: 'ezra')],
+    );
+    await _pump(t, rig);
+    await t.pumpAndSettle();
+    expect(find.text('Reprendre'), findsNothing);
+    expect(find.text('Reprendre ma consultation'), findsNothing);
+  });
+
+  for (final w in const [360.0, 384.0, 430.0]) {
+    testWidgets('17 aucun overflow à ${w.toInt()} dp', (t) async {
+      t.view.devicePixelRatio = 1.0;
+      t.view.physicalSize = Size(w, 820);
+      addTearDown(t.view.reset);
+      final rig = _rig(
+        list: [
+          _summary(id: 'c-ezra', advisorId: 'ezra'),
+          _summary(id: 'c-selena', advisorId: 'selena', windowActive: true),
+        ],
+      );
+      await _pump(t, rig);
+      await t.pumpAndSettle();
+      expect(t.takeException(), isNull);
+    });
+  }
 }

@@ -139,9 +139,11 @@ class _AuryelAppState extends State<AuryelApp> with WidgetsBindingObserver {
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    // Retour de l'arrière-plan : une seule resynchro par passage au premier plan.
+    // Retour de l'arrière-plan : une seule resynchro par passage au premier
+    // plan — portefeuille (`/state`) ET liste des consultations (`/list`, J6-F2)
+    // pour que « Consultations en cours » reflète l'activité la plus récente.
     if (state == AppLifecycleState.resumed && widget.auth.isSignedIn) {
-      widget.consultation.refresh();
+      widget.consultation.refreshAll();
     }
   }
 

@@ -5,13 +5,15 @@ import 'package:flutter_animate/flutter_animate.dart';
 import 'package:phosphor_icons/phosphor_icons.dart';
 
 import '../api/api_client.dart';
+import '../data/advisor_audio.dart';
+import '../data/consultation.dart';
 import '../data/daily_like_store.dart';
 import '../data/daily_mission_tracker.dart';
 import '../data/tarot_deck.dart';
 import '../data/tirage.dart';
+import '../screens/advisor_selector_screen.dart';
 import '../screens/chat_screen.dart';
 import '../screens/onboarding/email_auth_screen.dart';
-import '../state/auryel_state.dart';
 import '../state/auth_controller.dart';
 import '../state/consultation_controller.dart';
 import '../theme/auryel_theme.dart';
@@ -30,7 +32,11 @@ import '../widgets/tarot_fan.dart';
 /// lecture d'ensemble **RENDUS PAR LE SERVEUR** ([TirageResult]). Le deck local
 /// ne sert plus qu'au choix visuel et au mapping `key -> assetPath`.
 class TirageScreen extends StatefulWidget {
-  const TirageScreen({super.key});
+  const TirageScreen({super.key, this.selectorAudioOverride});
+
+  /// Test uniquement : lecteur audio injecté dans le sélecteur de conseillers
+  /// ouvert par « En parler » (aucun canal plateforme en test).
+  final AdvisorAudio? selectorAudioOverride;
 
   @override
   State<TirageScreen> createState() => _TirageScreenState();
@@ -394,85 +400,87 @@ class _TirageScreenState extends State<TirageScreen> {
   // Phase 2 — révélation (données SERVEUR) + lecture + CTA
   // ---------------------------------------------------------------------------
 
-  /// Confirmation avant d'entrer dans le chat depuis un tirage.
+  /// TIRAGE « EN PARLER » (J6-F2 §13) — l'utilisateur choisit LUI-MÊME le
+  /// conseiller (plus de `selectedAdvisor` automatique), puis :
   ///
-  /// - Wording adapté si une consultation avec CE conseiller est DÉJÀ active
-  ///   (« Continuer » plutôt que « Démarrer »).
-  /// - « Annuler » : ferme seulement la popup, rien d'autre.
-  /// - « Commencer » / « Continuer » : SIMPLE `Navigator.push(ChatScreen(...))`.
-  ///   Aucun `POST /api/consultation/message`, aucune ouverture de session,
-  ///   aucun crédit — le crédit reste consommé au premier message utilisateur.
-  Future<void> _confirmAndOpenChat(
-    BuildContext context,
-    AdvisorInfo advisor,
-    String tirageId,
-  ) async {
-    final consultation = ConsultationScope.maybeReadOf(context);
-    final sameAdvisorActive =
-        consultation != null &&
-        consultation.hasActiveSession &&
-        consultation.active?.advisorId == advisor.guideKey;
-    // Capturé AVANT l'await : aucun usage de `context` après la frontière async.
+  ///  A. un fil existe déjà pour ce conseiller -> on rouvre CE fil, tirage en
+  ///     attente ;
+  ///  B. aucun fil -> `controller.openAdvisor()` puis ChatScreen sur le fil
+  ///     renvoyé, tirage en attente.
+  ///
+  /// Le `tirage_id` n'est envoyé qu'avec le PREMIER message (géré par
+  /// ChatScreen) : ouvrir le chat n'envoie rien au serveur, ne consomme aucun
+  /// crédit, n'appelle jamais `changeAdvisor` / ne PATCH aucun profil.
+  Future<void> _talkAboutTirage(String tirageId) async {
+    final controller = ConsultationScope.maybeReadOf(context);
     final navigator = Navigator.of(context);
+    final messenger = ScaffoldMessenger.of(context);
 
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: AuryelColors.surface,
-        title: Text(
-          sameAdvisorActive
-              ? 'Continuer avec ${advisor.name} ?'
-              : 'Démarrer une consultation avec ${advisor.name} ?',
-          style: AuryelText.display(fontSize: 18, fontWeight: FontWeight.w600),
-        ),
-        content: Text(
-          sameAdvisorActive
-              ? 'Ton tirage sera ajouté à ta conversation en cours avec '
-                    '${advisor.name}.'
-              : 'Ton tirage sera transmis à ${advisor.name} pour pouvoir en '
-                    'parler avec toi.\n\nLa consultation démarrera lorsque tu '
-                    'enverras ton premier message.',
-          style: AuryelText.body(
-            fontSize: 13.5,
-            height: 1.5,
-            color: AuryelColors.textSecondary,
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(false),
-            child: Text(
-              'Annuler',
-              style: AuryelText.body(color: AuryelColors.textMuted),
-            ),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(true),
-            child: Text(
-              sameAdvisorActive ? 'Continuer' : 'Commencer',
-              style: AuryelText.body(
-                color: AuryelColors.goldLight,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
+    // On repart de la liste serveur à jour : « fil existant » ne doit pas
+    // dépendre d'un état périmé.
+    await controller?.refreshConsultations();
+    if (!mounted) return;
 
-    if (ok != true || !mounted) return;
-    navigator.push(
+    final existing = <String, ConsultationSummaryDto>{
+      for (final c
+          in controller?.consultations ?? const <ConsultationSummaryDto>[])
+        c.advisorId: c,
+    };
+
+    final picked = await navigator.push<AdvisorInfo>(
       MaterialPageRoute(
-        builder: (_) => ChatScreen(advisor: advisor, tirageId: tirageId),
+        builder: (_) => AdvisorSelectorScreen(
+          title: 'Avec qui veux-tu en parler ?',
+          existingAdvisorIds: existing.keys.toSet(),
+          audioOverride: widget.selectorAudioOverride,
+        ),
       ),
     );
+    if (picked == null || !mounted) return;
+
+    final known = existing[picked.guideKey];
+    if (known != null) {
+      navigator.push(
+        MaterialPageRoute(
+          builder: (_) => ChatScreen(
+            consultationId: known.id,
+            advisor: picked,
+            tirageId: tirageId,
+          ),
+        ),
+      );
+      return;
+    }
+    if (controller == null) return;
+
+    try {
+      final dto = await controller.openAdvisor(picked.guideKey);
+      if (!mounted) return;
+      navigator.push(
+        MaterialPageRoute(
+          builder: (_) => ChatScreen(
+            consultationId: dto.id,
+            advisor: picked,
+            tirageId: tirageId,
+          ),
+        ),
+      );
+    } on ApiUnauthorizedException {
+      await AuthScope.of(context).invalidateSession();
+      if (!mounted) return;
+      navigator.pushAndRemoveUntil(
+        MaterialPageRoute(builder: (_) => const EmailAuthScreen()),
+        (route) => false,
+      );
+    } catch (_) {
+      messenger.showSnackBar(
+        const SnackBar(content: Text('Connexion impossible — réessaie.')),
+      );
+    }
   }
 
   Widget _buildReveal(BuildContext context) {
     final result = _result!;
-    final advisor = advisorByNameOrNull(
-      AuryelStateScope.of(context).selectedAdvisor,
-    );
     // Ordre = celui renvoyé par le serveur (= ordre de sélection).
     final cards = result.cards.isNotEmpty
         ? result.cards
@@ -543,15 +551,10 @@ class _TirageScreenState extends State<TirageScreen> {
                           ),
                         ),
                         const SizedBox(height: 24),
-                        if (advisor != null)
-                          AuryelGoldButton(
-                            label: 'En parler avec ${advisor.name}',
-                            onTap: () => _confirmAndOpenChat(
-                              context,
-                              advisor,
-                              result.tirageId,
-                            ),
-                          ),
+                        AuryelGoldButton(
+                          label: 'En parler avec un conseiller',
+                          onTap: () => _talkAboutTirage(result.tirageId),
+                        ),
                         const SizedBox(height: 12),
                         Center(
                           child: TextButton(

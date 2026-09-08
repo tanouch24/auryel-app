@@ -19,7 +19,6 @@ import '../widgets/auryel_wordmark.dart';
 import '../widgets/consultation_block.dart' show ConsultationState;
 import '../widgets/daily_message_sheet.dart';
 import '../widgets/main_nav_scope.dart';
-import 'chat_screen.dart';
 import 'dashboard_screen.dart';
 import 'premium_screen.dart';
 import 'tirage_jeu_screen.dart';
@@ -125,10 +124,9 @@ class HomeScreen extends StatelessWidget {
                     const SizedBox(height: 12),
 
                     // 2 — TES MISSIONS DU JOUR.
-                    _MissionsSection(
-                      repository: thoughtRepository,
-                      advisor: advisor,
-                    ).animate().fadeIn(delay: 480.ms, duration: 500.ms),
+                    _MissionsSection(repository: thoughtRepository)
+                        .animate()
+                        .fadeIn(delay: 480.ms, duration: 500.ms),
 
                     const SizedBox(height: 14),
                     _Divider(),
@@ -570,10 +568,9 @@ class _DailyLikeButtonState extends State<_DailyLikeButton> {
 enum _Mission { tirage, consultation, partage, moment }
 
 class _MissionsSection extends StatefulWidget {
-  const _MissionsSection({this.repository, this.advisor});
+  const _MissionsSection({this.repository});
 
   final DailyThoughtRepository? repository;
-  final AdvisorInfo? advisor;
 
   @override
   State<_MissionsSection> createState() => _MissionsSectionState();
@@ -666,19 +663,11 @@ class _MissionsSectionState extends State<_MissionsSection>
               .push(MaterialPageRoute(builder: (_) => const TirageJeuScreen())),
         );
       case _Mission.consultation:
-        // Ouvre l'onglet central CONSULTATION (ne coche PAS la mission :
-        // elle se coche sur une activité de consultation réelle).
-        _goTab(
-          kTabConsultation,
-          fallback: () {
-            final advisor = widget.advisor;
-            if (advisor != null) {
-              Navigator.of(context).push(
-                MaterialPageRoute(builder: (_) => ChatScreen(advisor: advisor)),
-              );
-            }
-          },
-        );
+        // Ouvre l'onglet central CONSULTATION -> LISTE des discussions.
+        // N'ouvre JAMAIS directement un ChatScreen basé sur `selectedAdvisor`
+        // (J6-F2 §12). Ne coche PAS la mission (elle se coche sur une activité
+        // de consultation réelle).
+        _goTab(kTabConsultation);
       case _Mission.partage:
         final t = _thought;
         if (t == null) return;
@@ -896,9 +885,11 @@ class _TimeAvailableBlock extends StatelessWidget {
     return ConsultationState.locked;
   }
 
-  void _openChat(BuildContext context, AdvisorInfo advisor) {
-    Navigator.of(context)
-        .push(MaterialPageRoute(builder: (_) => ChatScreen(advisor: advisor)));
+  void _openConsultationTab(BuildContext context) {
+    // J6-F2 §9-§12 — le CTA consultation de l'Accueil ouvre TOUJOURS l'onglet
+    // Consultation (la LISTE) : jamais un ChatScreen, jamais un fil choisi
+    // d'office, jamais `selectedAdvisor`.
+    MainNavScope.maybeOf(context)?.goToTab(kTabConsultation);
   }
 
   void _openPremium(BuildContext context) {
@@ -916,71 +907,70 @@ class _TimeAvailableBlock extends StatelessWidget {
     String ctaLabel;
     VoidCallback? onTap;
 
+    // « au moins une consultation existe » : fil listé OU session logique en
+    // cours.
+    final hasThread =
+        c != null && (c.hasConsultations || c.hasResumableConsultation);
+
     switch (state) {
       case ConsultationState.active:
         final session = c!.active!;
         final adv = advisorByGuideKey(session.advisorId) ?? preferredAdvisor;
         final name = adv?.name;
         activeLine = name != null ? 'Consultation en cours avec $name' : null;
-        ctaLabel = 'Reprendre';
-        onTap = adv != null ? () => _openChat(context, adv) : null;
+        ctaLabel = 'Consultation en cours';
+        onTap = () => _openConsultationTab(context);
       case ConsultationState.locked:
         ctaLabel = 'S’abonner';
         onTap = () => _openPremium(context);
       case ConsultationState.firstFree:
       case ConsultationState.subscriberAvailable:
-        ctaLabel = 'Consulter';
-        onTap = preferredAdvisor != null
-            ? () => _openChat(context, preferredAdvisor!)
-            : null;
+        ctaLabel = hasThread
+            ? 'Consultation en cours'
+            : 'Commencer une consultation';
+        onTap = () => _openConsultationTab(context);
     }
 
     return Container(
-      padding: const EdgeInsets.fromLTRB(16, 12, 14, 12),
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(16),
         color: AuryelColors.surface.withValues(alpha: 0.5),
         border: Border.all(color: AuryelColors.warmBorder, width: 1),
       ),
-      child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
         children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text(
-                  'TEMPS DISPONIBLE',
-                  style: AuryelText.body(
-                    fontSize: 9.5,
-                    fontWeight: FontWeight.w600,
-                    color: AuryelColors.gold,
-                    letterSpacing: 1.8,
-                  ),
-                ),
-                const SizedBox(height: 3),
-                Text(
-                  value,
-                  style: AuryelText.display(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w600,
-                    color: AuryelColors.textCream,
-                  ),
-                ),
-                if (activeLine != null) ...[
-                  const SizedBox(height: 2),
-                  Text(
-                    activeLine,
-                    style: AuryelText.body(
-                      fontSize: 11,
-                      color: AuryelColors.textSecondary,
-                    ),
-                  ),
-                ],
-              ],
+          Text(
+            'TEMPS DISPONIBLE',
+            style: AuryelText.body(
+              fontSize: 9.5,
+              fontWeight: FontWeight.w600,
+              color: AuryelColors.gold,
+              letterSpacing: 1.8,
             ),
           ),
-          const SizedBox(width: 12),
+          const SizedBox(height: 3),
+          Text(
+            value,
+            style: AuryelText.display(
+              fontSize: 18,
+              fontWeight: FontWeight.w600,
+              color: AuryelColors.textCream,
+            ),
+          ),
+          if (activeLine != null) ...[
+            const SizedBox(height: 2),
+            Text(
+              activeLine,
+              style: AuryelText.body(
+                fontSize: 11,
+                color: AuryelColors.textSecondary,
+              ),
+            ),
+          ],
+          const SizedBox(height: 12),
           _CompactCta(label: ctaLabel, onTap: onTap),
         ],
       ),
@@ -996,26 +986,37 @@ class _CompactCta extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: Colors.transparent,
-      borderRadius: BorderRadius.circular(14),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(14),
-        onTap: onTap,
-        child: Ink(
-          decoration: BoxDecoration(
-            gradient: AuryelColors.goldGradient,
+    return Semantics(
+      button: true,
+      label: label,
+      child: SizedBox(
+        width: double.infinity,
+        child: Material(
+          color: Colors.transparent,
+          borderRadius: BorderRadius.circular(14),
+          child: InkWell(
             borderRadius: BorderRadius.circular(14),
-          ),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
-            child: Text(
-              label,
-              style: AuryelText.body(
-                fontSize: 12.5,
-                fontWeight: FontWeight.w700,
-                color: AuryelColors.backgroundDeep,
-                letterSpacing: 0.2,
+            onTap: onTap,
+            child: Ink(
+              decoration: BoxDecoration(
+                gradient: AuryelColors.goldGradient,
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 11,
+                ),
+                child: Text(
+                  label,
+                  textAlign: TextAlign.center,
+                  style: AuryelText.body(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w700,
+                    color: AuryelColors.backgroundDeep,
+                    letterSpacing: 0.2,
+                  ),
+                ),
               ),
             ),
           ),

@@ -125,10 +125,10 @@ void main() {
       await t.pumpAndSettle();
       expect(find.textContaining('2 h'), findsNothing);
       expect(find.textContaining('consultations'), findsNothing);
-      // Bloc compact « TEMPS DISPONIBLE » : label + valeur brute + CTA court.
+      // Bloc compact « TEMPS DISPONIBLE » : label + valeur brute + CTA.
       expect(find.text('TEMPS DISPONIBLE'), findsOneWidget);
       expect(find.text('1 h offerte'), findsOneWidget);
-      expect(find.text('Consulter'), findsOneWidget);
+      expect(find.text('Commencer une consultation'), findsOneWidget);
     });
 
     testWidgets('B/E. Premium avec temps -> "7 h 42 min disponibles"', (
@@ -144,7 +144,7 @@ void main() {
       await rig.controller.refresh();
       await _pumpHome(t, rig);
       await t.pumpAndSettle();
-      expect(find.text('Consulter'), findsOneWidget);
+      expect(find.text('Commencer une consultation'), findsOneWidget);
       expect(find.textContaining('/8'), findsNothing);
       expect(find.textContaining('consultations restantes'), findsNothing);
       // Bloc compact « TEMPS DISPONIBLE » + valeur brute « 7 h 42 min ».
@@ -169,7 +169,7 @@ void main() {
       expect(find.text('0 min'), findsOneWidget);
     });
 
-    testWidgets('reprise -> "Reprendre ma consultation" + "X disponibles"', (
+    testWidgets('reprise -> "Consultation en cours" + "X disponibles"', (
       t,
     ) async {
       final rig = _rig(
@@ -192,7 +192,10 @@ void main() {
       await t.pump();
       rig.controller.dispose();
       await t.pumpAndSettle();
-      expect(find.text('Reprendre'), findsOneWidget);
+      // J6-F2 §9 — au moins une consultation existe -> « Consultation en cours »
+      // (l'ancien « Reprendre » qui ouvrait un ChatScreen est supprimé).
+      expect(find.text('Consultation en cours'), findsOneWidget);
+      expect(find.text('Reprendre'), findsNothing);
       expect(
         find.textContaining('Consultation en cours avec Séléna'),
         findsOneWidget,
