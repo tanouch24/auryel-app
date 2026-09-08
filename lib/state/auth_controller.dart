@@ -4,6 +4,7 @@ import '../api/account_api.dart';
 import '../api/ai_report_api.dart';
 import '../api/api_client.dart';
 import '../api/consultation_api.dart';
+import '../api/memory_api.dart';
 import '../api/profile_api.dart';
 import '../api/rewards_api.dart';
 import '../api/tirage_api.dart';
@@ -99,6 +100,7 @@ class AuthController extends ChangeNotifier {
     AccountApi? accountApi,
     RewardsApi? rewardsApi,
     WellbeingApi? wellbeingApi,
+    MemoryApi? memoryApi,
     LocalUserData? localUserData,
     InstallationIdStore? installationIdStore,
   }) : _repo = repository,
@@ -109,6 +111,7 @@ class AuthController extends ChangeNotifier {
        _accountApi = accountApi,
        _rewardsApi = rewardsApi,
        _wellbeingApi = wellbeingApi,
+       _memoryApi = memoryApi,
        _localUserData = localUserData ?? LocalUserData(),
        _installationIdStore = installationIdStore;
 
@@ -120,6 +123,7 @@ class AuthController extends ChangeNotifier {
   final AccountApi? _accountApi;
   final RewardsApi? _rewardsApi;
   final WellbeingApi? _wellbeingApi;
+  final MemoryApi? _memoryApi;
   final LocalUserData _localUserData;
   final InstallationIdStore? _installationIdStore;
 
@@ -140,6 +144,10 @@ class AuthController extends ChangeNotifier {
   /// Parcours bien-être (missions quotidiennes + récompense par cycle de 30
   /// journées). `null` si non câblé (tests hérités).
   WellbeingApi? get wellbeingApi => _wellbeingApi;
+
+  /// Jeu Auryel (Memory) + récompenses de temps de consultation. `null` si non
+  /// câblé (tests hérités) — le jeu reste jouable, sans récompense.
+  MemoryApi? get memoryApi => _memoryApi;
 
   /// `true` si la suppression réelle de compte est disponible (endpoint câblé).
   bool get accountDeletionAvailable => _accountApi != null;

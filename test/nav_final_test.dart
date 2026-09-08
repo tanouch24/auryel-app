@@ -239,7 +239,7 @@ void main() {
       // Les 3 niveaux sont proposés.
       expect(find.text('Facile'), findsOneWidget);
       expect(find.text('Moyen'), findsOneWidget);
-      expect(find.text('Intense'), findsOneWidget);
+      expect(find.text('Difficile'), findsOneWidget);
       // Aucune promesse de gain / récompense de consultation.
       expect(find.textContaining('heure offerte'), findsNothing);
       expect(find.textContaining('minutes offertes'), findsNothing);

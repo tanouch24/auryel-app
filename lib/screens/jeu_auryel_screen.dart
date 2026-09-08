@@ -4,22 +4,30 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:phosphor_icons/phosphor_icons.dart';
 
+import '../api/memory_api.dart';
 import '../data/memory_game.dart';
 import '../data/memory_stats.dart';
+import '../state/auth_controller.dart';
+import '../state/consultation_controller.dart';
+import '../state/memory_rewards_controller.dart';
 import '../theme/auryel_theme.dart';
 
 /// Jeu Auryel — jeu de paires (Memory). Le joueur retourne deux cartes ; si
 /// elles correspondent elles restent découvertes, sinon elles se retournent.
 /// Objectif : retrouver toutes les paires.
 ///
-/// 3 niveaux (8 / 12 / 16 cartes), parties illimitées, statistiques ludiques
-/// LOCALES uniquement. AUCUNE récompense en temps de consultation n'est
-/// accordée ici (le vrai crédit serveur relève d'un lot backend dédié).
+/// 3 niveaux (8 / 12 / 16 cartes), parties illimitées. Une partie est OUVERTE
+/// puis FERMÉE côté serveur (`/api/app/memory/start` + `/complete`) : le SERVEUR
+/// est l'unique autorité pour la récompense en temps de consultation (chrono,
+/// seuil « moins de 20 / 40 / 80 s », éligibilité 1 fois par difficulté sur 7
+/// jours). Le chrono affiché ici est purement indicatif. Si le backend n'est
+/// pas câblé / joignable, le jeu reste entièrement jouable, sans récompense.
 class JeuAuryelScreen extends StatefulWidget {
   const JeuAuryelScreen({
     super.key,
     this.random,
     this.stats,
+    this.rewardsController,
     this.resolveDelay = const Duration(milliseconds: 700),
     this.enableTicker = true,
     this.clock,
@@ -30,6 +38,10 @@ class JeuAuryelScreen extends StatefulWidget {
 
   /// Test : store injecté.
   final MemoryStats? stats;
+
+  /// Test : contrôleur de récompenses injecté. En production, l'écran le
+  /// construit depuis `AuthScope.of(context).memoryApi` s'il est câblé.
+  final MemoryRewardsController? rewardsController;
 
   /// Délai avant qu'une paire non trouvée ne se retourne (0 en test).
   final Duration resolveDelay;
@@ -54,6 +66,9 @@ class _JeuAuryelScreenState extends State<JeuAuryelScreen> {
   );
   late final MemoryStats _stats = widget.stats ?? MemoryStats();
 
+  MemoryRewardsController? _rewards;
+  bool _ownsRewards = false;
+
   _Phase _phase = _Phase.menu;
   GameDifficulty _selected = GameDifficulty.facile;
   Timer? _ticker;
@@ -67,6 +82,12 @@ class _JeuAuryelScreenState extends State<JeuAuryelScreen> {
   Duration? _bestTime;
   bool _newRecord = false;
 
+  // Récompense serveur — uniquement quand une partie serveur a été ouverte.
+  String? _gameId;
+  bool _finalizingReward = false;
+  MemoryCompleteResult? _rewardResult;
+  bool _rewardError = false;
+
   @override
   void initState() {
     super.initState();
@@ -74,10 +95,39 @@ class _JeuAuryelScreenState extends State<JeuAuryelScreen> {
   }
 
   @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_rewards != null) return;
+    if (widget.rewardsController != null) {
+      _rewards = widget.rewardsController;
+    } else {
+      final auth = AuthScope.maybeOf(context);
+      final api = auth?.memoryApi;
+      if (auth != null && api != null) {
+        _rewards = MemoryRewardsController(
+          api: api,
+          tokenProvider: auth.currentToken,
+        );
+        _ownsRewards = true;
+      }
+    }
+    if (_rewards != null) {
+      _rewards!.addListener(_onRewardsChanged);
+      _rewards!.refresh();
+    }
+  }
+
+  void _onRewardsChanged() {
+    if (mounted) setState(() {});
+  }
+
+  @override
   void dispose() {
     _ticker?.cancel();
     _game.removeListener(_onGameChanged);
     _game.dispose();
+    _rewards?.removeListener(_onRewardsChanged);
+    if (_ownsRewards) _rewards?.dispose();
     super.dispose();
   }
 
@@ -87,6 +137,7 @@ class _JeuAuryelScreenState extends State<JeuAuryelScreen> {
       _resultRecorded = true;
       _ticker?.cancel();
       _recordResult();
+      _finalizeReward();
     }
     setState(() {});
   }
@@ -103,15 +154,63 @@ class _JeuAuryelScreenState extends State<JeuAuryelScreen> {
     });
   }
 
-  void _startGame(GameDifficulty d) {
+  /// Ferme la partie serveur et récupère le verdict de récompense. Le body ne
+  /// contient QUE `game_id` : c'est le serveur qui calcule le chrono et décide.
+  Future<void> _finalizeReward() async {
+    final rewards = _rewards;
+    final gameId = _gameId;
+    if (rewards == null || gameId == null) return;
+    setState(() {
+      _finalizingReward = true;
+      _rewardError = false;
+    });
+    final res = await rewards.completeGame(gameId);
+    if (!mounted) return;
+    setState(() {
+      _finalizingReward = false;
+      _rewardResult = res;
+      _rewardError = res == null;
+    });
+    if (res != null && res.rewardCredited) {
+      // Le temps disponible doit refléter le crédit immédiatement.
+      ConsultationScope.maybeReadOf(context)?.refresh();
+    }
+  }
+
+  Future<void> _startGame(GameDifficulty d) async {
     _resultRecorded = false;
     _newRecord = false;
     _bestTime = null;
+    _gameId = null;
+    _rewardResult = null;
+    _rewardError = false;
+    _finalizingReward = false;
     _selected = d;
+
+    // Le jeu démarre IMMÉDIATEMENT (aucune attente réseau) : le plateau est
+    // jouable tout de suite. La partie serveur est ouverte en parallèle ; son
+    // `game_id` sert à la finalisation à la victoire. Le serveur horodate son
+    // `started_at` à la réception -> le joueur n'est jamais pénalisé par la
+    // latence.
     _game.start(d);
     _stats.markStarted(d);
-    setState(() => _phase = _Phase.playing);
     _startTicker();
+    setState(() => _phase = _Phase.playing);
+
+    final rewards = _rewards;
+    if (rewards != null) {
+      final session = await rewards.startGame(d.apiDifficulty);
+      if (!mounted) return;
+      _gameId = session?.gameId;
+      // La victoire a pu tomber AVANT la réponse `start` (jeu très rapide) :
+      // finaliser maintenant si c'est le cas et pas encore fait.
+      if (_gameId != null &&
+          _game.isWon &&
+          _rewardResult == null &&
+          !_finalizingReward) {
+        _finalizeReward();
+      }
+    }
   }
 
   void _startTicker() {
@@ -125,6 +224,7 @@ class _JeuAuryelScreenState extends State<JeuAuryelScreen> {
 
   void _backToMenu() {
     _ticker?.cancel();
+    _rewards?.refresh();
     setState(() => _phase = _Phase.menu);
   }
 
@@ -152,6 +252,7 @@ class _JeuAuryelScreenState extends State<JeuAuryelScreen> {
   // MENU / choix du niveau
   // -------------------------------------------------------------------------
   Widget _buildMenu() {
+    final progress = _rewards?.progress;
     return SingleChildScrollView(
       padding: const EdgeInsets.fromLTRB(24, 8, 24, 28),
       child: Column(
@@ -191,8 +292,8 @@ class _JeuAuryelScreenState extends State<JeuAuryelScreen> {
           ),
           const SizedBox(height: 8),
           Text(
-            'Retrouve les paires cachées. Un jeu de mémoire pour ralentir '
-            'et revenir à toi.',
+            'Retrouve les paires cachées. Termine vite pour gagner du temps '
+            'de consultation.',
             textAlign: TextAlign.center,
             style: AuryelText.body(
               fontSize: 12.5,
@@ -200,7 +301,19 @@ class _JeuAuryelScreenState extends State<JeuAuryelScreen> {
               color: AuryelColors.textMuted,
             ),
           ),
-          const SizedBox(height: 26),
+          const SizedBox(height: 10),
+          Text(
+            'Jusqu’à 30 min de consultation tous les 7 jours — une récompense '
+            'par niveau.',
+            textAlign: TextAlign.center,
+            style: AuryelText.body(
+              fontSize: 11,
+              height: 1.4,
+              fontWeight: FontWeight.w600,
+              color: AuryelColors.goldLight,
+            ),
+          ),
+          const SizedBox(height: 24),
           Text(
             'CHOISIS TON NIVEAU',
             style: AuryelText.body(
@@ -215,6 +328,7 @@ class _JeuAuryelScreenState extends State<JeuAuryelScreen> {
             _DifficultyCard(
               difficulty: d,
               selected: _selected == d,
+              eligibility: progress?.forDifficulty(d.apiDifficulty),
               onTap: () => setState(() => _selected = d),
             ),
             const SizedBox(height: 10),
@@ -230,6 +344,17 @@ class _JeuAuryelScreenState extends State<JeuAuryelScreen> {
   // PARTIE
   // -------------------------------------------------------------------------
   Widget _buildGame() {
+    if (!_game.hasStarted) {
+      return Center(
+        child: Text(
+          'Préparation de la partie…',
+          style: AuryelText.body(
+            fontSize: 13,
+            color: AuryelColors.textMuted,
+          ),
+        ),
+      );
+    }
     final reduceMotion = MediaQuery.disableAnimationsOf(context);
     return Column(
       children: [
@@ -252,19 +377,35 @@ class _JeuAuryelScreenState extends State<JeuAuryelScreen> {
                   onTap: _game.flip,
                 ),
               ),
-              if (_game.isWon)
-                _WinOverlay(
-                  time: _mmss(_game.elapsed),
-                  moves: _game.moves,
-                  bestTime: _bestTime == null ? null : _mmss(_bestTime!),
-                  newRecord: _newRecord,
-                  onReplay: () => _startGame(_game.difficulty),
-                  onChangeLevel: _backToMenu,
-                ),
+              if (_game.isWon) _buildWinLayer(),
             ],
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildWinLayer() {
+    final serverBound =
+        _gameId != null || _finalizingReward || _rewardResult != null || _rewardError;
+    if (!serverBound) {
+      return _WinOverlay(
+        time: _mmss(_game.elapsed),
+        moves: _game.moves,
+        bestTime: _bestTime == null ? null : _mmss(_bestTime!),
+        newRecord: _newRecord,
+        onReplay: () => _startGame(_game.difficulty),
+        onChangeLevel: _backToMenu,
+      );
+    }
+    return _RewardOutcomeOverlay(
+      finalizing: _finalizingReward,
+      hadError: _rewardError,
+      result: _rewardResult,
+      difficulty: _game.difficulty,
+      time: _mmss(_game.elapsed),
+      onReplay: () => _startGame(_game.difficulty),
+      onChangeLevel: _backToMenu,
     );
   }
 }
@@ -276,18 +417,31 @@ class _DifficultyCard extends StatelessWidget {
     required this.difficulty,
     required this.selected,
     required this.onTap,
+    this.eligibility,
   });
 
   final GameDifficulty difficulty;
   final bool selected;
   final VoidCallback onTap;
+  final MemoryDifficultyProgress? eligibility;
 
   @override
   Widget build(BuildContext context) {
+    final elig = eligibility;
+    final locked = elig != null && !elig.eligibleNow;
+    final rewardLine =
+        'Moins de ${difficulty.rewardThresholdSeconds} sec · '
+        'gagne ${difficulty.rewardMinutes} min';
+    final statusLine = locked
+        ? _lockedLabel(elig.nextEligibleAt)
+        : (elig != null ? 'Récompense disponible' : null);
+
     return Semantics(
       button: true,
       selected: selected,
-      label: '${difficulty.label}, ${difficulty.cardCount} cartes',
+      label:
+          '${difficulty.label}, ${difficulty.cardCount} cartes, $rewardLine'
+          '${statusLine != null ? ', $statusLine' : ''}',
       child: Material(
         color: Colors.transparent,
         borderRadius: BorderRadius.circular(16),
@@ -295,7 +449,7 @@ class _DifficultyCard extends StatelessWidget {
           borderRadius: BorderRadius.circular(16),
           onTap: onTap,
           child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(16),
               color: selected
@@ -308,40 +462,66 @@ class _DifficultyCard extends StatelessWidget {
                 width: selected ? 1.4 : 1,
               ),
             ),
-            child: Row(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                PhosphorIcon(
-                  selected
-                      ? PhosphorIconsFill.circle
-                      : PhosphorIconsRegular.circle,
-                  size: 16,
-                  color: selected
-                      ? AuryelColors.goldLight
-                      : AuryelColors.textMuted,
+                Row(
+                  children: [
+                    PhosphorIcon(
+                      selected
+                          ? PhosphorIconsFill.circle
+                          : PhosphorIconsRegular.circle,
+                      size: 16,
+                      color: selected
+                          ? AuryelColors.goldLight
+                          : AuryelColors.textMuted,
+                    ),
+                    const SizedBox(width: 12),
+                    Text(
+                      difficulty.label,
+                      style: AuryelText.display(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                        color: AuryelColors.textCream,
+                      ),
+                    ),
+                    const Spacer(),
+                    Flexible(
+                      child: Text(
+                        '${difficulty.cardCount} cartes',
+                        textAlign: TextAlign.right,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: AuryelText.body(
+                          fontSize: 11.5,
+                          color: AuryelColors.textMuted,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
-                const SizedBox(width: 12),
+                const SizedBox(height: 6),
                 Text(
-                  difficulty.label,
-                  style: AuryelText.display(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                    color: AuryelColors.textCream,
+                  rewardLine,
+                  style: AuryelText.body(
+                    fontSize: 11.5,
+                    height: 1.3,
+                    color: AuryelColors.goldLight,
                   ),
                 ),
-                const Spacer(),
-                Flexible(
-                  child: Text(
-                    '${difficulty.cardCount} cartes · '
-                    '${difficulty.pairCount} paires',
-                    textAlign: TextAlign.right,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
+                if (statusLine != null) ...[
+                  const SizedBox(height: 3),
+                  Text(
+                    statusLine,
                     style: AuryelText.body(
-                      fontSize: 11.5,
-                      color: AuryelColors.textMuted,
+                      fontSize: 10.5,
+                      height: 1.3,
+                      color: locked
+                          ? AuryelColors.textMuted
+                          : AuryelColors.textSecondary,
                     ),
                   ),
-                ),
+                ],
               ],
             ),
           ),
@@ -349,6 +529,28 @@ class _DifficultyCard extends StatelessWidget {
       ),
     );
   }
+
+  static String _lockedLabel(String? nextEligibleIso) {
+    final until = _humanizeUntil(nextEligibleIso);
+    return until == null
+        ? 'Récompense déjà obtenue'
+        : 'Récompense déjà obtenue · à nouveau dans $until';
+  }
+}
+
+/// « dans 3 j » / « dans 5 h » / « bientôt » à partir d'un ISO-8601, ou `null`.
+String? _humanizeUntil(String? iso) {
+  if (iso == null || iso.isEmpty) return null;
+  final dt = DateTime.tryParse(iso);
+  if (dt == null) return null;
+  final diff = dt.difference(DateTime.now());
+  if (diff.inSeconds <= 0) return null;
+  if (diff.inHours >= 24) {
+    final d = (diff.inHours / 24).ceil();
+    return '$d j';
+  }
+  if (diff.inHours >= 1) return '${diff.inHours} h';
+  return 'moins d’une heure';
 }
 
 class _GameHeader extends StatelessWidget {
@@ -587,6 +789,8 @@ class _Face extends StatelessWidget {
   }
 }
 
+/// Fin de partie SANS récompense serveur (backend non câblé / injoignable) —
+/// overlay ludique local, inchangé.
 class _WinOverlay extends StatelessWidget {
   const _WinOverlay({
     required this.time,
@@ -664,6 +868,144 @@ class _WinOverlay extends StatelessWidget {
                     ),
                   ),
                 ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Fin de partie AVEC verdict serveur : récompense gagnée / temps dépassé /
+/// récompense déjà obtenue (cooldown) / partie expirée / non validée. Sobre —
+/// aucun confetti, aucune roue, aucun wording financier.
+class _RewardOutcomeOverlay extends StatelessWidget {
+  const _RewardOutcomeOverlay({
+    required this.finalizing,
+    required this.hadError,
+    required this.result,
+    required this.difficulty,
+    required this.time,
+    required this.onReplay,
+    required this.onChangeLevel,
+  });
+
+  final bool finalizing;
+  final bool hadError;
+  final MemoryCompleteResult? result;
+  final GameDifficulty difficulty;
+  final String time;
+  final VoidCallback onReplay;
+  final VoidCallback onChangeLevel;
+
+  @override
+  Widget build(BuildContext context) {
+    final minutes = difficulty.rewardMinutes;
+    final threshold = difficulty.rewardThresholdSeconds;
+
+    late final IconData icon;
+    late final String title;
+    late final String body;
+    String? note;
+
+    if (finalizing) {
+      icon = PhosphorIconsRegular.hourglassMedium;
+      title = 'Partie terminée';
+      body = 'Validation en cours…';
+    } else if (result == null || hadError) {
+      icon = PhosphorIconsRegular.cloudSlash;
+      title = 'Partie terminée';
+      body =
+          'La récompense n’a pas pu être validée. Ta partie reste jouable, '
+          'réessaie plus tard.';
+    } else if (result!.rewardCredited) {
+      icon = PhosphorIconsFill.sparkle;
+      title = 'Bravo';
+      body = 'Tu as gagné $minutes minutes de consultation.';
+      note = 'Ton temps disponible a été mis à jour.';
+    } else if (result!.isTimeExceeded) {
+      icon = PhosphorIconsRegular.timer;
+      title = 'Partie terminée';
+      body =
+          'Termine en moins de $threshold secondes pour gagner $minutes '
+          'minutes de consultation.';
+      note = 'Temps  $time';
+    } else if (result!.isCooldown) {
+      icon = PhosphorIconsRegular.checkCircle;
+      title = 'Partie terminée';
+      body = 'Tu as déjà obtenu la récompense de ce niveau.';
+      final until = _humanizeUntil(result!.nextEligibleAt);
+      note = until == null
+          ? null
+          : 'À nouveau disponible dans $until.';
+    } else if (result!.isExpired) {
+      icon = PhosphorIconsRegular.hourglass;
+      title = 'Partie terminée';
+      body = 'La partie a expiré avant d’être validée.';
+    } else {
+      icon = PhosphorIconsRegular.info;
+      title = 'Partie terminée';
+      body = 'Cette partie n’a pas pu être validée pour une récompense.';
+    }
+
+    return Positioned.fill(
+      child: ColoredBox(
+        color: AuryelColors.backgroundDeep.withValues(alpha: 0.82),
+        child: Center(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(28),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                PhosphorIcon(icon, size: 34, color: AuryelColors.goldLight),
+                const SizedBox(height: 12),
+                Text(
+                  title,
+                  textAlign: TextAlign.center,
+                  style: AuryelText.display(
+                    fontSize: 19,
+                    fontWeight: FontWeight.w600,
+                    color: AuryelColors.textCream,
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  body,
+                  textAlign: TextAlign.center,
+                  style: AuryelText.body(
+                    fontSize: 13,
+                    height: 1.5,
+                    color: AuryelColors.textSecondary,
+                  ),
+                ),
+                if (note != null) ...[
+                  const SizedBox(height: 8),
+                  Text(
+                    note,
+                    textAlign: TextAlign.center,
+                    style: AuryelText.body(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: AuryelColors.goldLight,
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 22),
+                if (!finalizing) ...[
+                  _GoldButton(label: 'Rejouer', onTap: onReplay),
+                  const SizedBox(height: 10),
+                  TextButton(
+                    onPressed: onChangeLevel,
+                    child: Text(
+                      'Changer de niveau',
+                      style: AuryelText.body(
+                        fontSize: 12.5,
+                        color: AuryelColors.textMuted,
+                      ),
+                    ),
+                  ),
+                ],
               ],
             ),
           ),
