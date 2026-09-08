@@ -3,10 +3,12 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:phosphor_icons/phosphor_icons.dart';
 
+import '../api/wellbeing_api.dart';
 import '../data/daily_mission_tracker.dart';
 import '../data/meditation_audio.dart';
 import '../data/meditation_catalog.dart';
 import '../data/meditation_item.dart';
+import '../state/auth_controller.dart';
 import '../theme/auryel_theme.dart';
 import '../widgets/main_nav_scope.dart';
 
@@ -29,6 +31,7 @@ class MeditationScreen extends StatefulWidget {
     this.catalog = const MeditationCatalog(),
     this.now,
     this.missionTracker,
+    this.wellbeingApi,
   });
 
   /// Test uniquement : lecteur injecté (aucun canal plateforme en test).
@@ -36,6 +39,12 @@ class MeditationScreen extends StatefulWidget {
   final MeditationCatalog catalog;
   final DateTime? now;
   final DailyMissionTracker? missionTracker;
+
+  /// Parcours bien-être : sync serveur de la mission `moment` (aucune trace
+  /// serveur propre à la méditation). Injecté en test ; en production, lu via
+  /// `AuthScope.of(context).wellbeingApi`. `null` -> sync ignorée (le tracker
+  /// local reste la coche visible, hors ligne inclus).
+  final WellbeingApi? wellbeingApi;
 
   @override
   State<MeditationScreen> createState() => _MeditationScreenState();
@@ -130,6 +139,25 @@ class _MeditationScreenState extends State<MeditationScreen>
     if (_momentMarked) return;
     _momentMarked = true;
     await _missions.markDone(DailyMissionTracker.moment);
+    // PARCOURS BIEN-ÊTRE — la mission `moment` n'a AUCUNE trace serveur propre :
+    // on l'enregistre (1 fois / jour côté serveur). Fire-and-forget, toutes les
+    // erreurs absorbées : la coche locale reste la source d'affichage, la
+    // méditation ne crédite jamais de temps par elle-même.
+    unawaited(_syncServerMoment());
+  }
+
+  Future<void> _syncServerMoment() async {
+    if (!mounted) return;
+    final auth = AuthScope.maybeOf(context);
+    final api = widget.wellbeingApi ?? auth?.wellbeingApi;
+    if (api == null || auth == null) return;
+    try {
+      final token = await auth.currentToken();
+      if (token == null || token.isEmpty) return;
+      await api.recordMission(bearer: token, missionId: 'moment');
+    } catch (_) {
+      /* progression serveur non bloquante */
+    }
   }
 
   Future<void> _onPrimaryTap() async {

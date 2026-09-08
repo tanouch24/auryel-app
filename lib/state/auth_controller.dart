@@ -7,6 +7,7 @@ import '../api/consultation_api.dart';
 import '../api/profile_api.dart';
 import '../api/rewards_api.dart';
 import '../api/tirage_api.dart';
+import '../api/wellbeing_api.dart';
 import '../data/account.dart';
 import '../data/app_profile.dart';
 import '../data/auth_repository.dart';
@@ -97,6 +98,7 @@ class AuthController extends ChangeNotifier {
     AiReportApi? aiReportApi,
     AccountApi? accountApi,
     RewardsApi? rewardsApi,
+    WellbeingApi? wellbeingApi,
     LocalUserData? localUserData,
     InstallationIdStore? installationIdStore,
   }) : _repo = repository,
@@ -106,6 +108,7 @@ class AuthController extends ChangeNotifier {
        _aiReportApi = aiReportApi,
        _accountApi = accountApi,
        _rewardsApi = rewardsApi,
+       _wellbeingApi = wellbeingApi,
        _localUserData = localUserData ?? LocalUserData(),
        _installationIdStore = installationIdStore;
 
@@ -116,6 +119,7 @@ class AuthController extends ChangeNotifier {
   final AiReportApi? _aiReportApi;
   final AccountApi? _accountApi;
   final RewardsApi? _rewardsApi;
+  final WellbeingApi? _wellbeingApi;
   final LocalUserData _localUserData;
   final InstallationIdStore? _installationIdStore;
 
@@ -132,6 +136,10 @@ class AuthController extends ChangeNotifier {
 
   /// Récompenses côté app (progression partage 30 jours). `null` si non câblé.
   RewardsApi? get rewardsApi => _rewardsApi;
+
+  /// Parcours bien-être (missions quotidiennes + récompense par cycle de 30
+  /// journées). `null` si non câblé (tests hérités).
+  WellbeingApi? get wellbeingApi => _wellbeingApi;
 
   /// `true` si la suppression réelle de compte est disponible (endpoint câblé).
   bool get accountDeletionAvailable => _accountApi != null;

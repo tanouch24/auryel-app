@@ -25,6 +25,7 @@ import 'package:auryel/screens/auryel_experience_screen.dart';
 import 'package:auryel/screens/bibliotheque_screen.dart';
 import 'package:auryel/screens/dashboard_screen.dart';
 import 'package:auryel/screens/home_screen.dart';
+import 'package:auryel/screens/wellbeing_journey_screen.dart';
 import 'package:auryel/widgets/daily_message_sheet.dart';
 import 'package:auryel/state/auryel_state.dart';
 import 'package:auryel/state/auth_controller.dart';
@@ -459,6 +460,20 @@ void main() {
       expect(prefs.getBool('auryel.experience_intro_seen.v1'), isTrue);
     },
   );
+
+  testWidgets('J7 — point d’entrée « Suivre mon parcours bien-être » ouvre '
+      'l’écran du parcours', (t) async {
+    await t.pumpWidget(_dash());
+    await t.pump();
+
+    expect(find.text('Suivre mon parcours bien-être'), findsOneWidget);
+    await t.ensureVisible(find.text('Suivre mon parcours bien-être'));
+    await t.tap(find.text('Suivre mon parcours bien-être'));
+    await t.pumpAndSettle();
+
+    expect(find.byType(WellbeingJourneyScreen), findsOneWidget);
+    expect(find.text('Mon parcours bien-être'), findsOneWidget);
+  });
 
   testWidgets('B10.1 A — « Voir mes tirages » ouvre la Bibliothèque AVEC une '
       'flèche retour, qui ramène au Dashboard', (t) async {
