@@ -123,25 +123,47 @@ DONNÉES RESTANT SUR L'APPAREIL
 Instantané d'onboarding (prénom, date de naissance, conseiller, texte de
 portrait généré localement et retour associé), suivis locaux (missions,
 contenus aimés, statistiques du Jeu, indicateurs d'intro, panier),
-préférence d'écoute. Un identifiant d'installation aléatoire est stocké de
-façon chiffrée sur l'appareil ; il n'est pas transmis au serveur à ce jour.
-Les notifications push ne sont pas actives : aucun jeton de notification
-n'est collecté.
+préférence d'écoute, choix de consentement à la mesure publicitaire. Un
+identifiant d'installation aléatoire est stocké de façon chiffrée sur
+l'appareil ; il n'est pas transmis au serveur à ce jour.
+
+NOTIFICATIONS PUSH
+
+Si vous les activez, un jeton d'enregistrement de notification (Firebase
+Cloud Messaging, fourni par Google) rattaché à votre appareil est transmis
+au serveur avec la plateforme et la version de l'application, afin
+d'acheminer des rappels doux et les messages de votre conseiller. Le contenu
+affiché reste générique (rien de sensible sur l'écran verrouillé). Le jeton
+est supprimé à la déconnexion de l'appareil, à la suppression du compte ou
+dès qu'il devient invalide. Les notifications sont désactivables à tout
+moment dans les réglages du téléphone.
+
+MESURE PUBLICITAIRE (FACULTATIVE, AVEC CONSENTEMENT)
+
+Par défaut, aucune mesure publicitaire n'est active. Si — et seulement si —
+vous activez la « mesure publicitaire » dans « Mon compte », des événements
+non nominatifs (installation, ouverture de l'offre, abonnement démarré,
+consultation démarrée) sont transmis à Meta Platforms, Inc. à des fins
+d'attribution de campagne. Aucun message, contenu de consultation, tirage,
+e-mail, téléphone, nom, prénom, date de naissance ni identifiant interne
+n'est transmis. L'identifiant publicitaire de l'appareil n'est pas collecté.
+Ce consentement n'est pas pré-coché et reste révocable à tout moment.
 
 CE QUE L'APPLICATION NE FAIT PAS
 
 Aucune donnée de localisation, de contacts, de photos, de micro ou de
-caméra. Aucun outil de mesure d'audience, de publicité, de suivi
-publicitaire, ni de rapport de plantage.
+caméra. Aucun rapport de plantage tiers. Aucune publicité affichée dans
+l'application. Aucune mesure publicitaire sans votre consentement explicite.
 
 INTELLIGENCE ARTIFICIELLE
 
-Certaines fonctionnalités conversationnelles reposent sur des systèmes
-d'intelligence artificielle et peuvent faire intervenir des prestataires
-technologiques spécialisés agissant pour la fourniture du service. Les
-réponses peuvent être inexactes ou incomplètes. L'identité des prestataires,
-les catégories exactes de données transmises et les durées de conservation
-associées seront précisées dans la version publiée.
+Une partie de nos échanges est gérée par une intelligence artificielle, avec
+un encadrement humain ; certains messages vocaux sont produits par une voix
+de synthèse. Les traitements peuvent faire intervenir des prestataires
+technologiques spécialisés (notamment OpenAI, et selon la configuration
+Groq) agissant pour la fourniture du service. Les réponses peuvent être
+inexactes ou incomplètes et ne constituent pas un avis médical,
+thérapeutique, psychologique, juridique ou financier.
 
 FINALITÉS ET BASES JURIDIQUES
 
@@ -156,10 +178,13 @@ consentement.
 DESTINATAIRES
 
 Personnel habilité de 3E Technology Ltd et prestataires techniques agissant
-pour son compte : hébergeur de l'infrastructure, Google (Google Play
-Billing) et Apple (App Store) pour le paiement et la vérification des
-achats, prestataire(s) d'intelligence artificielle. Auryel ne vend pas vos
-données et ne les partage pas à des fins publicitaires.
+pour son compte : hébergeur de l'infrastructure (Railway), Google (Google
+Play Billing) et Apple (App Store) pour le paiement et la vérification des
+achats, Google (Firebase Cloud Messaging) pour les notifications push,
+prestataire(s) d'intelligence artificielle (OpenAI, et selon la
+configuration Groq), Resend pour les e-mails transactionnels. Meta
+Platforms, Inc. reçoit des événements de mesure non nominatifs UNIQUEMENT si
+vous avez activé la mesure publicitaire. Auryel ne vend pas vos données.
 
 TRANSFERTS INTERNATIONAUX
 
@@ -360,10 +385,13 @@ RÉCOMPENSES — NON CONTRACTUELLES
 
 L'heure offerte est accordée une fois par compte selon les règles décidées
 par le serveur ; elle n'est pas cumulable par création de comptes multiples.
-La récompense de partage (« 30 jours de partage = 1 heure ») est créditée
-uniquement lorsque le serveur confirme le crédit ; c'est un bonus qui ne
-fait pas partie des prestations garanties de l'abonnement. Le Jeu Auryel
-n'accorde aucune récompense financière ni temps de consultation.
+La récompense de partage (« 30 jours de partage = 1 heure »), le parcours
+bien-être (« 30 jours = 15 minutes ») et le Jeu Auryel (5 à 15 minutes selon
+la difficulté, dans la limite de 30 minutes par période de 7 jours) créditent
+un temps de consultation UNIQUEMENT lorsque le serveur confirme le crédit ;
+ce sont des bonus non contractuels, sans valeur monétaire, qui ne font pas
+partie des prestations garanties de l'abonnement et ne sont jamais
+convertibles en argent.
 
 NON DISPONIBLE EN V1
 
