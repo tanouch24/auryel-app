@@ -29,6 +29,14 @@ abstract class IapGateway {
   /// seulement si la demande a bien été envoyée).
   Future<bool> buyNonConsumable(ProductDetails product);
 
+  /// Lance l'achat d'un produit CONSOMMABLE, RÉPÉTABLE (« 1 heure
+  /// supplémentaire »). `autoConsume: true` (défaut du plugin sur Android) :
+  /// après [completePurchase], le plugin consomme l'achat côté Play Billing,
+  /// ce qui le rend RE-ACHETABLE et l'acquitte implicitement. Le crédit reste
+  /// décidé par le backend (`POST /api/billing/purchase`), jamais ici.
+  /// Le résultat arrive via [purchaseStream].
+  Future<bool> buyConsumable(ProductDetails product);
+
   /// Finalise un achat livré (`purchased` / `restored`). À appeler UNIQUEMENT
   /// après livraison effective du contenu (ici : après un verify backend 200).
   Future<void> completePurchase(PurchaseDetails purchase);
@@ -58,6 +66,12 @@ class InAppPurchaseGateway implements IapGateway {
   @override
   Future<bool> buyNonConsumable(ProductDetails product) => _iap
       .buyNonConsumable(purchaseParam: PurchaseParam(productDetails: product));
+
+  @override
+  Future<bool> buyConsumable(ProductDetails product) => _iap.buyConsumable(
+        purchaseParam: PurchaseParam(productDetails: product),
+        autoConsume: true,
+      );
 
   @override
   Future<void> completePurchase(PurchaseDetails purchase) =>

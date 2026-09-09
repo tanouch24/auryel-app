@@ -73,6 +73,16 @@ class FakeIapGateway implements IapGateway {
     return true;
   }
 
+  int buyConsumableCalls = 0;
+
+  @override
+  Future<bool> buyConsumable(ProductDetails product) async {
+    buyConsumableCalls++;
+    log.add('buyConsumable');
+    if (buyError != null) throw buyError!;
+    return true;
+  }
+
   @override
   Future<void> completePurchase(PurchaseDetails purchase) async {
     if (completeError != null) throw completeError!;
@@ -694,5 +704,256 @@ void main() {
     await rig.controller.initialize();
     await rig.controller.buyPremium();
     expect(rig.gateway.buyCalls, 0);
+  });
+
+  // =========================================================================
+  // « 1 heure supplémentaire » (auryel_extra_hour) — consommable, répétable
+  // =========================================================================
+  group('extra hour', () {
+    ProductDetails extraProduct() => ProductDetails(
+      id: kExtraHourProductId,
+      title: '1 heure supplémentaire',
+      description: '1 heure de consultation',
+      price: '1,99 €',
+      rawPrice: 1.99,
+      currencyCode: 'EUR',
+      currencySymbol: '€',
+    );
+
+    PurchaseDetails pdExtra({
+      String serverData = 'gpa-extra-token',
+      PurchaseStatus status = PurchaseStatus.purchased,
+      bool pendingComplete = true,
+    }) {
+      final pd = PurchaseDetails(
+        purchaseID: 'extra-pid-1',
+        productID: kExtraHourProductId,
+        verificationData: PurchaseVerificationData(
+          localVerificationData: 'local',
+          serverVerificationData: serverData,
+          source: 'test',
+        ),
+        transactionDate: '1700000000000',
+        status: status,
+      );
+      pd.pendingCompletePurchase = pendingComplete;
+      return pd;
+    }
+
+    Map<String, dynamic> purchaseOk({bool already = false}) => {
+      'purchase': {
+        'store': 'google_play',
+        'product_id': kExtraHourProductId,
+        'credited_seconds': already ? 0 : 3600,
+        'already_credited': already,
+      },
+      'quota': _stateBody(isPremium: false)['quota'],
+    };
+
+    Future<http.Response> happyExtra(http.Request req) async {
+      if (req.url.path == '/api/billing/purchase') return _json(purchaseOk());
+      if (req.url.path == '/api/consultation/state') {
+        return _json(_stateBody());
+      }
+      return _json({}, 404);
+    }
+
+    test('loadProducts : extra_hour chargé indépendamment de Premium', () async {
+      final rig = _rig(handler: happyExtra);
+      rig.gateway.products = [_product(), extraProduct()];
+      await rig.controller.initialize();
+      expect(rig.controller.extraHourProduct?.id, kExtraHourProductId);
+      expect(rig.controller.extraHourState, ExtraHourPurchaseState.idle);
+      expect(rig.controller.canBuyExtraHour, isTrue);
+      expect(rig.controller.premiumProduct?.id, kPremiumMonthlyProductId);
+      expect(rig.controller.state, PurchaseState.idle);
+    });
+
+    test('extra_hour absent -> unavailable, Premium inchangé', () async {
+      final rig = _rig(handler: happyExtra);
+      rig.gateway.products = [_product()];
+      rig.gateway.notFoundIDs = [kExtraHourProductId];
+      await rig.controller.initialize();
+      expect(rig.controller.extraHourState, ExtraHourPurchaseState.unavailable);
+      expect(rig.controller.extraHourProduct, isNull);
+      expect(rig.controller.canBuyExtraHour, isFalse);
+      expect(rig.controller.state, PurchaseState.idle);
+      expect(rig.controller.premiumProduct, isNotNull);
+    });
+
+    test('buyExtraHour -> gateway.buyConsumable, état purchasing', () async {
+      final rig = _rig(handler: happyExtra);
+      rig.gateway.products = [_product(), extraProduct()];
+      await rig.controller.initialize();
+      await rig.controller.buyExtraHour();
+      expect(rig.gateway.buyConsumableCalls, 1);
+      expect(rig.gateway.buyCalls, 0);
+      expect(rig.controller.extraHourState, ExtraHourPurchaseState.purchasing);
+    });
+
+    test('purchased -> POST /api/billing/purchase, refresh, complete (ordre), '
+        'état credited', () async {
+      final rig = _rig(handler: happyExtra);
+      rig.gateway.products = [_product(), extraProduct()];
+      await rig.controller.initialize();
+      rig.log.clear();
+      rig.gateway.emit([pdExtra()]);
+      await pumpEventQueue();
+      expect(rig.controller.extraHourState, ExtraHourPurchaseState.credited);
+      final purchaseIdx = rig.log.indexOf('POST /api/billing/purchase');
+      final stateIdx = rig.log.indexOf('GET /api/consultation/state');
+      final completeIdx = rig.log.indexOf('complete');
+      expect(purchaseIdx, greaterThanOrEqualTo(0));
+      expect(purchaseIdx < stateIdx, isTrue);
+      expect(stateIdx < completeIdx, isTrue);
+      expect(rig.gateway.completed.single.productID, kExtraHourProductId);
+      // Premium jamais touché.
+      expect(rig.controller.state, PurchaseState.idle);
+    });
+
+    test('already_credited -> état alreadyCredited, complete quand même, '
+        'aucun double crédit', () async {
+      final rig = _rig(
+        handler: (req) async {
+          if (req.url.path == '/api/billing/purchase') {
+            return _json(purchaseOk(already: true));
+          }
+          if (req.url.path == '/api/consultation/state') {
+            return _json(_stateBody());
+          }
+          return _json({}, 404);
+        },
+      );
+      rig.gateway.products = [_product(), extraProduct()];
+      await rig.controller.initialize();
+      rig.gateway.emit([pdExtra()]);
+      await pumpEventQueue();
+      expect(
+        rig.controller.extraHourState,
+        ExtraHourPurchaseState.alreadyCredited,
+      );
+      expect(rig.gateway.completed, hasLength(1));
+    });
+
+    test('pending -> pendingStore, aucun POST', () async {
+      final rig = _rig(handler: happyExtra);
+      rig.gateway.products = [_product(), extraProduct()];
+      await rig.controller.initialize();
+      rig.log.clear();
+      rig.gateway.emit([pdExtra(status: PurchaseStatus.pending)]);
+      await pumpEventQueue();
+      expect(rig.controller.extraHourState, ExtraHourPurchaseState.pendingStore);
+      expect(rig.log.contains('POST /api/billing/purchase'), isFalse);
+    });
+
+    test('canceled -> canceled, aucun POST', () async {
+      final rig = _rig(handler: happyExtra);
+      rig.gateway.products = [_product(), extraProduct()];
+      await rig.controller.initialize();
+      rig.gateway.emit([pdExtra(status: PurchaseStatus.canceled)]);
+      await pumpEventQueue();
+      expect(rig.controller.extraHourState, ExtraHourPurchaseState.canceled);
+      expect(rig.gateway.completed, isEmpty);
+    });
+
+    test('503 -> verifyRetryable + pending retry; retry re-poste', () async {
+      var calls = 0;
+      final rig = _rig(
+        handler: (req) async {
+          if (req.url.path == '/api/billing/purchase') {
+            calls++;
+            if (calls == 1) return _json({'error': 'x'}, 503);
+            return _json(purchaseOk());
+          }
+          if (req.url.path == '/api/consultation/state') {
+            return _json(_stateBody());
+          }
+          return _json({}, 404);
+        },
+      );
+      rig.gateway.products = [_product(), extraProduct()];
+      await rig.controller.initialize();
+      rig.gateway.emit([pdExtra()]);
+      await pumpEventQueue();
+      expect(
+        rig.controller.extraHourState,
+        ExtraHourPurchaseState.verifyRetryable,
+      );
+      expect(rig.controller.hasExtraHourPendingRetry, isTrue);
+      expect(rig.gateway.completed, isEmpty);
+
+      await rig.controller.retryExtraHourVerification();
+      await pumpEventQueue();
+      expect(rig.controller.extraHourState, ExtraHourPurchaseState.credited);
+      expect(rig.gateway.completed, hasLength(1));
+      expect(rig.controller.hasExtraHourPendingRetry, isFalse);
+    });
+
+    test('422 -> verifyFatal, aucun complete, pas de retry', () async {
+      final rig = _rig(
+        handler: (req) async {
+          if (req.url.path == '/api/billing/purchase') {
+            return _json({'error': 'invalid_store_receipt'}, 422);
+          }
+          if (req.url.path == '/api/consultation/state') {
+            return _json(_stateBody());
+          }
+          return _json({}, 404);
+        },
+      );
+      rig.gateway.products = [_product(), extraProduct()];
+      await rig.controller.initialize();
+      rig.gateway.emit([pdExtra()]);
+      await pumpEventQueue();
+      expect(rig.controller.extraHourState, ExtraHourPurchaseState.verifyFatal);
+      expect(rig.gateway.completed, isEmpty);
+      expect(rig.controller.hasExtraHourPendingRetry, isFalse);
+    });
+
+    test('sans session -> requiresAuthentication, aucun POST, retry armé', () async {
+      final rig = _rig(token: null, handler: happyExtra);
+      rig.gateway.products = [_product(), extraProduct()];
+      await rig.controller.initialize();
+      rig.log.clear();
+      rig.gateway.emit([pdExtra()]);
+      await pumpEventQueue();
+      expect(
+        rig.controller.extraHourState,
+        ExtraHourPurchaseState.requiresAuthentication,
+      );
+      expect(rig.log.contains('POST /api/billing/purchase'), isFalse);
+      expect(rig.gateway.completed, isEmpty);
+      expect(rig.controller.hasExtraHourPendingRetry, isTrue);
+    });
+
+    test('iOS -> verifyFatal unsupported_platform (lot Android)', () async {
+      final rig = _rig(platform: TargetPlatform.iOS, handler: happyExtra);
+      rig.gateway.products = [_product(), extraProduct()];
+      await rig.controller.initialize();
+      rig.log.clear();
+      rig.gateway.emit([pdExtra()]);
+      await pumpEventQueue();
+      expect(rig.controller.extraHourState, ExtraHourPurchaseState.verifyFatal);
+      expect(rig.controller.extraHourError, 'unsupported_platform');
+      expect(rig.log.contains('POST /api/billing/purchase'), isFalse);
+    });
+
+    test('achat Premium reste intact quand le contrôleur gère aussi +1 h',
+        () async {
+      final rig = _rig(handler: (req) async {
+        if (req.url.path == '/api/billing/verify') return _json(_verifyOk());
+        if (req.url.path == '/api/billing/purchase') return _json(purchaseOk());
+        if (req.url.path == '/api/consultation/state') {
+          return _json(_stateBody());
+        }
+        return _json({}, 404);
+      });
+      rig.gateway.products = [_product(), extraProduct()];
+      await rig.controller.initialize();
+      rig.gateway.emit([_pd()]);
+      await pumpEventQueue();
+      expect(rig.controller.state, PurchaseState.active);
+      expect(rig.controller.extraHourState, ExtraHourPurchaseState.idle);
+    });
   });
 }

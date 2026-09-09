@@ -102,6 +102,73 @@ void main() {
     );
   });
 
+  group('BillingApi.verifyGooglePlayPurchase (« +1 h » consommable)', () {
+    Map<String, dynamic> purchaseOk({bool alreadyCredited = false}) => {
+      'purchase': {
+        'store': 'google_play',
+        'product_id': kExtraHourProductId,
+        'credited_seconds': alreadyCredited ? 0 : 3600,
+        'already_credited': alreadyCredited,
+      },
+      'quota': {
+        'is_premium': false,
+        'monthly_limit': 0,
+        'monthly_used': 0,
+        'monthly_remaining': 0,
+        'earned_available': 0,
+        'period_start': null,
+        'period_end': null,
+      },
+    };
+
+    test('corps EXACT + Bearer + path /api/billing/purchase', () async {
+      final rig = _rig((_) async => _json(purchaseOk()));
+      await rig.api.verifyGooglePlayPurchase(
+        bearer: 'tok-abc',
+        productId: kExtraHourProductId,
+        purchaseToken: 'gpa-extra-1',
+      );
+      final req = rig.reqs.single;
+      expect(req.method, 'POST');
+      expect(req.url.path, '/api/billing/purchase');
+      expect(req.headers['Authorization'], 'Bearer tok-abc');
+      expect(jsonDecode(req.body), {
+        'store': 'google_play',
+        'product_id': 'auryel_extra_hour',
+        'purchase_token': 'gpa-extra-1',
+      });
+      final body = jsonDecode(req.body) as Map<String, dynamic>;
+      for (final forbidden in const ['user_id', 'credited_seconds', 'quota']) {
+        expect(body.containsKey(forbidden), isFalse, reason: forbidden);
+      }
+    });
+
+    test('parsing 200 -> BillingPurchaseResponse (credited)', () async {
+      final rig = _rig((_) async => _json(purchaseOk()));
+      final res = await rig.api.verifyGooglePlayPurchase(
+        bearer: 't',
+        productId: kExtraHourProductId,
+        purchaseToken: 'x',
+      );
+      expect(res.purchase.store, 'google_play');
+      expect(res.purchase.productId, 'auryel_extra_hour');
+      expect(res.purchase.creditedSeconds, 3600);
+      expect(res.purchase.alreadyCredited, isFalse);
+      expect(res.quota.isPremium, isFalse);
+    });
+
+    test('parsing 200 -> already_credited (aucun double crédit)', () async {
+      final rig = _rig((_) async => _json(purchaseOk(alreadyCredited: true)));
+      final res = await rig.api.verifyGooglePlayPurchase(
+        bearer: 't',
+        productId: kExtraHourProductId,
+        purchaseToken: 'x',
+      );
+      expect(res.purchase.alreadyCredited, isTrue);
+      expect(res.purchase.creditedSeconds, 0);
+    });
+  });
+
   group('BillingApi.verifyAppStore', () {
     test('corps iOS EXACT + Bearer', () async {
       final rig = _rig((_) async => _json(_ok200()));

@@ -393,11 +393,24 @@ ce sont des bonus non contractuels, sans valeur monétaire, qui ne font pas
 partie des prestations garanties de l'abonnement et ne sont jamais
 convertibles en argent.
 
+HEURE SUPPLÉMENTAIRE
+
+Vous pouvez acheter séparément « 1 heure supplémentaire » de consultation
+(identifiant du produit : auryel_extra_hour). Prix commercial de référence :
+1,99 €. Le prix effectivement facturé est celui affiché par le magasin
+(Google Play) au moment de l'achat, dans votre devise et selon votre
+région ; en cas de différence, le prix du magasin fait foi. C'est un achat
+unique, sans abonnement ni renouvellement automatique, renouvelable autant
+de fois que vous le souhaitez. Après validation de l'achat par notre
+serveur, 3600 secondes (1 heure) sont ajoutées à votre temps de
+consultation disponible. Ce temps acheté n'est pas remis à zéro par le
+renouvellement mensuel Premium et n'est pas convertible en argent. Le
+paiement se fait uniquement via votre compte Google Play.
+
 NON DISPONIBLE EN V1
 
-L'achat d'une heure de consultation supplémentaire (2,90 €), le parrainage
-et la boutique ne sont pas disponibles à ce jour et ne peuvent pas être
-achetés ni présentés comme des avantages actifs.
+Le parrainage et la boutique ne sont pas disponibles à ce jour et ne
+peuvent pas être achetés ni présentés comme des avantages actifs.
 
 COMPTE ET DISPONIBILITÉ
 
