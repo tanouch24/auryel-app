@@ -186,6 +186,8 @@ class ConsultationMessageDto {
     required this.role,
     required this.content,
     required this.timestamp,
+    this.messageId,
+    this.llmStatus,
   });
 
   /// `user` ou `assistant`. Toute autre valeur est traitée côté UI comme
@@ -194,6 +196,17 @@ class ConsultationMessageDto {
   final String content;
   final DateTime? timestamp;
 
+  /// Identifiant stable du message côté backend (`message_id`, ou `id` en
+  /// repli). `null` pour une réponse ANCIENNE d'un backend qui ne l'expose pas
+  /// encore — l'UI reste fonctionnelle, le signalement retombe sur le
+  /// `consultation_id`.
+  final String? messageId;
+
+  /// `llm_status` — état de génération LLM de la réponse assistant (ex.
+  /// `ok`, `fallback`, `error`). `null` si absent / non pertinent (message
+  /// utilisateur, backend ancien).
+  final String? llmStatus;
+
   bool get isUser => role == 'user';
 
   factory ConsultationMessageDto.fromJson(Map<String, dynamic> json) =>
@@ -201,6 +214,8 @@ class ConsultationMessageDto {
         role: (json['role'] ?? '').toString(),
         content: (json['content'] ?? '').toString(),
         timestamp: _date(json['timestamp']),
+        messageId: _str(json['message_id']) ?? _str(json['id']),
+        llmStatus: _str(json['llm_status']),
       );
 }
 
@@ -290,6 +305,8 @@ class ConsultationMessageResponse {
     required this.consultation,
     required this.quota,
     this.time,
+    this.replyMessageId,
+    this.llmStatus,
   });
 
   final String reply;
@@ -300,9 +317,24 @@ class ConsultationMessageResponse {
   /// est encore ancien (fallback legacy côté contrôleur).
   final ConsultationTimeState? time;
 
+  /// Identifiant stable de LA réponse assistant renvoyée dans `reply`. Sert à
+  /// cibler le signalement (`POST /api/app/ai/report { message_id }`).
+  ///
+  /// Parsing TOLÉRANT : `message_id` à la racine, sinon `message.message_id` /
+  /// `message.id` si le backend imbrique la réponse dans un objet `message`.
+  /// `null` si aucune de ces formes n'est présente (backend ancien) — le
+  /// signalement retombe alors sur `consultation_id`.
+  final String? replyMessageId;
+
+  /// `llm_status` de la réponse assistant (racine ou `message.llm_status`).
+  /// `null` si absent.
+  final String? llmStatus;
+
   factory ConsultationMessageResponse.fromJson(Map<String, dynamic> json) {
     final c = json['consultation'];
     final q = json['quota'];
+    final m = json['message'];
+    final msg = m is Map<String, dynamic> ? m : const <String, dynamic>{};
     return ConsultationMessageResponse(
       reply: (json['reply'] ?? '').toString(),
       consultation: c is Map<String, dynamic>
@@ -310,6 +342,11 @@ class ConsultationMessageResponse {
           : null,
       quota: q is Map<String, dynamic> ? QuotaDto.fromJson(q) : QuotaDto.empty,
       time: ConsultationTimeState.maybeFromJson(json['time']),
+      replyMessageId:
+          _str(json['message_id']) ??
+          _str(msg['message_id']) ??
+          _str(msg['id']),
+      llmStatus: _str(json['llm_status']) ?? _str(msg['llm_status']),
     );
   }
 }
@@ -352,3 +389,8 @@ int _clampPos(int v) => v < 0 ? 0 : v;
 
 DateTime? _date(Object? v) =>
     (v is String && v.isNotEmpty) ? DateTime.tryParse(v) : null;
+
+/// Chaîne non vide, sinon `null`. Fail-safe : n'accepte QUE des `String`
+/// (les identifiants backend en sont), jamais de coercion depuis un nombre /
+/// objet.
+String? _str(Object? v) => (v is String && v.isNotEmpty) ? v : null;

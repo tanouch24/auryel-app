@@ -22,12 +22,12 @@ enum AiReportReason {
 ///     { "message_id"?: "...", "consultation_id"?: "...",
 ///       "reason": "unsafe", "comment"?: "..." }
 ///
-/// DÉPENDANCE BACKEND : le modèle de message app N'EXPOSE PAS ENCORE
-/// d'identifiant de message ([ConsultationMessageDto] = {role, content,
-/// timestamp}, et `POST /api/consultation/message` renvoie `reply` en clair).
-/// Tant que le backend n'ajoute pas de `message_id`, on transmet `null` +
-/// `consultation_id` comme contexte. Quand l'identifiant existera, il suffira
-/// de le passer à [report] — la signature ne bouge pas.
+/// Le backend expose désormais un `message_id` stable : porté par
+/// [ConsultationMessageDto.messageId] (historique) et
+/// [ConsultationMessageResponse.replyMessageId] (réponse d'envoi). Il est
+/// passé ici quand il existe ; sinon (réponse d'un backend ancien) il est
+/// `null` et [report] l'omet — `consultation_id` sert alors de contexte.
+/// Jamais de `message_id` fabriqué.
 class AiReportApi {
   AiReportApi(this._client);
 

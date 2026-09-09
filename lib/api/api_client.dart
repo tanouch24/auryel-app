@@ -35,6 +35,18 @@ class ApiNoCreditException extends ApiException {
   final Map<String, dynamic> body;
 }
 
+/// 403 — le backend refuse l'action (droit manquant). Sur les mutations de
+/// consultation, le `code` vaut notamment `age_verification_required` (date de
+/// naissance absente / invalide côté serveur) ou `adult_required` (moins de
+/// 18 ans, ou date future). Porte le corps décodé pour permettre un routage UX
+/// (retour au parcours 18+) sans nouvel appel — jamais présenté comme une
+/// panne serveur générique.
+class ApiForbiddenException extends ApiException {
+  ApiForbiddenException(this.body, {super.code, super.message}) : super(403);
+
+  final Map<String, dynamic> body;
+}
+
 /// Le serveur n'a pas pu être joint (DNS, socket, timeout, TLS...). Ne signifie
 /// PAS que la session est invalide : on ne détruit jamais le token là-dessus.
 class ApiNetworkException implements Exception {
@@ -147,6 +159,9 @@ class ApiClient {
     }
     if (response.statusCode == 402) {
       throw ApiNoCreditException(decoded, code: code, message: message);
+    }
+    if (response.statusCode == 403) {
+      throw ApiForbiddenException(decoded, code: code, message: message);
     }
     throw ApiException(response.statusCode, code: code, message: message);
   }

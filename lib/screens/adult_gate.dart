@@ -32,10 +32,17 @@ import 'onboarding/email_auth_screen.dart';
 /// Aucun flash de [MainNavShell] avant validation : l'état initial n'est jamais
 /// `allowed` sans preuve.
 class AdultGate extends StatefulWidget {
-  const AdultGate({super.key, this.clock});
+  const AdultGate({super.key, this.clock, this.forceServerCheck = false});
 
   /// Fige « aujourd'hui » pour les tests de dates limites.
   final DateTime Function()? clock;
+
+  /// `true` quand ce gate est ouvert EN RÉACTION à un refus serveur 403
+  /// (`age_verification_required` / `adult_required`) : on SAUTE le chemin
+  /// rapide « DOB locale adulte » et on refait autorité serveur
+  /// (`GET /api/app/profile`) pour router vers `needsDob` ou `minor` selon
+  /// ce que le backend connaît réellement.
+  final bool forceServerCheck;
 
   @override
   State<AdultGate> createState() => _AdultGateState();
@@ -66,9 +73,12 @@ class _AdultGateState extends State<AdultGate> {
 
     // Chemin rapide — une DOB locale exploitable ET adulte suffit : elle a été
     // validée à l'onboarding (≥18 imposé) ou par une synchro serveur d'une
-    // valeur ISO valide. Aucun appel réseau, aucun flash.
+    // valeur ISO valide. Aucun appel réseau, aucun flash. SAUTÉ quand le gate
+    // est ouvert suite à un 403 serveur ([forceServerCheck]) : la vérité vient
+    // alors de `GET /api/app/profile`, pas de l'état local.
     final local = state.birthDate;
-    if (isUsableBirthDate(local, now: now) &&
+    if (!widget.forceServerCheck &&
+        isUsableBirthDate(local, now: now) &&
         meetsMinimumAge(local!, now: now)) {
       _to(_Phase.allowed);
       return;
@@ -170,10 +180,7 @@ class _AdultGateState extends State<AdultGate> {
         );
       case _Phase.minor:
         return _GateScaffold(
-          child: _MinorBlockedView(
-            onLogout: _logout,
-            onDelete: _confirmDelete,
-          ),
+          child: _MinorBlockedView(onLogout: _logout, onDelete: _confirmDelete),
         );
       case _Phase.error:
         return _GateScaffold(
@@ -203,8 +210,10 @@ class _AdultGateState extends State<AdultGate> {
         actions: [
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(false),
-            child: Text('Annuler',
-                style: AuryelText.body(color: AuryelColors.textMuted)),
+            child: Text(
+              'Annuler',
+              style: AuryelText.body(color: AuryelColors.textMuted),
+            ),
           ),
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(true),
@@ -346,8 +355,9 @@ class _AgeVerificationViewState extends State<_AgeVerificationView> {
             surface: AuryelColors.surface,
             onSurface: AuryelColors.textCream,
           ),
-          dialogTheme:
-              const DialogThemeData(backgroundColor: AuryelColors.surface),
+          dialogTheme: const DialogThemeData(
+            backgroundColor: AuryelColors.surface,
+          ),
         ),
         child: child!,
       ),
@@ -375,8 +385,10 @@ class _AgeVerificationViewState extends State<_AgeVerificationView> {
     if (!mounted) return;
     setState(() => _busy = false);
     if (res == _DobSaveResult.retry) {
-      setState(() => _error =
-          'Enregistrement impossible. Vérifie ta connexion et réessaie.');
+      setState(
+        () => _error =
+            'Enregistrement impossible. Vérifie ta connexion et réessaie.',
+      );
     }
     // done / gone -> le gate a déjà changé de phase / route.
   }
@@ -445,8 +457,10 @@ class _AgeVerificationViewState extends State<_AgeVerificationView> {
                       borderSide: BorderSide(color: AuryelColors.warmBorder),
                     ),
                     focusedBorder: const UnderlineInputBorder(
-                      borderSide:
-                          BorderSide(color: AuryelColors.gold, width: 1.5),
+                      borderSide: BorderSide(
+                        color: AuryelColors.gold,
+                        width: 1.5,
+                      ),
                     ),
                   ),
                 ),

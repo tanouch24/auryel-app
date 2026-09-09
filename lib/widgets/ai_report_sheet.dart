@@ -180,6 +180,8 @@ class _AiReportSheetState extends State<_AiReportSheet> {
                 enabled: !_sending,
                 minLines: 1,
                 maxLines: 4,
+                // Plafond backend : commentaire <= 1000 caractères.
+                maxLength: 1000,
                 style: AuryelText.body(
                   fontSize: 13.5,
                   color: AuryelColors.textCream,
