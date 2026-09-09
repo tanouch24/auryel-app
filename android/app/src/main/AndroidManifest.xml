@@ -49,9 +49,11 @@
         <meta-data
             android:name="com.google.firebase.messaging.default_notification_channel_id"
             android:value="auryel_default" />
+        <!-- Petite icône status bar : silhouette monochrome dédiée (jamais
+             l'icône launcher couleur, illisible en barre d'état). -->
         <meta-data
             android:name="com.google.firebase.messaging.default_notification_icon"
-            android:resource="@mipmap/ic_launcher" />
+            android:resource="@drawable/ic_stat_auryel" />
 
         <!-- Meta App Events (mesure publicitaire, sous consentement explicite).
              Valeurs NON versionnées : injectées par manifestPlaceholders depuis

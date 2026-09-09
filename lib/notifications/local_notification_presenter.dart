@@ -28,11 +28,14 @@ class LocalNotificationPresenter {
   bool _ready = false;
   void Function(NotificationPayload payload)? onSelect;
 
+  /// Petite icône status bar (silhouette monochrome dédiée, cf.
+  /// `res/drawable/ic_stat_auryel.xml`). JAMAIS l'icône launcher couleur.
+  static const _smallIcon = 'ic_stat_auryel';
+
   Future<void> initialize() async {
     if (_ready) return;
     try {
-      const initAndroid =
-          AndroidInitializationSettings('@mipmap/ic_launcher');
+      const initAndroid = AndroidInitializationSettings(_smallIcon);
       await _plugin.initialize(
         const InitializationSettings(android: initAndroid),
         onDidReceiveNotificationResponse: _onResponse,
@@ -65,6 +68,7 @@ class LocalNotificationPresenter {
             _channel.id,
             _channel.name,
             channelDescription: _channel.description,
+            icon: _smallIcon,
             importance: Importance.defaultImportance,
             priority: Priority.defaultPriority,
             visibility: NotificationVisibility.private,
