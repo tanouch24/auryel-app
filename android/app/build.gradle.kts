@@ -1,4 +1,5 @@
 import java.io.FileInputStream
+import java.util.Base64
 import java.util.Properties
 
 plugins {
@@ -88,18 +89,98 @@ android {
         release {
             // Clé d'upload Auryel uniquement — plus AUCUN repli sur la clé debug.
             signingConfig = signingConfigs.getByName("release")
+            // V1 — R8 / shrink DÉSACTIVÉS volontairement (décision explicite, pas
+            // un défaut hérité) : priorité à la stabilité de la 1re release.
+            // Firebase (FCM), Google Play Billing, Meta SDK et
+            // flutter_local_notifications utilisent de la réflexion et
+            // exigeraient des règles keep éprouvées ; les activer sans QA release
+            // complète risque un strip silencieux -> crash uniquement en prod.
+            // À réévaluer en v1.1 avec un proguard-rules.pro dédié + QA release.
+            isMinifyEnabled = false
+            isShrinkResources = false
+            // release n'est jamais debuggable (défaut AGP) — rendu explicite.
+            isDebuggable = false
         }
     }
 }
 
-// Garde-fou : un build RELEASE sans android/key.properties DOIT échouer, jamais
-// produire un artefact signé avec une clé involontaire.
+// ---------------------------------------------------------------------------
+// Garde-fou release AUR-C02 — décode les valeurs `--dart-define` passées par la
+// CLI Flutter (`-Pdart-defines`, liste de "KEY=VALUE" en base64) et REFUSE un
+// `assembleRelease` / `bundleRelease` si `AURYEL_API_BASE_URL` est absente,
+// non-HTTPS, locale (`localhost` / `127.0.0.1` / `10.0.2.2` …), une IP privée
+// ou un hôte non qualifié. Un AAB/APK release avec une mauvaise URL API ne peut
+// donc PAS être produit (le contrôle Dart de ApiConfig est la 2e barrière, au
+// démarrage). DEBUG n'est jamais concerné.
+// ---------------------------------------------------------------------------
+fun auryelReleaseApiUrlProblem(url: String): String? {
+    val u = url.trim()
+    if (u.isEmpty()) return "absente"
+    val lower = u.lowercase()
+    if (!lower.startsWith("https://")) return "non HTTPS (\"$u\")"
+    // authority = ce qui suit "https://" jusqu'au premier / ? #
+    val authority = u.substring("https://".length)
+        .substringBefore('/').substringBefore('?').substringBefore('#')
+    // retire un éventuel userinfo ("user:pass@") puis le port (":8443")
+    val hostPort = authority.substringAfterLast('@')
+    val host = (if (hostPort.startsWith("[")) {
+        hostPort.substringAfter('[').substringBefore(']') // IPv6 littéral
+    } else {
+        hostPort.substringBefore(':')
+    }).lowercase()
+    if (host.isEmpty()) return "hôte manquant (\"$u\")"
+    val localHosts = setOf(
+        "localhost", "127.0.0.1", "::1", "0.0.0.0",
+        "10.0.2.2", "10.0.3.2", "host.docker.internal",
+    )
+    if (host in localHosts) return "hôte local/émulateur \"$host\""
+    if (host.endsWith(".local")) return "hôte de développement \"$host\""
+    val octets = host.split(".")
+    if (octets.size == 4 && octets.all { it.toIntOrNull() in 0..255 }) {
+        val a = octets[0].toInt(); val b = octets[1].toInt()
+        if (a == 10 || a == 127 || a == 0 ||
+            (a == 192 && b == 168) ||
+            (a == 172 && b in 16..31) ||
+            (a == 169 && b == 254)
+        ) return "adresse IP privée/loopback \"$host\""
+    }
+    if (!host.contains(".")) return "nom d'hôte non qualifié \"$host\""
+    return null
+}
+
 gradle.taskGraph.whenReady {
     val isReleaseBuild = allTasks.any { it.name.contains("Release") }
-    if (isReleaseBuild && !keystorePropertiesFile.exists()) {
+    if (!isReleaseBuild) return@whenReady
+
+    // 1) signature : jamais d'artefact signé avec une clé involontaire.
+    if (!keystorePropertiesFile.exists()) {
         throw GradleException(
             "Build release impossible : android/key.properties introuvable. " +
                 "Restaurer la clé d'upload Auryel (voir la sauvegarde hors repo, F5-B.1)."
+        )
+    }
+
+    // 2) URL API de production (AUR-C02).
+    val rawDefines = (project.findProperty("dart-defines") as String?).orEmpty()
+    var apiBaseUrl: String? = null
+    for (token in rawDefines.split(",")) {
+        if (token.isBlank()) continue
+        val decoded = try {
+            String(Base64.getDecoder().decode(token.trim()), Charsets.UTF_8)
+        } catch (_: Exception) {
+            continue
+        }
+        if (decoded.startsWith("AURYEL_API_BASE_URL=")) {
+            apiBaseUrl = decoded.substringAfter("=")
+        }
+    }
+    val problem = auryelReleaseApiUrlProblem(apiBaseUrl ?: "")
+    if (problem != null) {
+        throw GradleException(
+            "Build release refusé (AUR-C02) : AURYEL_API_BASE_URL $problem. " +
+                "Fournir --dart-define=AURYEL_API_BASE_URL=https://<backend de " +
+                "production Auryel> (URL HTTPS publique, jamais localhost / " +
+                "10.0.2.2 / IP privée)."
         )
     }
 }
