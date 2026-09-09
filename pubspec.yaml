@@ -57,6 +57,16 @@ dependencies:
   # appliqué (il casserait le build sans google-services.json) — cf. rapport.
   firebase_core: ^4.14.0
   firebase_messaging: ^16.6.0
+  # Affichage d'une notification locale quand un message arrive app au premier
+  # plan (Android n'affiche rien tout seul dans ce cas). Sert aussi à créer le
+  # canal `auryel_default` (visibilité PRIVATE, rien de sensible verrouillé).
+  flutter_local_notifications: ^19.4.2
+  # « Ouvrir les réglages » (ré-autoriser les notifications après un refus).
+  permission_handler: ^12.0.1
+  # Meta App Events — mesure d'installation / conversion, UNIQUEMENT après
+  # consentement explicite. Aucune donnée personnelle transmise. Enveloppé par
+  # la façade lib/analytics/meta_events.dart : aucun écran n'appelle ce package.
+  facebook_app_events: ^0.20.1
 
 dev_dependencies:
   flutter_test:

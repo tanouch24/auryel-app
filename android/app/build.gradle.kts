@@ -5,6 +5,11 @@ plugins {
     id("com.android.application")
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id("dev.flutter.flutter-gradle-plugin")
+    // Firebase Android (FCM). Nécessite android/app/google-services.json (non
+    // versionné). Absent -> le build échoue explicitement : c'est voulu pour une
+    // release, l'app ne doit pas partir sans push. En local, poser le fichier
+    // fourni hors dépôt (cf. docs/store/android/GOOGLE_PLAY_SUBMISSION.md).
+    id("com.google.gms.google-services")
 }
 
 // F5-B.1 — signature RELEASE : la clé d'upload Auryel est décrite dans
@@ -18,12 +23,32 @@ if (keystorePropertiesFile.exists()) {
     FileInputStream(keystorePropertiesFile).use { keystoreProperties.load(it) }
 }
 
+// Meta App Events — App ID + Client Token. Fichier NON versionné
+// (android/meta.properties, gitignore). Absent -> valeurs vides : le SDK Meta
+// reste inactif (la façade Dart NoopMetaEvents ne l'initialise pas). Ces
+// valeurs peuvent aussi être passées par -PmetaAppId=... au build CI.
+val metaPropertiesFile = rootProject.file("meta.properties")
+val metaProperties = Properties()
+if (metaPropertiesFile.exists()) {
+    FileInputStream(metaPropertiesFile).use { metaProperties.load(it) }
+}
+val resolvedMetaAppId: String =
+    (project.findProperty("metaAppId") as String?)
+        ?: metaProperties.getProperty("metaAppId")
+        ?: ""
+val resolvedMetaClientToken: String =
+    (project.findProperty("metaClientToken") as String?)
+        ?: metaProperties.getProperty("metaClientToken")
+        ?: ""
+
 android {
     namespace = "com.auryel.auryel"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
     compileOptions {
+        // Requis par flutter_local_notifications (API date/time rétro-portée).
+        isCoreLibraryDesugaringEnabled = true
         sourceCompatibility = JavaVersion.VERSION_17
         targetCompatibility = JavaVersion.VERSION_17
     }
@@ -41,6 +66,11 @@ android {
         // flag during build.
         versionCode = flutter.versionCode
         versionName = flutter.versionName
+
+        // Substitué dans AndroidManifest (com.facebook.sdk.*). Vide si
+        // meta.properties absent -> SDK Meta non initialisé côté Dart.
+        manifestPlaceholders["metaAppId"] = resolvedMetaAppId
+        manifestPlaceholders["metaClientToken"] = resolvedMetaClientToken
     }
 
     signingConfigs {
@@ -82,4 +112,9 @@ kotlin {
 
 flutter {
     source = "../.."
+}
+
+dependencies {
+    // Core library desugaring — dépendance de flutter_local_notifications.
+    coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
 }

@@ -1,22 +1,30 @@
+import 'package:permission_handler/permission_handler.dart' as ph;
+
 /// Ouvre la page « Réglages » système de l'app (pour ré-autoriser les
-/// notifications après un refus).
-///
-/// DÉPENDANCE PLUGIN : ceci nécessite `permission_handler`
-/// (`openAppSettings()`) ou `app_settings` — **non ajouté dans ce lot** (aucune
-/// nouvelle dépendance). L'implémentation par défaut [NoopAppSettingsOpener] ne
-/// fait rien ; l'entrée « Ouvrir les réglages » n'apparaît de toute façon que
-/// si l'autorisation est `denied`, ce qui suppose une infra push active
-/// (Firebase configuré). Aujourd'hui le statut est `unavailable` -> l'entrée
-/// n'est jamais un faux bouton actif.
+/// notifications après un refus). Utilisé UNIQUEMENT quand le statut est
+/// `denied` (donc infra push active).
 abstract class AppSettingsOpener {
   Future<void> open();
 }
 
+/// Implémentation réelle : `permission_handler.openAppSettings()`.
+class SystemAppSettingsOpener implements AppSettingsOpener {
+  const SystemAppSettingsOpener();
+
+  @override
+  Future<void> open() async {
+    try {
+      await ph.openAppSettings();
+    } catch (_) {
+      /* plateforme non supportée / test -> no-op */
+    }
+  }
+}
+
+/// Inerte — tests / écrans montés isolément.
 class NoopAppSettingsOpener implements AppSettingsOpener {
   const NoopAppSettingsOpener();
 
   @override
-  Future<void> open() async {
-    /* plugin non câblé -> no-op */
-  }
+  Future<void> open() async {}
 }
