@@ -22,6 +22,7 @@ class DailyThought {
     required this.phrase,
     required this.interpretation,
     required this.imageAsset,
+    this.imageUrl,
   });
 
   final int id;
@@ -31,7 +32,13 @@ class DailyThought {
 
   /// Chemin d'asset du visuel WEBP final (1080×1920). Le visuel contient DÉJÀ
   /// la phrase + l'interprétation + le design premium ; il ne porte AUCUNE date.
+  /// Vide (`''`) pour une pensée servie par le backend (pas d'asset embarqué) —
+  /// l'aperçu partageable retombe alors sur [imageUrl] puis sur du texte seul.
   final String imageAsset;
+
+  /// URL distante du visuel `daily_publication` quand la pensée vient du
+  /// backend. `null` pour le pack embarqué (qui utilise [imageAsset]).
+  final String? imageUrl;
 
   factory DailyThought.fromJson(Map<String, dynamic> j) => DailyThought(
     id: (j['id'] as num).toInt(),
@@ -40,6 +47,33 @@ class DailyThought {
     interpretation: (j['interpretation'] as String).trim(),
     imageAsset: 'assets/pensees/${j['image_webp']}',
   );
+
+  /// Parsing TOLÉRANT d'une pensée servie par `GET /api/app/content/today`
+  /// (`daily_thought`). Renvoie `null` si `phrase` ou `interpretation` manque /
+  /// est vide — le contenu du jour est nullable côté backend. `publish_date`,
+  /// `id`, `image_url` sont optionnels.
+  static DailyThought? tryFromServerJson(Map<String, dynamic> j) {
+    final phrase = (j['phrase'] is String)
+        ? (j['phrase'] as String).trim()
+        : '';
+    final interp = (j['interpretation'] is String)
+        ? (j['interpretation'] as String).trim()
+        : '';
+    if (phrase.isEmpty || interp.isEmpty) return null;
+    final rawId = j['id'];
+    final rawDate = j['publish_date'];
+    final img = j['image_url'];
+    return DailyThought(
+      id: rawId is num ? rawId.toInt() : (int.tryParse('$rawId') ?? 0),
+      publishDate: (rawDate is String && rawDate.isNotEmpty)
+          ? (DateTime.tryParse(rawDate) ?? DateTime.now())
+          : DateTime.now(),
+      phrase: phrase,
+      interpretation: interp,
+      imageAsset: '',
+      imageUrl: (img is String && img.isNotEmpty) ? img : null,
+    );
+  }
 
   /// Découpe la phrase en (début, fin dorée). La fin dorée est un SUFFIXE EXACT
   /// de la phrase (le texte n'est jamais modifié) : `lead + accent == phrase`.

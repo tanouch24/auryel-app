@@ -55,16 +55,22 @@ class MeditationCatalog {
     ),
   ];
 
-  /// Nombre de jours écoulés depuis une origine fixe — même logique que la
-  /// rotation des pensées : `((n % len) + len) % len` pour rester positif.
-  static int _dayIndex(DateTime now) {
+  /// Toutes les séances embarquées (fallback quand ni serveur ni cache n'ont de
+  /// catalogue exploitable).
+  List<MeditationItem> get all => items;
+
+  /// Index déterministe de la séance « du jour » dans une liste de `length`
+  /// entrées : `((jours depuis l'origine % length) + length) % length` (robuste
+  /// aux valeurs négatives). Réutilisé pour le catalogue distant.
+  static int indexForDay(DateTime now, int length) {
+    if (length <= 0) return 0;
     final origin = DateTime(2026, 1, 1);
     final today = DateTime(now.year, now.month, now.day);
     final days = today.difference(origin).inDays;
-    final n = items.length;
-    return ((days % n) + n) % n;
+    return ((days % length) + length) % length;
   }
 
   /// La séance « du jour » — déterministe, stable sur 24 h locales.
-  MeditationItem momentOfDay(DateTime now) => items[_dayIndex(now)];
+  MeditationItem momentOfDay(DateTime now) =>
+      items[indexForDay(now, items.length)];
 }

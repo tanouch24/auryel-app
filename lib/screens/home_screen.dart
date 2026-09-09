@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:phosphor_icons/phosphor_icons.dart';
 
+import '../data/content_repository.dart';
 import '../data/daily_like_store.dart';
 import '../data/daily_mission_tracker.dart';
 import '../data/daily_share_tracker.dart';
@@ -256,6 +257,11 @@ class _DailyThoughtZoneState extends State<_DailyThoughtZone>
       widget.repository ?? DailyThoughtRepository();
   final DailyShareTracker _tracker = DailyShareTracker();
 
+  /// Source distante (serveur -> cache -> embarqué). `null` = pas de
+  /// [ContentScope] dans l'arbre (tests hérités) -> on lit [_repo] embarqué.
+  ContentRepository? _content;
+  bool _bootstrapped = false;
+
   DailyThought? _thought;
   DateTime? _loadedDay;
   int _sharedDays = 0;
@@ -269,7 +275,16 @@ class _DailyThoughtZoneState extends State<_DailyThoughtZone>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    _refresh();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _content ??= ContentScope.maybeOf(context);
+    if (!_bootstrapped) {
+      _bootstrapped = true;
+      _refresh();
+    }
   }
 
   @override
@@ -283,13 +298,17 @@ class _DailyThoughtZoneState extends State<_DailyThoughtZone>
     if (state == AppLifecycleState.resumed) _refresh();
   }
 
+  Future<DailyThought> _loadThought() => _content != null
+      ? _content!.thoughtFor(DateTime.now())
+      : _repo.thoughtFor(DateTime.now());
+
   Future<void> _refresh() async {
     if (_thought != null && _loadedDay == _today) {
       await _loadCounter();
       return;
     }
     try {
-      final t = await _repo.thoughtFor(DateTime.now());
+      final t = await _loadThought();
       if (!mounted) return;
       setState(() {
         _thought = t;
@@ -583,6 +602,9 @@ class _MissionsSectionState extends State<_MissionsSection>
   final DailyShareTracker _shareTracker = DailyShareTracker();
   final DailyMissionTracker _missions = DailyMissionTracker();
 
+  ContentRepository? _content;
+  bool _bootstrapped = false;
+
   DailyThought? _thought;
   DateTime? _loadedDay;
   final Map<_Mission, bool> _done = {for (final m in _Mission.values) m: false};
@@ -596,7 +618,16 @@ class _MissionsSectionState extends State<_MissionsSection>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    _refresh();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _content ??= ContentScope.maybeOf(context);
+    if (!_bootstrapped) {
+      _bootstrapped = true;
+      _refresh();
+    }
   }
 
   @override
@@ -610,6 +641,10 @@ class _MissionsSectionState extends State<_MissionsSection>
     if (state == AppLifecycleState.resumed) _refresh();
   }
 
+  Future<DailyThought> _loadThought() => _content != null
+      ? _content!.thoughtFor(DateTime.now())
+      : _repo.thoughtFor(DateTime.now());
+
   Future<void> _refresh() async {
     // Consultation : une activité serveur RÉELLE (fenêtre de facturation en
     // cours ou session active) vaut « consulté aujourd'hui » et est persistée
@@ -621,7 +656,7 @@ class _MissionsSectionState extends State<_MissionsSection>
 
     try {
       if (_thought == null || _loadedDay != _today) {
-        _thought = await _repo.thoughtFor(DateTime.now());
+        _thought = await _loadThought();
       }
     } catch (_) {
       /* la mission partage reste ouvrable via le CTA pensée */

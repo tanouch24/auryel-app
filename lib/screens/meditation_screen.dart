@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:phosphor_icons/phosphor_icons.dart';
 
 import '../api/wellbeing_api.dart';
+import '../data/content_repository.dart';
 import '../data/daily_mission_tracker.dart';
 import '../data/meditation_audio.dart';
 import '../data/meditation_catalog.dart';
@@ -58,9 +59,14 @@ class _MeditationScreenState extends State<MeditationScreen>
       widget.audioOverride ?? AudioPlayersMeditationAudio();
   late final DailyMissionTracker _missions =
       widget.missionTracker ?? DailyMissionTracker();
-  late final MeditationItem _item = widget.catalog.momentOfDay(
+
+  /// Séance affichée. Initialisée depuis le catalogue EMBARQUÉ (instantané,
+  /// aucun écran vide) ; remplacée une fois si le [ContentRepository] résout
+  /// une séance du jour distante (serveur -> cache).
+  late MeditationItem _item = widget.catalog.momentOfDay(
     widget.now ?? DateTime.now(),
   );
+  bool _contentResolved = false;
 
   final List<StreamSubscription<dynamic>> _subs = [];
 
@@ -96,6 +102,23 @@ class _MeditationScreenState extends State<MeditationScreen>
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
+
+    // Résolution UNE fois de la séance du jour distante (serveur -> cache ->
+    // embarqué). L'embarqué reste affiché tant que la résolution n'a pas
+    // abouti ; si aucune séance n'est jouable, l'écran garde son état propre
+    // (« bientôt disponible ») sans tenter de lire un asset manquant.
+    if (!_contentResolved) {
+      _contentResolved = true;
+      final content = ContentScope.maybeOf(context);
+      if (content != null) {
+        content.momentOfDay(widget.now ?? DateTime.now()).then((it) {
+          if (it != null && mounted && it.id != _item.id) {
+            setState(() => _item = it);
+          }
+        });
+      }
+    }
+
     final idx = MainNavScope.maybeOf(context)?.currentIndex;
     final onTab = idx == null || idx == kTabMeditation;
     if (onTab == _onThisTab) return;
@@ -176,7 +199,10 @@ class _MeditationScreenState extends State<MeditationScreen>
 
   Future<void> _start() async {
     _elapsed = Duration.zero;
-    final ok = await _audio.play(_item.assetPath);
+    // `playbackSource` = URL distante si exploitable, sinon chemin d'asset.
+    // Une séance sans aucune source lisible -> `play` renvoie `false` -> état
+    // « bientôt disponible » (jamais de tentative de lecture d'asset manquant).
+    final ok = await _audio.play(_item.playbackSource);
     if (!mounted) return;
     setState(
       () => _status = ok ? _PlayStatus.playing : _PlayStatus.unavailable,

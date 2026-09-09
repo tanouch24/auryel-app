@@ -164,9 +164,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   void _openSupport() {
-    Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => const SupportScreen()),
-    );
+    Navigator.of(context)
+        .push(MaterialPageRoute(builder: (_) => const SupportScreen()));
   }
 
   /// « Noter l'appli » — VOLONTAIRE (tap explicite). Ouvre la boîte de
@@ -183,9 +182,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     if (outcome == AppReviewOutcome.unavailable) {
       messenger.showSnackBar(
         const SnackBar(
-          content: Text(
-            'La notation n’est pas disponible pour le moment.',
-          ),
+          content: Text('La notation n’est pas disponible pour le moment.'),
         ),
       );
     }
@@ -814,6 +811,15 @@ class _TimeSection extends StatelessWidget {
                   t.premiumRemainingSeconds,
                 ),
               ),
+            // Ordre = ordre de débit backend (first_free -> premium -> earned
+            // -> purchased) pour que le total se réconcilie avec les lignes.
+            if (t.earnedRemainingSeconds > 0)
+              _TimeRow(
+                'Temps gagné',
+                ConsultationController.formatTotalTime(
+                  t.earnedRemainingSeconds,
+                ),
+              ),
             if (t.purchasedRemainingSeconds > 0)
               _TimeRow(
                 'Temps acheté',
@@ -1243,9 +1249,7 @@ class _MemoryRewardBlock extends StatelessWidget {
                 if (p == null) return null;
                 if (p.eligibleNow) return 'disponible';
                 final until = _humanizeUntil(p.nextEligibleAt);
-                return until == null
-                    ? 'déjà obtenue'
-                    : 'à nouveau dans $until';
+                return until == null ? 'déjà obtenue' : 'à nouveau dans $until';
               }(),
             ),
           ),

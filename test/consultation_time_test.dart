@@ -12,44 +12,45 @@ Map<String, dynamic> _stateBody({
   Map<String, dynamic>? time,
   Map<String, dynamic>? consultation,
   bool includeTime = true,
-}) =>
-    {
-      'consultation': consultation,
-      if (includeTime && time != null) 'time': time,
-      'quota': {
-        'is_premium': true,
-        'monthly_limit': 8,
-        'monthly_used': 1,
-        'monthly_remaining': 7,
-        'earned_available': 0,
-        'first_free_available': false,
-        'period_start': '2026-08-01T00:00:00Z',
-        'period_end': '2026-09-01T00:00:00Z',
-      },
-    };
+}) => {
+  'consultation': consultation,
+  if (includeTime && time != null) 'time': time,
+  'quota': {
+    'is_premium': true,
+    'monthly_limit': 8,
+    'monthly_used': 1,
+    'monthly_remaining': 7,
+    'earned_available': 0,
+    'first_free_available': false,
+    'period_start': '2026-08-01T00:00:00Z',
+    'period_end': '2026-09-01T00:00:00Z',
+  },
+};
 
 void main() {
   group('A. Parsing GET /state avec bloc time complet', () {
     test('parse consultation + time + quota', () {
-      final r = ConsultationStateResponse.fromJson(_stateBody(
-        consultation: {
-          'id': 'c-1',
-          'advisor_id': 'selena',
-          'started_at': '2026-09-01T10:00:00Z',
-          'expires_at': '2026-09-01T12:00:00Z',
-          'seconds_remaining': 32400,
-          'credit_source': 'time',
-          'opened_now': false,
-        },
-        time: {
-          'first_free_remaining_seconds': 3600,
-          'premium_remaining_seconds': 28800,
-          'purchased_remaining_seconds': 0,
-          'total_remaining_seconds': 32400,
-          'window_active': true,
-          'window_expires_at': '2026-09-01T10:05:00Z',
-        },
-      ));
+      final r = ConsultationStateResponse.fromJson(
+        _stateBody(
+          consultation: {
+            'id': 'c-1',
+            'advisor_id': 'selena',
+            'started_at': '2026-09-01T10:00:00Z',
+            'expires_at': '2026-09-01T12:00:00Z',
+            'seconds_remaining': 32400,
+            'credit_source': 'time',
+            'opened_now': false,
+          },
+          time: {
+            'first_free_remaining_seconds': 3600,
+            'premium_remaining_seconds': 28800,
+            'purchased_remaining_seconds': 0,
+            'total_remaining_seconds': 32400,
+            'window_active': true,
+            'window_expires_at': '2026-09-01T10:05:00Z',
+          },
+        ),
+      );
       expect(r.consultation!.creditSource, 'time');
       expect(r.time, isNotNull);
       expect(r.time!.totalRemainingSeconds, 32400);
@@ -150,7 +151,63 @@ void main() {
       });
       expect(t.windowActive, isFalse);
       expect(t.windowExpiresAt, isNull);
-      expect(t.hasTime, isTrue); // du temps reste, la consultation n'est pas finie
+      expect(
+        t.hasTime,
+        isTrue,
+      ); // du temps reste, la consultation n'est pas finie
+    });
+  });
+
+  group('H. Temps gagné (earned_remaining_seconds)', () {
+    test('11 — earned_remaining_seconds parsé', () {
+      final t = ConsultationTimeState.fromJson({
+        'first_free_remaining_seconds': 0,
+        'premium_remaining_seconds': 0,
+        'earned_remaining_seconds': 900,
+        'purchased_remaining_seconds': 0,
+        'total_remaining_seconds': 900,
+        'window_active': false,
+      });
+      expect(t.earnedRemainingSeconds, 900);
+      expect(t.totalRemainingSeconds, 900);
+    });
+
+    test('12 — champ absent -> 0 (compat backend ancien)', () {
+      final t = ConsultationTimeState.fromJson({
+        'first_free_remaining_seconds': 0,
+        'premium_remaining_seconds': 1200,
+        'purchased_remaining_seconds': 0,
+        'total_remaining_seconds': 1200,
+        'window_active': false,
+      });
+      expect(t.earnedRemainingSeconds, 0);
+      expect(ConsultationTimeState.empty.earnedRemainingSeconds, 0);
+    });
+
+    test(
+      '13 — bucketSum inclut earned ; total absent -> somme des 4 buckets',
+      () {
+        final t = ConsultationTimeState.fromJson({
+          'first_free_remaining_seconds': 100,
+          'premium_remaining_seconds': 200,
+          'earned_remaining_seconds': 300,
+          'purchased_remaining_seconds': 400,
+          'window_active': false,
+        });
+        expect(t.bucketSum, 1000);
+        expect(t.totalRemainingSeconds, 1000);
+      },
+    );
+
+    test('earned négatif clampé à 0', () {
+      final t = ConsultationTimeState.fromJson({
+        'first_free_remaining_seconds': 0,
+        'premium_remaining_seconds': 0,
+        'earned_remaining_seconds': -50,
+        'purchased_remaining_seconds': 0,
+        'window_active': false,
+      });
+      expect(t.earnedRemainingSeconds, 0);
     });
   });
 
@@ -161,20 +218,24 @@ void main() {
       expect(ConsultationTimeState.maybeFromJson(42), isNull);
     });
 
-    test('ConsultationStateResponse sans time -> time == null, pas d\'exception',
-        () {
-      final r = ConsultationStateResponse.fromJson(_stateBody(
-        includeTime: false,
-        consultation: {
-          'id': 'c',
-          'advisor_id': 'selena',
-          'seconds_remaining': 5400, // le backend ancien le renvoie
-          'credit_source': 'monthly',
-        },
-      ));
-      expect(r.time, isNull);
-      expect(r.consultation!.secondsRemaining, 5400);
-    });
+    test(
+      'ConsultationStateResponse sans time -> time == null, pas d\'exception',
+      () {
+        final r = ConsultationStateResponse.fromJson(
+          _stateBody(
+            includeTime: false,
+            consultation: {
+              'id': 'c',
+              'advisor_id': 'selena',
+              'seconds_remaining': 5400, // le backend ancien le renvoie
+              'credit_source': 'monthly',
+            },
+          ),
+        );
+        expect(r.time, isNull);
+        expect(r.consultation!.secondsRemaining, 5400);
+      },
+    );
   });
 
   group('O. Quota shim : monthly_limit=8 != 8 consultations', () {

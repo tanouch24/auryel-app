@@ -8,6 +8,7 @@ import 'api/api_client.dart';
 import 'api/auth_api.dart';
 import 'api/billing_api.dart';
 import 'api/consultation_api.dart';
+import 'api/content_api.dart';
 import 'api/memory_api.dart';
 import 'api/profile_api.dart';
 import 'api/support_api.dart';
@@ -15,6 +16,7 @@ import 'api/rewards_api.dart';
 import 'api/tirage_api.dart';
 import 'api/wellbeing_api.dart';
 import 'data/auth_repository.dart';
+import 'data/content_repository.dart';
 import 'data/iap_gateway.dart';
 import 'data/installation_id_store.dart';
 import 'data/onboarding_repository.dart';
@@ -56,6 +58,7 @@ void main() async {
   final consultationApi = ConsultationApi(apiClient);
   final billingApi = BillingApi(apiClient);
   final tirageApi = TirageApi(apiClient);
+  final contentApi = ContentApi(apiClient);
   final auth = AuthController(
     repository: AuthRepository(
       api: AuthApi(apiClient),
@@ -88,6 +91,13 @@ void main() async {
     api: consultationApi,
     auth: auth,
     metaEvents: metaEvents,
+  );
+  // Contenu distant (pensée du jour + méditations) : serveur -> cache local
+  // -> pack embarqué. Ne bloque jamais le démarrage ; sans réseau / session,
+  // l'app sert le contenu embarqué comme avant.
+  final content = ContentRepository(
+    api: contentApi,
+    tokenProvider: () => auth.currentToken(),
   );
   final purchase = PurchaseController(
     billing: billingApi,
@@ -132,6 +142,7 @@ void main() async {
       notifications: notifications,
       metaEvents: metaEvents,
       metaConsent: metaConsent,
+      content: content,
     ),
   );
 }
@@ -146,11 +157,17 @@ class AuryelApp extends StatefulWidget {
     this.notifications,
     this.metaEvents,
     this.metaConsent,
+    this.content,
   });
 
   final AuryelState state;
   final AuthController auth;
   final ConsultationController consultation;
+
+  /// Optionnel : contenu distant (pensée du jour + méditations). Quand fourni,
+  /// l'arbre est enveloppé d'un [ContentScope]. Absent des tests hérités ->
+  /// les écrans lisent le contenu embarqué comme avant.
+  final ContentRepository? content;
 
   /// F5-B — optionnel : quand fourni (cas réel de `main()`), l'arbre est
   /// enveloppé d'un [PurchaseScope]. Absent dans les tests hérités qui ne
@@ -188,8 +205,7 @@ class _AuryelAppState extends State<AuryelApp> with WidgetsBindingObserver {
       final presenter = LocalNotificationPresenter()
         ..onSelect = notifications.handleForegroundTap;
       unawaited(presenter.initialize());
-      _foregroundSub =
-          notifications.onForegroundMessage.listen(presenter.show);
+      _foregroundSub = notifications.onForegroundMessage.listen(presenter.show);
     }
   }
 
@@ -246,6 +262,10 @@ class _AuryelAppState extends State<AuryelApp> with WidgetsBindingObserver {
         controller: metaConsent,
         child: tree,
       );
+    }
+    final content = widget.content;
+    if (content != null) {
+      tree = ContentScope(repository: content, child: tree);
     }
     return AuthScope(
       controller: widget.auth,
