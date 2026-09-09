@@ -21,7 +21,12 @@ import 'data/onboarding_repository.dart';
 import 'data/shop_cart_store.dart';
 import 'data/token_store.dart';
 import 'notifications/fcm_notification_service.dart';
+import 'notifications/local_notification_presenter.dart';
 import 'notifications/notification_coordinator.dart';
+import 'notifications/notification_payload.dart';
+import 'notifications/push_token_registrar.dart';
+import 'analytics/meta_events.dart';
+import 'state/meta_consent_controller.dart';
 import 'screens/splash_screen.dart';
 import 'state/auryel_state.dart';
 import 'state/auth_controller.dart';
@@ -34,6 +39,18 @@ void main() async {
 
   final repository = LocalOnboardingRepository();
   final record = await repository.load();
+
+  // Meta App Events — INACTIF par défaut : sans config de build OU sans
+  // consentement explicite persisté, `MetaEvents.create` renvoie un no-op.
+  // Aucune collecte (identifiant publicitaire inclus) tant que l'utilisateur
+  // n'a pas activé la mesure dans « Mon compte ».
+  final metaConsentGranted = await MetaConsentController.readPersisted();
+  final metaEvents = await MetaEvents.create(
+    config: MetaConfig.fromEnvironment,
+    consentGranted: metaConsentGranted,
+  );
+  final metaConsent = MetaConsentController(events: metaEvents);
+  unawaited(metaConsent.load());
 
   final apiClient = ApiClient();
   final consultationApi = ConsultationApi(apiClient);
@@ -65,13 +82,19 @@ void main() async {
     repository: repository,
     initial: record,
     guideSync: (guideKey) => auth.syncGuide(guide: guideKey),
+    onOnboardingCompleted: () => unawaited(metaEvents.logOnboardingCompleted()),
   );
-  final consultation = ConsultationController(api: consultationApi, auth: auth);
+  final consultation = ConsultationController(
+    api: consultationApi,
+    auth: auth,
+    metaEvents: metaEvents,
+  );
   final purchase = PurchaseController(
     billing: billingApi,
     gateway: InAppPurchaseGateway(),
     auth: auth,
     consultation: consultation,
+    metaEvents: metaEvents,
   );
   // Souscription à `purchaseStream` dès le démarrage (recommandation du plugin) ;
   // le chargement produit continue en tâche de fond.
@@ -79,12 +102,25 @@ void main() async {
 
   // Notifications push (FCM Android). [FcmNotificationService] est la vraie
   // implémentation ; elle DÉGRADE proprement en « indisponible » tant que
-  // Firebase n'est pas configuré (google-services.json + plugin Google
-  // Services absents) — aucun crash, l'app fonctionne sans push. `start()` ne
-  // bloque JAMAIS le démarrage (toutes les erreurs sont absorbées).
+  // Firebase n'est pas configuré (google-services.json absent) — aucun crash.
+  // `start()` ne bloque JAMAIS le démarrage.
+  //
+  // Le jeton FCM est BUFFERISÉ et n'est envoyé au backend
+  // (`POST /api/app/push/register`) que lorsqu'une session est valide
+  // (`auth.isSignedIn`). Le désenregistrement se fait AVANT logout / suppression
+  // de compte via `attachPushUnregister`.
   final notifications = NotificationCoordinator(
     service: FcmNotificationService(),
+    registrar: HttpPushTokenRegistrar(
+      apiClient: apiClient,
+      bearerProvider: () => auth.currentToken(),
+    ),
+    isSignedIn: () => auth.isSignedIn,
   );
+  auth.attachPushUnregister(notifications.unregisterCurrent);
+  auth.addListener(() {
+    if (auth.isSignedIn) unawaited(notifications.onSignedIn());
+  });
   unawaited(notifications.start());
 
   runApp(
@@ -94,6 +130,8 @@ void main() async {
       consultation: consultation,
       purchase: purchase,
       notifications: notifications,
+      metaEvents: metaEvents,
+      metaConsent: metaConsent,
     ),
   );
 }
@@ -106,6 +144,8 @@ class AuryelApp extends StatefulWidget {
     required this.consultation,
     this.purchase,
     this.notifications,
+    this.metaEvents,
+    this.metaConsent,
   });
 
   final AuryelState state;
@@ -121,6 +161,11 @@ class AuryelApp extends StatefulWidget {
   /// et le coordinateur est disposé avec l'app. Absent des tests hérités.
   final NotificationCoordinator? notifications;
 
+  /// Optionnel : mesure Meta (no-op sans config / sans consentement). Quand
+  /// fourni, l'arbre est enveloppé d'un [AnalyticsScope].
+  final MetaEvents? metaEvents;
+  final MetaConsentController? metaConsent;
+
   @override
   State<AuryelApp> createState() => _AuryelAppState();
 }
@@ -130,15 +175,28 @@ class _AuryelAppState extends State<AuryelApp> with WidgetsBindingObserver {
   /// démarrage. Purement local (aucun backend, aucun Stripe).
   final ShopCartStore _cart = ShopCartStore.instance;
 
+  /// Affiche une notif locale quand un message FCM arrive app au premier plan
+  /// (Android n'affiche rien tout seul). `null` si aucun coordinateur (tests).
+  StreamSubscription<NotificationPayload>? _foregroundSub;
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    final notifications = widget.notifications;
+    if (notifications != null) {
+      final presenter = LocalNotificationPresenter()
+        ..onSelect = notifications.handleForegroundTap;
+      unawaited(presenter.initialize());
+      _foregroundSub =
+          notifications.onForegroundMessage.listen(presenter.show);
+    }
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _foregroundSub?.cancel();
     widget.notifications?.dispose();
     super.dispose();
   }
@@ -176,6 +234,16 @@ class _AuryelAppState extends State<AuryelApp> with WidgetsBindingObserver {
       tree = NotificationScope(
         service: notifications.service,
         router: notifications.router,
+        coordinator: notifications,
+        child: tree,
+      );
+    }
+    final metaEvents = widget.metaEvents;
+    final metaConsent = widget.metaConsent;
+    if (metaEvents != null && metaConsent != null) {
+      tree = AnalyticsScope(
+        events: metaEvents,
+        controller: metaConsent,
         child: tree,
       );
     }

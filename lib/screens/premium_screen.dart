@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../config/legal_texts.dart';
 import '../data/subscription_manager.dart';
 import '../state/consultation_controller.dart';
+import '../state/meta_consent_controller.dart';
 import '../state/purchase_controller.dart';
 import '../theme/auryel_theme.dart';
 import '../widgets/gold_button.dart';
@@ -19,14 +20,32 @@ import 'legal_document_screen.dart';
 ///
 /// L'app ne résilie jamais elle-même : « Gérer mon abonnement » ouvre la page
 /// officielle Google Play via [SubscriptionManager].
-class PremiumScreen extends StatelessWidget {
+class PremiumScreen extends StatefulWidget {
   const PremiumScreen({super.key, this.subscriptionManager});
 
   /// Test uniquement : sinon [defaultSubscriptionManager].
   final SubscriptionManager? subscriptionManager;
 
   @override
+  State<PremiumScreen> createState() => _PremiumScreenState();
+}
+
+class _PremiumScreenState extends State<PremiumScreen> {
+  bool _paywallLogged = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_paywallLogged) return;
+    _paywallLogged = true;
+    // Meta : « paywall vu » (une fois par ouverture d'écran). No-op sans
+    // consentement. Aucune donnée personnelle.
+    AnalyticsScope.eventsOf(context).logPaywallViewed();
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final subscriptionManager = widget.subscriptionManager;
     final controller = PurchaseScope.of(context);
     final consultation = ConsultationScope.maybeReadOf(context);
     return Scaffold(

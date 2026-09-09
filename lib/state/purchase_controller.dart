@@ -10,6 +10,7 @@ import 'package:in_app_purchase/in_app_purchase.dart';
 
 import '../api/api_client.dart';
 import '../api/billing_api.dart';
+import '../analytics/meta_events.dart';
 import '../data/iap_gateway.dart';
 import '../data/purchase.dart';
 import 'auth_controller.dart';
@@ -81,17 +82,20 @@ class PurchaseController extends ChangeNotifier {
     required AuthController auth,
     required ConsultationController consultation,
     TargetPlatform? platformOverride,
+    MetaEvents metaEvents = const NoopMetaEvents(),
   }) : _billing = billing,
        _gateway = gateway,
        _auth = auth,
        _consultation = consultation,
-       _platformOverride = platformOverride;
+       _platformOverride = platformOverride,
+       _meta = metaEvents;
 
   final BillingApi _billing;
   final IapGateway _gateway;
   final AuthController _auth;
   final ConsultationController _consultation;
   final TargetPlatform? _platformOverride;
+  final MetaEvents _meta;
 
   StreamSubscription<List<PurchaseDetails>>? _subscription;
   bool _initialized = false;
@@ -239,7 +243,9 @@ class PurchaseController extends ChangeNotifier {
   Future<void> retryVerification() async {
     final pending = _pendingRetry;
     if (_disposed || pending == null) return;
-    await _verifyAndComplete(pending);
+    // Reprise : on ne re-déclenche PAS l'événement Meta (déjà émis, ou reprise
+    // d'une restauration) — priorité au non-doublon de conversion.
+    await _verifyAndComplete(pending, isNewPurchase: false);
   }
 
   // --- flux d'achat --------------------------------------------------
@@ -281,15 +287,20 @@ class PurchaseController extends ChangeNotifier {
         );
         return;
       case PurchaseStatus.purchased:
+        await _verifyAndComplete(pd, isNewPurchase: true);
+        return;
       case PurchaseStatus.restored:
-        await _verifyAndComplete(pd);
+        await _verifyAndComplete(pd, isNewPurchase: false);
         return;
     }
   }
 
   // --- verify backend + complete (ordre STRICT) ---------------------
 
-  Future<void> _verifyAndComplete(PurchaseDetails pd) async {
+  Future<void> _verifyAndComplete(
+    PurchaseDetails pd, {
+    required bool isNewPurchase,
+  }) async {
     if (_disposed) return;
 
     final platform = _platform;
@@ -363,6 +374,13 @@ class PurchaseController extends ChangeNotifier {
       }
       _pendingRetry = null;
       _set(PurchaseState.active);
+
+      // Meta : conversion « abonnement démarré » — UNIQUEMENT après un verify
+      // serveur 200 et pour un ACHAT NEUF (jamais une restauration / reprise).
+      // No-op sans consentement. Aucune donnée : ni prix, ni user_id, ni reçu.
+      if (isNewPurchase) {
+        unawaited(_meta.logSubscriptionStarted());
+      }
     } on ApiUnauthorizedException {
       // Mécanisme auth existant : purge + sessionExpired.
       await _auth.invalidateSession();

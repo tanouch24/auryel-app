@@ -6,6 +6,7 @@ import 'dart:async';
 
 import 'package:flutter/widgets.dart';
 
+import '../analytics/meta_events.dart';
 import '../api/api_client.dart';
 import '../api/consultation_api.dart';
 import '../data/consultation.dart';
@@ -32,11 +33,14 @@ class ConsultationController extends ChangeNotifier {
   ConsultationController({
     required ConsultationApi api,
     required AuthController auth,
+    MetaEvents metaEvents = const NoopMetaEvents(),
   }) : _api = api,
-       _auth = auth;
+       _auth = auth,
+       _meta = metaEvents;
 
   final ConsultationApi _api;
   final AuthController _auth;
+  final MetaEvents _meta;
 
   ConsultationDto? _active;
   QuotaDto? _quota;
@@ -264,8 +268,15 @@ class ConsultationController extends ChangeNotifier {
   /// Injection immédiate de l'état après un `POST /api/consultation/message`
   /// réussi (le ChatScreen a déjà la réponse en main : pas de re-GET).
   void updateFromMessageResponse(ConsultationMessageResponse res) {
+    final hadSession = _active != null;
     if (res.consultation != null) {
       _active = res.consultation;
+    }
+    // Meta : « consultation démarrée » — le serveur vient de créer la session
+    // (transition « aucune session » -> session active au 1er message accepté).
+    // No-op sans consentement. Aucune donnée : ni message, ni conseiller, ni id.
+    if (!hadSession && _active != null) {
+      unawaited(_meta.logConsultationStarted());
     }
     _quota = res.quota;
     if (res.time != null) _time = res.time;

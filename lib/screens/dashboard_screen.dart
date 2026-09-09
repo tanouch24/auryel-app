@@ -20,6 +20,7 @@ import '../theme/auryel_theme.dart';
 import '../widgets/advisors_carousel.dart';
 import '../widgets/ai_transparency_note.dart';
 import '../widgets/auryel_wordmark.dart';
+import '../widgets/meta_consent_tile.dart';
 import '../widgets/daily_message_sheet.dart';
 import '../widgets/gold_button.dart';
 import 'advisor_chooser_screen.dart';
@@ -511,6 +512,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       ),
                     ),
                   ),
+                ),
+                const SizedBox(height: 16),
+                _Section(
+                  title: 'Confidentialité',
+                  icon: PhosphorIconsRegular.shieldCheck,
+                  child: const MetaConsentTile(),
                 ),
                 const SizedBox(height: 16),
                 _Section(
