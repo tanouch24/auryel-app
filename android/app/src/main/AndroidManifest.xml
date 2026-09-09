@@ -12,6 +12,7 @@
         android:label="Auryel"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher_round"
         android:allowBackup="false">
         <!-- allowBackup=false : l'app contient session, profil, consultations et
              achats. La restauration de compte est côté serveur (email/OTP + IAP
