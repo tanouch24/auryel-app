@@ -177,30 +177,58 @@ class _AdvisorSelectorScreenState extends State<AdvisorSelectorScreen>
                 onToggleMute: _toggleMute,
               ),
               Expanded(
-                child: PageView.builder(
-                  controller: _pages,
-                  scrollDirection: Axis.vertical,
-                  onPageChanged: _onPageChanged,
-                  itemCount: kAdvisors.length,
-                  itemBuilder: (context, i) {
-                    final advisor = kAdvisors[i];
-                    final known = widget.existingAdvisorIds.contains(
-                      advisor.guideKey,
-                    );
-                    return _AdvisorPage(
-                      advisor: advisor,
-                      isCurrent: i == _page,
-                      reduceMotion: _reduceMotion,
-                      alreadyConsulted: known,
-                      primaryLabel: known ? 'Reprendre' : 'Parler',
-                      onPrimary: () => _pick(advisor),
-                      // Indice de défilement : seulement sur la 1re carte, et
-                      // seulement tant que l'utilisateur n'a pas encore défilé.
-                      showScrollCue: i == 0 &&
-                          !_scrollCueSeen &&
-                          kAdvisors.length > 1,
-                    );
-                  },
+                child: Stack(
+                  children: [
+                    PageView.builder(
+                      controller: _pages,
+                      scrollDirection: Axis.vertical,
+                      onPageChanged: _onPageChanged,
+                      itemCount: kAdvisors.length,
+                      itemBuilder: (context, i) {
+                        final advisor = kAdvisors[i];
+                        final known = widget.existingAdvisorIds.contains(
+                          advisor.guideKey,
+                        );
+                        return _AdvisorPage(
+                          advisor: advisor,
+                          isCurrent: i == _page,
+                          reduceMotion: _reduceMotion,
+                          alreadyConsulted: known,
+                          primaryLabel: known ? 'Reprendre' : 'Parler',
+                          onPrimary: () => _pick(advisor),
+                          // Indice de défilement : seulement sur la 1re carte,
+                          // et seulement tant que l'utilisateur n'a pas défilé.
+                          showScrollCue: i == 0 &&
+                              !_scrollCueSeen &&
+                              kAdvisors.length > 1,
+                        );
+                      },
+                    ),
+                    // Fade de CONTINUATION en bas — suggère qu'il y a une suite.
+                    // Disparaît dès le 1er défilement. Ne capte aucun tap.
+                    if (!_scrollCueSeen && kAdvisors.length > 1)
+                      const Positioned(
+                        key: Key('advisor-scroll-fade'),
+                        left: 0,
+                        right: 0,
+                        bottom: 0,
+                        height: 84,
+                        child: IgnorePointer(
+                          child: DecoratedBox(
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                begin: Alignment.topCenter,
+                                end: Alignment.bottomCenter,
+                                colors: [
+                                  Color(0x00120E17),
+                                  Color(0xC8120E17),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                  ],
                 ),
               ),
             ],
@@ -502,9 +530,9 @@ class _ScrollCueState extends State<_ScrollCue>
 
   void _startBob() {
     if (!widget.visible || widget.reduceMotion || _bob.isAnimating) return;
-    // Va-et-vient FINI (quelques allers-retours puis repos) — jamais d'animation
-    // infinie, pour ne pas bloquer pumpAndSettle.
-    _bob.repeat(reverse: true, count: 6);
+    // Va-et-vient FINI (plusieurs allers-retours bien perceptibles puis repos)
+    // — jamais d'animation infinie, pour ne pas bloquer pumpAndSettle.
+    _bob.repeat(reverse: true, count: 12);
   }
 
   @override
@@ -528,44 +556,75 @@ class _ScrollCueState extends State<_ScrollCue>
   @override
   Widget build(BuildContext context) {
     if (!widget.visible) return const SizedBox.shrink();
-    Widget chevron = const PhosphorIcon(
-      PhosphorIconsRegular.caretDown,
-      size: 15,
-      color: AuryelColors.goldLight,
+    Widget chevrons = const Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        PhosphorIcon(
+          PhosphorIconsFill.caretDown,
+          size: 16,
+          color: AuryelColors.goldLight,
+        ),
+        Padding(
+          padding: EdgeInsets.only(top: 1),
+          child: PhosphorIcon(
+            PhosphorIconsRegular.caretDown,
+            size: 13,
+            color: AuryelColors.goldLight,
+          ),
+        ),
+      ],
     );
     if (!widget.reduceMotion) {
-      chevron = AnimatedBuilder(
+      chevrons = AnimatedBuilder(
         animation: _bob,
-        child: chevron,
+        child: chevrons,
         builder: (_, child) => Transform.translate(
-          offset: Offset(0, (_bob.value * 4) - 1),
+          offset: Offset(0, (_bob.value * 6) - 1),
           child: child,
         ),
       );
     }
     return IgnorePointer(
       child: Padding(
-        padding: const EdgeInsets.only(top: 8),
+        padding: const EdgeInsets.only(top: 6),
         child: Semantics(
           label: 'Fais défiler pour découvrir les autres conseillers',
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Flexible(
-                child: Text(
-                  'Découvrir les autres',
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: AuryelText.body(
-                    fontSize: 10.5,
-                    fontWeight: FontWeight.w600,
-                    color: AuryelColors.goldLight.withValues(alpha: 0.85),
-                    letterSpacing: 1.1,
+              FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 5,
+                  ),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(999),
+                    gradient: LinearGradient(
+                      colors: [
+                        AuryelColors.gold.withValues(alpha: 0.22),
+                        AuryelColors.gold.withValues(alpha: 0.08),
+                      ],
+                    ),
+                    border: Border.all(
+                      color: AuryelColors.goldLight.withValues(alpha: 0.55),
+                    ),
+                  ),
+                  child: Text(
+                    'Découvrir les autres conseillers',
+                    maxLines: 1,
+                    style: AuryelText.body(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      color: AuryelColors.goldLight,
+                      letterSpacing: 0.4,
+                    ),
                   ),
                 ),
               ),
-              const SizedBox(height: 2),
-              chevron,
+              const SizedBox(height: 3),
+              chevrons,
             ],
           ),
         ),

@@ -4,11 +4,12 @@ import 'package:phosphor_icons/phosphor_icons.dart';
 import '../theme/auryel_theme.dart';
 import 'jeu_auryel_screen.dart';
 import 'tirage_screen.dart';
-import 'wellbeing_journey_screen.dart';
 
-/// Hub du 2ᵉ onglet « Tirage & Jeu ». Un seul espace : accès au Tirage existant
-/// + emplacement du futur Jeu Auryel. Ne duplique AUCUNE logique de tirage :
-/// l'entrée Tirage ouvre le vrai [TirageScreen].
+/// Hub du 2ᵉ onglet « Tirage & Jeu » — CONSACRÉ au tirage / aux expériences de
+/// jeu. Le parcours bien-être n'est PLUS présenté ici : il a son CTA dédié sur
+/// l'Accueil (« Suivre mon parcours bien-être »).
+/// Ne duplique AUCUNE logique de tirage : l'entrée Tirage ouvre le vrai
+/// [TirageScreen].
 class TirageJeuScreen extends StatelessWidget {
   const TirageJeuScreen({super.key});
 
@@ -70,22 +71,6 @@ class TirageJeuScreen extends StatelessWidget {
                 ctaLabel: 'Jouer',
                 onTap: () => Navigator.of(context).push(
                   MaterialPageRoute(builder: (_) => const JeuAuryelScreen()),
-                ),
-              ),
-              const SizedBox(height: 14),
-              _HubCard(
-                overline: 'BIEN-ÊTRE',
-                icon: PhosphorIconsRegular.sun,
-                title: 'Jour après jour',
-                body:
-                    'Ton parcours bien-être : de petites missions chaque jour, '
-                    'et 15 minutes de consultation offertes tous les 30 jours '
-                    'complétés.',
-                ctaLabel: 'Suivre mon parcours',
-                onTap: () => Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (_) => const WellbeingJourneyScreen(),
-                  ),
                 ),
               ),
             ],

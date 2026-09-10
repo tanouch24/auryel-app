@@ -105,10 +105,6 @@ class _MeditationScreenState extends State<MeditationScreen>
   /// statique. N'influe JAMAIS sur l'audio.
   RelaxationVideo? _video;
 
-  /// La vidéo n'est montée qu'après le premier lancement de la séance (data
-  /// mobile : rien n'est streamé tant que l'utilisateur n'a pas appuyé sur play).
-  bool _everStarted = false;
-
   final List<StreamSubscription<dynamic>> _subs = [];
 
   _PlayStatus _status = _PlayStatus.idle;
@@ -306,7 +302,6 @@ class _MeditationScreenState extends State<MeditationScreen>
 
   Future<void> _start() async {
     _elapsed = Duration.zero;
-    _everStarted = true;
     // `playbackSource` = URL distante si exploitable, sinon chemin d'asset.
     // Une séance sans aucune source lisible -> `play` renvoie `false` -> état
     // « bientôt disponible » (jamais de tentative de lecture d'asset manquant).
@@ -358,17 +353,187 @@ class _MeditationScreenState extends State<MeditationScreen>
         : 0.0;
     final playing = _status == _PlayStatus.playing;
 
-    final content = SafeArea(
-      bottom: false,
-      child: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(24, 22, 24, 28),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.center,
+    // Hauteur de la SCÈNE VIDÉO : élément principal de l'écran, dimensionné
+    // pour être immédiatement identifiable comme le média.
+    final screenH = MediaQuery.sizeOf(context).height;
+    final stageH = (screenH * 0.46).clamp(180.0, 440.0);
+
+    final placeholder = _StagePlaceholder(
+      category: _item.category,
+      playing: playing,
+    );
+
+    final stage = SizedBox(
+      key: const Key('meditation-video-stage'),
+      height: stageH,
+      width: double.infinity,
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(22),
+          color: AuryelColors.surface,
+          border: Border.all(
+            color: AuryelColors.goldLight.withValues(alpha: 0.4),
+            width: 1.2,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.35),
+              blurRadius: 18,
+              offset: const Offset(0, 8),
+            ),
+          ],
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(22),
+          child: _video != null
+              ? RelaxationVideoStage(
+                  video: _video,
+                  active: playing,
+                  surfaceFactory: widget.videoSurfaceFactory,
+                  caption: _item.title,
+                  fallback: placeholder,
+                )
+              : placeholder,
+        ),
+      ),
+    );
+
+    final controls = SingleChildScrollView(
+      padding: const EdgeInsets.fromLTRB(24, 12, 24, 24),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Text(
+            widget.item != null ? 'Méditation' : 'Ton Moment du jour',
+            textAlign: TextAlign.center,
+            style: AuryelText.body(
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              color: AuryelColors.textMuted,
+              letterSpacing: 0.6,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            _item.category.label.toUpperCase(),
+            style: AuryelText.body(
+              fontSize: 10,
+              fontWeight: FontWeight.w600,
+              color: AuryelColors.gold,
+              letterSpacing: 2,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            _item.title,
+            textAlign: TextAlign.center,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+            style: AuryelText.display(
+              fontSize: 18,
+              fontWeight: FontWeight.w600,
+              color: AuryelColors.textCream,
+            ),
+          ),
+          if (_item.description.isNotEmpty) ...[
+            const SizedBox(height: 6),
+            Text(
+              _item.description,
+              textAlign: TextAlign.center,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: AuryelText.body(
+                fontSize: 12,
+                height: 1.35,
+                color: AuryelColors.textSecondary,
+              ),
+            ),
+          ],
+          const SizedBox(height: 16),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(999),
+            child: LinearProgressIndicator(
+              value: progress,
+              minHeight: 4,
+              backgroundColor: AuryelColors.warmBorder.withValues(alpha: 0.6),
+              valueColor: const AlwaysStoppedAnimation<Color>(
+                AuryelColors.goldLight,
+              ),
+            ),
+          ),
+          const SizedBox(height: 8),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              if (Navigator.of(context).canPop())
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: IconButton(
+              Text(
+                _mmss(_elapsed),
+                style: AuryelText.body(
+                  fontSize: 11,
+                  color: AuryelColors.textMuted,
+                ),
+              ),
+              Text(
+                _mmss(total),
+                style: AuryelText.body(
+                  fontSize: 11,
+                  color: AuryelColors.textMuted,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          _PlayButton(playing: playing, onTap: _onPrimaryTap),
+          const SizedBox(height: 10),
+          Text(
+            _statusText,
+            textAlign: TextAlign.center,
+            style: AuryelText.body(fontSize: 12, color: AuryelColors.textMuted),
+          ),
+          // Action SECONDAIRE, discrète : ne concurrence jamais Play/Pause.
+          // Masquée s'il n'y a aucun visuel distant disponible.
+          if (_availableVideos.isNotEmpty) ...[
+            const SizedBox(height: 4),
+            TextButton.icon(
+              onPressed: _openVisualPicker,
+              icon: const PhosphorIcon(
+                PhosphorIconsRegular.image,
+                size: 15,
+                color: AuryelColors.goldLight,
+              ),
+              label: Text(
+                'Choisir le visuel',
+                style: AuryelText.body(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: AuryelColors.goldLight,
+                ),
+              ),
+              style: TextButton.styleFrom(
+                visualDensity: VisualDensity.compact,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 6,
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+
+    return DecoratedBox(
+      decoration: const BoxDecoration(
+        gradient: AuryelColors.backgroundGradient,
+      ),
+      child: SafeArea(
+        bottom: false,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Row(
+              children: [
+                if (Navigator.of(context).canPop())
+                  IconButton(
                     onPressed: () => Navigator.of(context).maybePop(),
                     tooltip: 'Retour',
                     visualDensity: VisualDensity.compact,
@@ -381,163 +546,68 @@ class _MeditationScreenState extends State<MeditationScreen>
                       size: 20,
                       color: AuryelColors.textMuted,
                     ),
-                  ),
-                ),
-              Text(
-                'AURYEL · MÉDITATION',
-                style: AuryelText.body(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w600,
-                  color: AuryelColors.gold,
-                  letterSpacing: 3.2,
-                ),
-              ),
-              const SizedBox(height: 10),
-              Text(
-                widget.item != null ? 'Méditation' : 'Ton Moment du jour',
-                textAlign: TextAlign.center,
-                style: AuryelText.display(
-                  fontSize: 22,
-                  fontWeight: FontWeight.w600,
-                  color: AuryelColors.textCream,
-                ),
-              ),
-              const SizedBox(height: 22),
-              _Medallion(category: _item.category, playing: playing),
-              const SizedBox(height: 22),
-              Text(
-                _item.category.label.toUpperCase(),
-                style: AuryelText.body(
-                  fontSize: 10,
-                  fontWeight: FontWeight.w600,
-                  color: AuryelColors.gold,
-                  letterSpacing: 2,
-                ),
-              ),
-              const SizedBox(height: 6),
-              Text(
-                _item.title,
-                textAlign: TextAlign.center,
-                style: AuryelText.display(
-                  fontSize: 19,
-                  fontWeight: FontWeight.w600,
-                  color: AuryelColors.textCream,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                _item.description,
-                textAlign: TextAlign.center,
-                style: AuryelText.body(
-                  fontSize: 12.5,
-                  height: 1.4,
-                  color: AuryelColors.textSecondary,
-                ),
-              ),
-              const SizedBox(height: 6),
-              Text(
-                _item.durationLabel,
-                style: AuryelText.body(
-                  fontSize: 11.5,
-                  color: AuryelColors.textMuted,
-                ),
-              ),
-              const SizedBox(height: 24),
-              ClipRRect(
-                borderRadius: BorderRadius.circular(999),
-                child: LinearProgressIndicator(
-                  value: progress,
-                  minHeight: 4,
-                  backgroundColor: AuryelColors.warmBorder.withValues(
-                    alpha: 0.6,
-                  ),
-                  valueColor: const AlwaysStoppedAnimation<Color>(
-                    AuryelColors.goldLight,
-                  ),
-                ),
-              ),
-              const SizedBox(height: 8),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    _mmss(_elapsed),
+                  )
+                else
+                  const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    'AURYEL · MÉDITATION',
                     style: AuryelText.body(
                       fontSize: 11,
-                      color: AuryelColors.textMuted,
-                    ),
-                  ),
-                  Text(
-                    _mmss(total),
-                    style: AuryelText.body(
-                      fontSize: 11,
-                      color: AuryelColors.textMuted,
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 20),
-              _PlayButton(playing: playing, onTap: _onPrimaryTap),
-              const SizedBox(height: 14),
-              Text(
-                _statusText,
-                textAlign: TextAlign.center,
-                style: AuryelText.body(
-                  fontSize: 12,
-                  color: AuryelColors.textMuted,
-                ),
-              ),
-              // Action SECONDAIRE, discrète : ne concurrence jamais Play/Pause.
-              // Masquée s'il n'y a aucun visuel distant disponible.
-              if (_availableVideos.isNotEmpty) ...[
-                const SizedBox(height: 6),
-                TextButton.icon(
-                  onPressed: _openVisualPicker,
-                  icon: const PhosphorIcon(
-                    PhosphorIconsRegular.image,
-                    size: 15,
-                    color: AuryelColors.goldLight,
-                  ),
-                  label: Text(
-                    'Choisir le visuel',
-                    style: AuryelText.body(
-                      fontSize: 12,
                       fontWeight: FontWeight.w600,
-                      color: AuryelColors.goldLight,
-                    ),
-                  ),
-                  style: TextButton.styleFrom(
-                    visualDensity: VisualDensity.compact,
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 6,
+                      color: AuryelColors.gold,
+                      letterSpacing: 3.2,
                     ),
                   ),
                 ),
+                const SizedBox(width: 44),
               ],
-            ],
-          ),
+            ),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 6, 16, 4),
+              child: stage,
+            ),
+            Expanded(child: controls),
+          ],
         ),
+      ),
     );
+  }
+}
 
-    return Stack(
-      fit: StackFit.expand,
-      children: [
-        // Base : toujours présente. Reste visible si la vidéo est absente,
-        // échoue, ou n'a pas encore démarré.
-        const DecoratedBox(
-          decoration: BoxDecoration(gradient: AuryelColors.backgroundGradient),
+/// État de la SCÈNE quand aucune vidéo n'est rendue (pas de visuel dispo, en
+/// cours de chargement, ou échec). Même empreinte que la vidéo -> aucun saut.
+/// L'audio n'est jamais concerné par cet état.
+class _StagePlaceholder extends StatelessWidget {
+  const _StagePlaceholder({required this.category, required this.playing});
+
+  final MeditationCategory category;
+  final bool playing;
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: const BoxDecoration(
+        gradient: AuryelColors.backgroundGradient,
+      ),
+      child: Center(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _Medallion(category: category, playing: playing),
+            const SizedBox(height: 14),
+            Text(
+              'Visuel apaisant',
+              style: AuryelText.body(
+                fontSize: 10.5,
+                fontWeight: FontWeight.w600,
+                color: AuryelColors.textMuted,
+                letterSpacing: 1.4,
+              ),
+            ),
+          ],
         ),
-        // Ambiance visuelle (muette) : uniquement après le 1er lancement et si
-        // une vidéo compatible a été choisie. Pause/lecture suivent l'audio.
-        if (_video != null && _everStarted)
-          RelaxationVideoBackground(
-            video: _video,
-            active: playing,
-            surfaceFactory: widget.videoSurfaceFactory,
-          ),
-        content,
-      ],
+      ),
     );
   }
 }

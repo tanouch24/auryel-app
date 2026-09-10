@@ -90,18 +90,27 @@ int _tapisBacks(WidgetTester t) {
 void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
 
-  test('§2-B/§C — plus AUCUN dessin programmatique du dos (CustomPainter)', () {
+  test('§2-B/§C — plus AUCUN dessin programmatique du DOS DE CARTE '
+      '(CustomPainter), le dos est un vrai asset', () {
     final src = File('lib/widgets/tarot_card_back.dart').readAsStringSync();
     expect(src.contains("assets/images/tarot_card_back.png"), isTrue);
-    // aucune classe/instanciation de painter, aucune rosace peinte, dans lib/
-    for (final f in Directory('lib')
-        .listSync(recursive: true)
-        .whereType<File>()
-        .where((f) => f.path.endsWith('.dart'))) {
+    // Le DOS de carte / le TIRAGE ne dessinent aucune rosace ni painter :
+    // on scanne les fichiers tarot / tirage (le reste de l'app peut, lui,
+    // légitimement peindre — ex. la carte de progression du parcours).
+    const scanned = [
+      'lib/widgets/tarot_card_back.dart',
+      'lib/widgets/tarot_fan.dart',
+      'lib/screens/tirage_screen.dart',
+      'lib/screens/tirage_jeu_screen.dart',
+      'lib/screens/my_cards_screen.dart',
+    ];
+    for (final path in scanned) {
+      final f = File(path);
+      if (!f.existsSync()) continue;
       final code = f.readAsStringSync();
-      expect(code.contains('extends CustomPainter'), isFalse, reason: f.path);
-      expect(code.contains('CustomPaint('), isFalse, reason: f.path);
-      expect(code.contains('_CompassRosePainter'), isFalse, reason: f.path);
+      expect(code.contains('extends CustomPainter'), isFalse, reason: path);
+      expect(code.contains('CustomPaint('), isFalse, reason: path);
+      expect(code.contains('_CompassRosePainter'), isFalse, reason: path);
     }
   });
 

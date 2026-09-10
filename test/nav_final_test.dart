@@ -195,8 +195,8 @@ void main() {
   // TIRAGE & JEU — hub (4 cas)
   // -------------------------------------------------------------------------
   group('Hub Tirage & Jeu', () {
-    testWidgets('TJ1 — le hub affiche titre, sous-titre et 3 entrées '
-        '(Tirage, Jeu Auryel, Bien-être)', (t) async {
+    testWidgets('TJ1 — le hub affiche titre, sous-titre et 2 entrées '
+        '(Tirage, Jeu Auryel) — plus de bloc missions/bien-être', (t) async {
       await t.pumpWidget(_shell());
       await t.pumpAndSettle();
       await t.tap(_tab('Tirage & Jeu'));
@@ -209,24 +209,21 @@ void main() {
       );
       expect(find.text('TIRAGE'), findsOneWidget);
       expect(find.text('JEU AURYEL'), findsOneWidget);
-      expect(find.text('BIEN-ÊTRE'), findsOneWidget);
-      expect(find.text('Jour après jour'), findsOneWidget);
+      // Le parcours bien-être n'est PLUS présenté dans Tirage & Jeu.
+      expect(find.text('BIEN-ÊTRE'), findsNothing);
+      expect(find.text('Jour après jour'), findsNothing);
+      expect(find.text('Suivre mon parcours'), findsNothing);
     });
 
-    testWidgets('TJ5 — l\'entrée BIEN-ÊTRE ré-intègre le parcours « jour après '
-        'jour » (WellbeingJourneyScreen), sans dupliquer le tirage', (t) async {
+    testWidgets('TJ5 — le parcours bien-être a migré vers l\'Accueil : '
+        'Tirage & Jeu n\'ouvre plus WellbeingJourneyScreen', (t) async {
       await t.pumpWidget(_shell());
       await t.pumpAndSettle();
       await t.tap(_tab('Tirage & Jeu'));
       await t.pumpAndSettle();
 
-      await t.ensureVisible(find.text('Suivre mon parcours'));
-      await t.pumpAndSettle();
-      await t.tap(find.text('Suivre mon parcours'));
-      await t.pumpAndSettle();
-
-      expect(find.byType(WellbeingJourneyScreen), findsOneWidget);
-      expect(find.byType(TirageScreen), findsNothing);
+      expect(find.byType(WellbeingJourneyScreen), findsNothing);
+      expect(find.textContaining('parcours bien-être'), findsNothing);
     });
 
     testWidgets('TJ2 — l\'entrée TIRAGE ouvre le vrai TirageScreen '

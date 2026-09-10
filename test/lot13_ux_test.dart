@@ -28,7 +28,7 @@ Widget _host(AdvisorAudio audio) => MaterialApp(
   ),
 );
 
-Finder _cueLabel() => find.text('Découvrir les autres');
+Finder _cueLabel() => find.text('Découvrir les autres conseillers');
 Finder _cueChevron() => find.byIcon(PhosphorIconsRegular.caretDown);
 
 void main() {

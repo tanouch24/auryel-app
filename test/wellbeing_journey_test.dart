@@ -317,11 +317,12 @@ void main() {
       await t.pumpWidget(_host(rig.controller));
       await t.pumpAndSettle();
 
-      expect(find.text('12 jours complétés'), findsOneWidget);
+      // Carte de progression (game map) : en-tête + niveau + cycle.
+      expect(find.text('12 journées validées'), findsOneWidget);
       expect(find.text('Niveau Ancrage'), findsOneWidget);
-      expect(find.text('Plus que 3 jours avant Harmonie'), findsOneWidget);
       expect(find.text('CYCLE 1'), findsOneWidget);
-      // 4 missions nommées.
+      // Étape du jour + 4 missions nommées.
+      expect(find.textContaining('ÉTAPE DU JOUR'), findsOneWidget);
       expect(find.text('Pensée du jour'), findsOneWidget);
       expect(find.text('Carte du jour'), findsOneWidget);
       expect(find.text('Consultation'), findsOneWidget);
@@ -330,23 +331,42 @@ void main() {
       expect(find.text('Terminée'), findsOneWidget);
       expect(find.text('Découvrir ma carte'), findsOneWidget);
       expect(find.text('Prendre un moment'), findsOneWidget);
-      // info récompense 30 jours, non consécutifs (bas de la liste : on scrolle).
+      // ligne récompense (bas de la carte : on scrolle).
       await t.scrollUntilVisible(
-        find.textContaining('Complète 30 journées de ton parcours'),
+        find.textContaining('15 minutes de consultation offertes'),
         250,
         scrollable: find.byType(Scrollable).first,
       );
       expect(
-        find.textContaining(
-          'Complète 30 journées de ton parcours et gagne '
-          '15 minutes de consultation.',
-        ),
+        find.textContaining('Chaque journée compte, même après une pause'),
         findsOneWidget,
       );
-      expect(
-        find.textContaining('même si tu fais une pause entre deux'),
-        findsOneWidget,
+    });
+
+    testWidgets('12 bis — CARTE DE PROGRESSION type jeu : chemin peint, '
+        'étapes validées / du jour / verrouillées', (t) async {
+      final rig = _rig(
+        handler: (_) async => _json(_progress(total: 3, cycleDays: 3)),
       );
+      await t.pumpWidget(_host(rig.controller));
+      await t.pumpAndSettle();
+
+      // chemin dessiné (CustomPaint) reliant les nœuds — pas une liste.
+      expect(find.byType(CustomPaint), findsWidgets);
+      // étape du jour mise en valeur.
+      expect(find.textContaining('AUJOURD'), findsOneWidget);
+      // le nœud « du jour » porte le n° 4 (3 validées -> jour 4).
+      expect(find.text('4'), findsWidgets);
+      // journées validées + niveau + repère de cycle.
+      expect(find.text('3 journées validées'), findsOneWidget);
+      expect(find.textContaining('ÉTAPE DU JOUR'), findsOneWidget);
+      // au moins un jalon de niveau (jour 5 = Élan) visible dans la carte.
+      await t.scrollUntilVisible(
+        find.text('Élan'),
+        200,
+        scrollable: find.byType(Scrollable).first,
+      );
+      expect(find.text('Élan'), findsWidgets);
     });
 
     testWidgets('13 état erreur (aucune donnée) -> Réessayer', (t) async {
@@ -363,7 +383,10 @@ void main() {
       final rig = _rig(handler: (_) async => _json(_progress()));
       await t.pumpWidget(_host(rig.controller));
       await t.pumpAndSettle();
-      await t.tap(find.text('Découvrir ma carte'));
+      final cta = find.text('Découvrir ma carte');
+      await t.ensureVisible(cta);
+      await t.pumpAndSettle();
+      await t.tap(cta);
       await t.pumpAndSettle();
       expect(find.byType(TirageScreen), findsOneWidget);
     });

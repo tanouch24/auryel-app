@@ -23,6 +23,7 @@ import '../widgets/gold_button.dart';
 import '../widgets/main_nav_scope.dart';
 import 'dashboard_screen.dart';
 import 'premium_screen.dart';
+import 'wellbeing_journey_screen.dart';
 import 'tirage_jeu_screen.dart';
 
 /// Reset DEBUG uniquement (geste caché — appui long sur l'icône profil,
@@ -131,6 +132,14 @@ class HomeScreen extends StatelessWidget {
                         .fadeIn(delay: 480.ms, duration: 500.ms),
 
                     const SizedBox(height: 14),
+
+                    // 2 bis — CTA PARCOURS BIEN-ÊTRE (carte de progression type
+                    // jeu, écran dédié). Volontairement bien visible.
+                    const _WellbeingJourneyCta()
+                        .animate()
+                        .fadeIn(delay: 520.ms, duration: 500.ms),
+
+                    const SizedBox(height: 14),
                     _Divider(),
                     const SizedBox(height: 12),
 
@@ -237,6 +246,95 @@ class _Divider extends StatelessWidget {
     height: 1,
     color: AuryelColors.warmBorder.withValues(alpha: 0.6),
   );
+}
+
+/// CTA bien visible vers la carte de progression « Mon parcours bien-être ».
+class _WellbeingJourneyCta extends StatelessWidget {
+  const _WellbeingJourneyCta();
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      button: true,
+      label: 'Suivre mon parcours bien-être',
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(18),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(18),
+          onTap: () => Navigator.of(context).push(
+            MaterialPageRoute(builder: (_) => const WellbeingJourneyScreen()),
+          ),
+          child: Container(
+            padding: const EdgeInsets.fromLTRB(16, 14, 14, 14),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(18),
+              gradient: LinearGradient(
+                colors: [
+                  AuryelColors.gold.withValues(alpha: 0.20),
+                  AuryelColors.gold.withValues(alpha: 0.06),
+                ],
+              ),
+              border: Border.all(
+                color: AuryelColors.goldLight.withValues(alpha: 0.55),
+              ),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 42,
+                  height: 42,
+                  alignment: Alignment.center,
+                  decoration: const BoxDecoration(
+                    shape: BoxShape.circle,
+                    gradient: AuryelColors.goldGradient,
+                  ),
+                  child: const PhosphorIcon(
+                    PhosphorIconsRegular.path,
+                    size: 20,
+                    color: AuryelColors.backgroundDeep,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Suivre mon parcours bien-être',
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: AuryelText.display(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w600,
+                          color: AuryelColors.textCream,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        'Ta carte de progression, jour après jour.',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: AuryelText.body(
+                          fontSize: 11.5,
+                          color: AuryelColors.textMuted,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const PhosphorIcon(
+                  PhosphorIconsRegular.arrowRight,
+                  size: 16,
+                  color: AuryelColors.goldLight,
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 // ===========================================================================

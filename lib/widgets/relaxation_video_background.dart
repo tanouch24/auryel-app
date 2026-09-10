@@ -4,14 +4,17 @@ import 'package:flutter/material.dart';
 import 'package:video_player/video_player.dart';
 
 import '../data/relaxation_video.dart';
+import '../theme/auryel_theme.dart';
 
 /// Fine abstraction du lecteur vidéo d'ambiance — un SEUL exemplaire par
-/// [RelaxationVideoBackground]. Isolée pour être remplaçable en test (aucun
-/// canal plateforme). La vidéo est TOUJOURS muette.
+/// [RelaxationVideoStage]. Isolée pour être remplaçable en test (aucun canal
+/// plateforme). La vidéo est TOUJOURS muette et ne partage JAMAIS le focus
+/// audio (mix avec l'audio MP3 de la méditation).
 abstract class RelaxationVideoSurface {
-  /// Charge et prépare [url] (streaming, en boucle, volume 0). Renvoie `true`
-  /// si la vidéo est réellement prête à l'affichage. Toute erreur (404, format
-  /// non supporté, timeout, réseau) -> `false`, sans exception.
+  /// Charge et prépare [url] (streaming, en boucle, volume 0, `mixWithOthers`).
+  /// Renvoie `true` si la vidéo est réellement prête à l'affichage. Toute
+  /// erreur (404, format non supporté, timeout, réseau) -> `false`, sans
+  /// exception. NE TOUCHE JAMAIS le lecteur audio.
   Future<bool> load(String url);
 
   Future<void> play();
@@ -26,9 +29,13 @@ abstract class RelaxationVideoSurface {
   void dispose();
 }
 
-/// Implémentation réelle via `package:video_player`. Volume forcé à 0, lecture
-/// en boucle, `BoxFit.cover`. En test (`MissingPluginException`) ou si la
-/// source est illisible, [load] renvoie `false` sans jamais lever.
+/// Implémentation réelle via `package:video_player`.
+///
+///  - `VideoPlayerOptions(mixWithOthers: true)` : sur Android, le lecteur vidéo
+///    ne demande PAS le focus audio exclusif -> l'audio MP3 (audioplayers) n'est
+///    JAMAIS interrompu / dél-duck / mis en pause quand la vidéo démarre.
+///  - `setVolume(0)` : muet quoi qu'il arrive.
+///  - En test (`MissingPluginException`) ou source illisible : [load] -> `false`.
 class VideoPlayerRelaxationSurface implements RelaxationVideoSurface {
   VideoPlayerController? _c;
   bool _ready = false;
@@ -39,9 +46,11 @@ class VideoPlayerRelaxationSurface implements RelaxationVideoSurface {
   @override
   Future<bool> load(String url) async {
     try {
-      final c = VideoPlayerController.networkUrl(Uri.parse(url));
+      final c = VideoPlayerController.networkUrl(
+        Uri.parse(url),
+        videoPlayerOptions: VideoPlayerOptions(mixWithOthers: true),
+      );
       _c = c;
-      // Garde-fou : si l'init n'aboutit jamais (plugin absent, décodage KO).
       await c.initialize().timeout(const Duration(seconds: 8));
       if (!c.value.isInitialized || c.value.hasError) {
         await _safeDispose();
@@ -113,21 +122,26 @@ class VideoPlayerRelaxationSurface implements RelaxationVideoSurface {
   }
 }
 
-/// Fond visuel d'ambiance pour l'écran de méditation.
+/// SCÈNE VIDÉO — élément PRINCIPAL de l'écran de méditation (plus un fond
+/// décoratif). Rendue dans une zone dédiée dimensionnée par le parent
+/// (`BoxFit.cover`, coins premium). La vidéo est **toujours muette** et
+/// **totalement indépendante de l'audio** : ce widget n'a AUCUNE référence au
+/// lecteur MP3.
 ///
-///  - [video] `null` -> ne rend RIEN (le dégradé de l'écran reste visible) ;
-///  - charge UNIQUEMENT la vidéo choisie (jamais tout le catalogue) ;
-///  - [active] pilote lecture / pause (aligné sur l'état audio + cycle de vie) ;
-///  - échec de chargement -> `SizedBox.shrink()` : fond statique, aucune erreur,
-///    l'audio n'est jamais impacté (sous-système séparé) ;
-///  - au `dispose`, le contrôleur vidéo est libéré.
-class RelaxationVideoBackground extends StatefulWidget {
-  const RelaxationVideoBackground({
+///  - [video] `null` / échec / pas encore prête -> affiche [fallback] (même
+///    empreinte, aucun saut de mise en page), l'audio n'est jamais impacté ;
+///  - charge UNIQUEMENT la vidéo choisie ;
+///  - [active] pilote lecture / pause de LA VIDÉO uniquement ;
+///  - cycle de vie : arrière-plan -> pause vidéo ; retour -> reprise SI [active] ;
+///  - au `dispose`, le `VideoPlayerController` est libéré.
+class RelaxationVideoStage extends StatefulWidget {
+  const RelaxationVideoStage({
     super.key,
     required this.video,
     required this.active,
     this.surfaceFactory,
-    this.overlayOpacity = 0.62,
+    this.fallback,
+    this.caption,
   });
 
   final RelaxationVideo? video;
@@ -137,15 +151,19 @@ class RelaxationVideoBackground extends StatefulWidget {
   /// plateforme). `null` -> implémentation réelle `video_player`.
   final RelaxationVideoSurface Function()? surfaceFactory;
 
-  /// Voile sombre par-dessus la vidéo (lisibilité du texte). 0 = aucun.
-  final double overlayOpacity;
+  /// Affiché quand aucune vidéo n'est rendue (absente, en cours de chargement,
+  /// ou en échec). Occupe la même zone -> pas de saut visuel.
+  final Widget? fallback;
+
+  /// Légende posée en bas de la scène (titre de la méditation), sur un léger
+  /// dégradé — présentation « lecteur média ».
+  final String? caption;
 
   @override
-  State<RelaxationVideoBackground> createState() =>
-      _RelaxationVideoBackgroundState();
+  State<RelaxationVideoStage> createState() => _RelaxationVideoStageState();
 }
 
-class _RelaxationVideoBackgroundState extends State<RelaxationVideoBackground>
+class _RelaxationVideoStageState extends State<RelaxationVideoStage>
     with WidgetsBindingObserver {
   RelaxationVideoSurface? _surface;
   bool _failed = false;
@@ -160,8 +178,7 @@ class _RelaxationVideoBackgroundState extends State<RelaxationVideoBackground>
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    // La vidéo suit le cycle de vie comme l'audio : suspendue hors premier
-    // plan, reprise SEULEMENT si la séance est encore en lecture.
+    // Cycle de vie de LA VIDÉO uniquement — jamais l'audio.
     final s = _surface;
     if (s == null || !s.isReady) return;
     if (state != AppLifecycleState.resumed) {
@@ -172,8 +189,9 @@ class _RelaxationVideoBackgroundState extends State<RelaxationVideoBackground>
   }
 
   @override
-  void didUpdateWidget(RelaxationVideoBackground old) {
+  void didUpdateWidget(RelaxationVideoStage old) {
     super.didUpdateWidget(old);
+    // CHANGEMENT DE VISUEL : on remplace SEULEMENT le contrôleur vidéo.
     if (widget.video?.videoUrl != old.video?.videoUrl) {
       _disposeSurface();
       _failed = false;
@@ -226,18 +244,48 @@ class _RelaxationVideoBackgroundState extends State<RelaxationVideoBackground>
   Widget build(BuildContext context) {
     final s = _surface;
     final view = (widget.video == null || _failed) ? null : s?.buildView();
-    if (view == null) return const SizedBox.shrink();
-    return Stack(
-      fit: StackFit.expand,
-      children: [
-        view,
-        if (widget.overlayOpacity > 0)
-          IgnorePointer(
-            child: Container(
-              color: Colors.black.withValues(alpha: widget.overlayOpacity),
+
+    if (view == null) {
+      return widget.fallback ?? const SizedBox.expand();
+    }
+
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(22),
+      child: Stack(
+        fit: StackFit.expand,
+        children: [
+          view,
+          // Léger dégradé bas -> lisibilité de la légende (présentation média).
+          if (widget.caption != null && widget.caption!.isNotEmpty)
+            const IgnorePointer(
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.center,
+                    end: Alignment.bottomCenter,
+                    colors: [Color(0x00000000), Color(0xB3000000)],
+                  ),
+                ),
+              ),
             ),
-          ),
-      ],
+          if (widget.caption != null && widget.caption!.isNotEmpty)
+            Positioned(
+              left: 14,
+              right: 14,
+              bottom: 12,
+              child: Text(
+                widget.caption!,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: AuryelText.display(
+                  fontSize: 15,
+                  fontWeight: FontWeight.w600,
+                  color: AuryelColors.textCream,
+                ),
+              ),
+            ),
+        ],
+      ),
     );
   }
 }
