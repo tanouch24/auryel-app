@@ -344,7 +344,7 @@ void main() {
     await t.pumpAndSettle();
     // Séléna = kAdvisors[0], page visible d'emblée ; pas de fil -> « Demander
     // un avis ».
-    await t.tap(find.text('Demander un avis avec Séléna'));
+    await t.tap(find.text('Parler avec Séléna'));
     await t.pumpAndSettle();
     await t.pump(const Duration(milliseconds: 200));
     await t.pumpAndSettle();

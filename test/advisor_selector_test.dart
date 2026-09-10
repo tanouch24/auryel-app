@@ -80,13 +80,13 @@ void main() {
     final pv = t.widget<PageView>(find.byType(PageView));
     expect(pv.scrollDirection, Axis.vertical);
     expect(find.text('Avec qui veux-tu en parler ?'), findsOneWidget);
-    // 1er conseiller = Séléna (nouveau) -> « Demander un avis avec Séléna ».
-    expect(find.text('Demander un avis avec Séléna'), findsOneWidget);
-    expect(find.text('Demander un avis avec Luna'), findsNothing);
+    // 1er conseiller = Séléna (nouveau) -> « Parler avec Séléna ».
+    expect(find.text('Parler avec Séléna'), findsOneWidget);
+    expect(find.text('Parler avec Luna'), findsNothing);
   });
 
   testWidgets('conseiller déjà consulté -> « Reprendre » ; nouveau -> '
-      '« Demander un avis »', (t) async {
+      '« Parler »', (t) async {
     await t.pumpWidget(_host(audio: _FakeAudio(), existing: {'selena'}));
     await _open(t);
     expect(find.text('Reprendre avec Séléna'), findsOneWidget);
@@ -94,7 +94,7 @@ void main() {
 
     await t.fling(find.byType(PageView), const Offset(0, -400), 1200);
     await t.pumpAndSettle();
-    expect(find.text('Demander un avis avec Luna'), findsOneWidget);
+    expect(find.text('Parler avec Luna'), findsOneWidget);
   });
 
   testWidgets('tap CTA -> renvoie le conseiller choisi (Navigator.pop)', (
@@ -105,7 +105,7 @@ void main() {
     await _open(t);
     await t.fling(find.byType(PageView), const Offset(0, -400), 1200);
     await t.pumpAndSettle();
-    await t.tap(find.text('Demander un avis avec Luna'));
+    await t.tap(find.text('Parler avec Luna'));
     await t.pumpAndSettle();
 
     expect(picked, isNotNull);
@@ -173,5 +173,34 @@ void main() {
       expect(find.byType(PageView), findsOneWidget);
       expect(t.takeException(), isNull);
     });
+  }
+
+  // CTA IMMÉDIATEMENT VISIBLE : sur un petit écran + barre système simulée,
+  // le bouton « Parler avec … » tient ENTIÈREMENT dans la fenêtre sans scroll.
+  for (final h in const [640.0, 720.0]) {
+    testWidgets(
+      'CTA « Parler avec Séléna » visible sans scroll à '
+      '360×${h.toInt()} dp (+ inset système)',
+      (t) async {
+        t.view.devicePixelRatio = 1.0;
+        t.view.physicalSize = Size(360, h);
+        t.view.viewPadding = const FakeViewPadding(bottom: 48, top: 24);
+        t.view.padding = const FakeViewPadding(bottom: 48, top: 24);
+        addTearDown(t.view.reset);
+
+        await t.pumpWidget(_host(audio: _FakeAudio()));
+        await _open(t);
+
+        final cta = find.text('Parler avec Séléna');
+        expect(cta, findsOneWidget);
+        final bottom = t.getBottomLeft(cta).dy;
+        expect(
+          bottom,
+          lessThanOrEqualTo(h - 48),
+          reason: 'CTA masqué par la barre système Android',
+        );
+        expect(t.takeException(), isNull);
+      },
+    );
   }
 }
