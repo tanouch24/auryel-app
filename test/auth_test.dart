@@ -349,6 +349,76 @@ void main() {
       expect(ApiConfig.baseUrl, 'http://10.0.2.2:8000');
       expect(ApiConfig.isCleartext, isTrue);
     });
+
+    // --- Garde-fou release AUR-C02 : aucune URL locale/debug/non-HTTPS -------
+    test('release refuse une URL locale / de dev / non-HTTPS', () {
+      for (final bad in const [
+        'http://10.0.2.2:8000',
+        'http://localhost:8000',
+        'https://localhost',
+        'https://127.0.0.1',
+        'https://127.0.0.1:8443',
+        'https://10.1.2.3',
+        'https://192.168.1.10',
+        'https://172.16.0.5',
+        'https://169.254.1.1',
+        'http://api.auryel.example', // HTTP en clair
+        'https://backend',           // hôte non qualifié
+        'https://api.auryel.local',  // .local
+        'ftp://api.auryel.example',  // schéma non-HTTPS
+        'api.auryel.example',        // pas absolue
+      ]) {
+        expect(
+          () => ApiConfig.resolveBaseUrl(
+            hasOverride: true,
+            override: bad,
+            isReleaseLike: true,
+          ),
+          throwsA(isA<StateError>()),
+          reason: 'devrait refuser "$bad" en release',
+        );
+        expect(ApiConfig.releaseUrlRejectionReason(bad), isNotNull,
+            reason: '"$bad" devrait avoir une raison de rejet');
+      }
+    });
+
+    test('release accepte une URL HTTPS publique valide (slash retiré)', () {
+      for (final good in const [
+        'https://api.auryel.example',
+        'https://api.auryel.example/',
+        'https://auryel-api.up.railway.app',
+        'https://api.auryel.example:8443/v1',
+      ]) {
+        expect(ApiConfig.releaseUrlRejectionReason(good), isNull,
+            reason: '"$good" devrait être accepté');
+      }
+      expect(
+        ApiConfig.resolveBaseUrl(
+          hasOverride: true,
+          override: 'https://api.auryel.example/',
+          isReleaseLike: true,
+        ),
+        'https://api.auryel.example',
+      );
+    });
+
+    test('DEBUG reste permissif (10.0.2.2 / localhost / http autorisés)', () {
+      for (final local in const [
+        'http://10.0.2.2:8000',
+        'http://localhost:3000',
+        'http://192.168.1.50:8080',
+      ]) {
+        expect(
+          ApiConfig.resolveBaseUrl(
+            hasOverride: true,
+            override: local,
+            isReleaseLike: false,
+          ),
+          local,
+          reason: 'debug ne doit pas toucher "$local"',
+        );
+      }
+    });
   });
 
   // ---------------------------------------------------------------------------

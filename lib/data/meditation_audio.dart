@@ -12,9 +12,11 @@ import 'package:audioplayers/audioplayers.dart';
 /// naturelle. Si le fichier est absent ou la plateforme indisponible, [play]
 /// renvoie `false` et rien d'autre ne se produit (aucune exception remontée).
 abstract class MeditationAudio {
-  /// Démarre [assetPath] (chemin relatif à `assets/`). Renvoie `true` si la
-  /// lecture a réellement pu démarrer.
-  Future<bool> play(String assetPath);
+  /// Démarre [source] : soit un chemin d'asset relatif à `assets/`, soit une
+  /// URL `http(s)` (catalogue de méditations distant). Renvoie `true` si la
+  /// lecture a réellement pu démarrer (`false` si l'asset/URL est absent ou la
+  /// plateforme indisponible — aucune exception).
+  Future<bool> play(String source);
 
   Future<void> pause();
   Future<void> resume();
@@ -69,18 +71,20 @@ class AudioPlayersMeditationAudio implements MeditationAudio {
   bool get isPlaying => _playing;
 
   @override
-  Future<bool> play(String assetPath) async {
+  Future<bool> play(String source) async {
     final p = _player;
-    if (p == null) return false;
+    if (p == null || source.isEmpty) return false;
     try {
       await p.stop();
       await p.setVolume(0.9);
-      await p.play(AssetSource(assetPath));
+      final isUrl =
+          source.startsWith('http://') || source.startsWith('https://');
+      await p.play(isUrl ? UrlSource(source) : AssetSource(source));
       _playing = true;
       return true;
     } catch (_) {
       _playing = false;
-      return false; // fichier absent / plateforme absente -> silencieux
+      return false; // fichier / URL absent / plateforme absente -> silencieux
     }
   }
 

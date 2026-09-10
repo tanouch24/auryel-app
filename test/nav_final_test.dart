@@ -21,9 +21,10 @@ import 'package:auryel/screens/consultation_screen.dart';
 import 'package:auryel/screens/dashboard_screen.dart';
 import 'package:auryel/screens/home_screen.dart';
 import 'package:auryel/screens/jeu_auryel_screen.dart';
-import 'package:auryel/screens/meditation_screen.dart';
+import 'package:auryel/screens/meditation_library_screen.dart';
 import 'package:auryel/screens/tirage_jeu_screen.dart';
 import 'package:auryel/screens/tirage_screen.dart';
+import 'package:auryel/screens/wellbeing_journey_screen.dart';
 import 'package:auryel/state/auryel_state.dart';
 import 'package:auryel/state/auth_controller.dart';
 import 'package:auryel/widgets/main_nav_shell.dart';
@@ -194,9 +195,8 @@ void main() {
   // TIRAGE & JEU — hub (4 cas)
   // -------------------------------------------------------------------------
   group('Hub Tirage & Jeu', () {
-    testWidgets('TJ1 — le hub affiche titre, sous-titre et 2 entrées', (
-      t,
-    ) async {
+    testWidgets('TJ1 — le hub affiche titre, sous-titre et 3 entrées '
+        '(Tirage, Jeu Auryel, Bien-être)', (t) async {
       await t.pumpWidget(_shell());
       await t.pumpAndSettle();
       await t.tap(_tab('Tirage & Jeu'));
@@ -209,6 +209,24 @@ void main() {
       );
       expect(find.text('TIRAGE'), findsOneWidget);
       expect(find.text('JEU AURYEL'), findsOneWidget);
+      expect(find.text('BIEN-ÊTRE'), findsOneWidget);
+      expect(find.text('Jour après jour'), findsOneWidget);
+    });
+
+    testWidgets('TJ5 — l\'entrée BIEN-ÊTRE ré-intègre le parcours « jour après '
+        'jour » (WellbeingJourneyScreen), sans dupliquer le tirage', (t) async {
+      await t.pumpWidget(_shell());
+      await t.pumpAndSettle();
+      await t.tap(_tab('Tirage & Jeu'));
+      await t.pumpAndSettle();
+
+      await t.ensureVisible(find.text('Suivre mon parcours'));
+      await t.pumpAndSettle();
+      await t.tap(find.text('Suivre mon parcours'));
+      await t.pumpAndSettle();
+
+      expect(find.byType(WellbeingJourneyScreen), findsOneWidget);
+      expect(find.byType(TirageScreen), findsNothing);
     });
 
     testWidgets('TJ2 — l\'entrée TIRAGE ouvre le vrai TirageScreen '
@@ -299,8 +317,8 @@ void main() {
 
       await t.tap(find.text('Prends ton Moment'));
       await t.pumpAndSettle();
-      expect(find.byType(MeditationScreen), findsOneWidget);
-      expect(find.text('Ton Moment du jour'), findsOneWidget);
+      expect(find.byType(MeditationLibraryScreen), findsOneWidget);
+      expect(find.text('Bibliothèque'), findsOneWidget);
     });
   });
 

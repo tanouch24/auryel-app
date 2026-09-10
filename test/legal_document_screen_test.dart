@@ -90,12 +90,19 @@ void main() {
     expect(premium, contains('8 heures de consultation par mois'));
     expect(premium, contains('le prix du magasin fait foi'));
     expect(premium, contains('ne sont pas disponibles à ce jour'));
-    expect(premium, contains('bonus qui ne'));
+    expect(premium, contains('bonus non contractuels'));
 
-    // Confidentialité : installation_id non transmis, pas d'analytics.
+    // Confidentialité : installation_id non transmis ; notifications push +
+    // mesure publicitaire Meta déclarées et sous consentement explicite.
     final privacy = flat(kPrivacyPolicyInAppText);
     expect(privacy, contains("il n'est pas transmis au serveur à ce jour"));
-    expect(privacy, contains("Aucun outil de mesure d'audience"));
+    expect(privacy, contains('Firebase Cloud Messaging'));
+    expect(privacy, contains('Meta Platforms, Inc.'));
+    expect(privacy, contains("n'est pas pré-coché et reste révocable"));
+    expect(privacy,
+        contains("Aucune mesure publicitaire sans votre consentement explicite"));
+    expect(privacy,
+        contains("identifiant publicitaire de l'appareil n'est pas collecté"));
 
     // Identité éditeur.
     expect(kPublisherIdentitySummary, contains('3E Technology Ltd'));

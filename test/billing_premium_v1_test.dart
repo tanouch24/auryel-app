@@ -63,6 +63,12 @@ class _FakeGateway implements IapGateway {
   }
 
   @override
+  Future<bool> buyConsumable(ProductDetails p) async {
+    buyCalls++;
+    return true;
+  }
+
+  @override
   Future<void> completePurchase(PurchaseDetails p) async => completed.add(p);
   @override
   Future<void> restorePurchases() async => restoreCalls++;
@@ -243,16 +249,18 @@ void main() {
   });
 
   // -------------------------------------------------------------------------
-  // PARTIE Q — 26 : SEUL auryel_premium_monthly est demandé au store
+  // PARTIE Q — 26 : loadProducts demande auryel_premium_monthly +
+  // auryel_extra_hour (consommable « +1 h »), et JAMAIS l'ancien
+  // auryel_consultation_extra (produit 2,90 € abandonné).
   // -------------------------------------------------------------------------
-  test('26 — loadProducts ne demande QUE auryel_premium_monthly '
-      '(auryel_consultation_extra jamais activé)', () async {
+  test('26 — loadProducts demande premium + extra_hour, jamais '
+      'auryel_consultation_extra', () async {
     final rig = _rig(handler: (_) async => _json({}, 404));
     rig.gateway.products = [_product()];
     await rig.controller.initialize();
     expect(rig.gateway.queriedIds, isNotEmpty);
     for (final ids in rig.gateway.queriedIds) {
-      expect(ids, {'auryel_premium_monthly'});
+      expect(ids, {'auryel_premium_monthly', 'auryel_extra_hour'});
       expect(ids.contains('auryel_consultation_extra'), isFalse);
     }
   });

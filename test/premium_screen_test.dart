@@ -53,6 +53,12 @@ class _FakeGateway implements IapGateway {
   }
 
   @override
+  Future<bool> buyConsumable(ProductDetails p) async {
+    buyCalls++;
+    return true;
+  }
+
+  @override
   Future<void> completePurchase(PurchaseDetails p) async => completed.add(p);
   @override
   Future<void> restorePurchases() async => restoreCalls++;

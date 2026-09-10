@@ -54,6 +54,7 @@ AuryelState _state() => AuryelState(
 ConsultationController _consController({
   int firstFree = 0,
   int premium = 0,
+  int earned = 0,
   int purchased = 0,
   bool isPremium = false,
   bool firstFreeAvailable = false,
@@ -81,8 +82,9 @@ ConsultationController _consController({
       'time': {
         'first_free_remaining_seconds': firstFree,
         'premium_remaining_seconds': premium,
+        'earned_remaining_seconds': earned,
         'purchased_remaining_seconds': purchased,
-        'total_remaining_seconds': firstFree + premium + purchased,
+        'total_remaining_seconds': firstFree + premium + earned + purchased,
         'window_active': false,
         'window_expires_at': null,
       },
@@ -207,6 +209,45 @@ void main() {
     expect(find.text('7 h 42 min'), findsOneWidget);
     // pas de fenêtre 5 min / expires
     expect(find.textContaining('expir'), findsNothing);
+  });
+
+  testWidgets('14/15 — « Temps gagné » affiché ; total réconcilié avec les '
+      'lignes visibles (ordre first_free -> premium -> gagné -> acheté)', (
+    t,
+  ) async {
+    // 3600 (offerte) + 1800 (premium) + 900 (gagné) + 600 (acheté) = 6900 s
+    // -> total « 1 h 55 min ».
+    await t.pumpWidget(
+      _dash(
+        consultation: _consController(
+          firstFree: 3600,
+          premium: 1800,
+          earned: 900,
+          purchased: 600,
+        ),
+      ),
+    );
+    await t.pump();
+    expect(find.text('Heure offerte'), findsOneWidget);
+    expect(find.text('Temps Premium'), findsOneWidget);
+    expect(find.text('Temps gagné'), findsOneWidget);
+    expect(find.text('Temps acheté'), findsOneWidget);
+    // total = somme des buckets visibles
+    expect(find.text('1 h 55 min'), findsOneWidget);
+    // ordre vertical : gagné entre Premium et acheté
+    final yPremium = t.getTopLeft(find.text('Temps Premium')).dy;
+    final yEarned = t.getTopLeft(find.text('Temps gagné')).dy;
+    final yPurchased = t.getTopLeft(find.text('Temps acheté')).dy;
+    expect(yPremium < yEarned, isTrue);
+    expect(yEarned < yPurchased, isTrue);
+  });
+
+  testWidgets('« Temps gagné » absent quand earned == 0', (t) async {
+    await t.pumpWidget(
+      _dash(consultation: _consController(firstFree: 3600, premium: 1800)),
+    );
+    await t.pump();
+    expect(find.text('Temps gagné'), findsNothing);
   });
 
   testWidgets(
@@ -816,8 +857,9 @@ void main() {
       expect(find.textContaining('Merci pour'), findsNothing);
     });
 
-    testWidgets('« Noter l’appli » : service indisponible -> message neutre',
-        (t) async {
+    testWidgets('« Noter l’appli » : service indisponible -> message neutre', (
+      t,
+    ) async {
       final rec = RecordingReviewService()
         ..result = AppReviewOutcome.unavailable;
       await t.pumpWidget(_dash(reviewService: rec));

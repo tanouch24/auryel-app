@@ -40,6 +40,7 @@ class AuryelState extends ChangeNotifier {
     required this.repository,
     OnboardingRecord? initial,
     this.guideSync,
+    this.onOnboardingCompleted,
   }) : userId = initial?.userId,
        selectedAdvisor = initial?.selectedAdvisor,
        firstName = initial?.firstName,
@@ -52,6 +53,10 @@ class AuryelState extends ChangeNotifier {
 
   /// Cf. [GuideSyncFn]. `null` => pas de synchro backend (mode test / pré-auth).
   final GuideSyncFn? guideSync;
+
+  /// Appelé UNE fois quand l'onboarding est clôturé ([completeOnboarding]).
+  /// Sert à la mesure Meta `onboarding_completed`. `null` en test.
+  final void Function()? onOnboardingCompleted;
 
   String? userId;
   String? selectedAdvisor;
@@ -182,10 +187,18 @@ class AuryelState extends ChangeNotifier {
   /// après la vérification du code), on retombe sur un identifiant temporaire
   /// local — la prochaine restauration de session récupérera le vrai.
   Future<void> completeOnboarding({String? userId}) async {
+    final wasCompleted = onboardingCompleted;
     this.userId = userId ?? this.userId ?? _generateTempUserId();
     onboardingCompleted = true;
     await repository.save(_toRecord());
     notifyListeners();
+    if (!wasCompleted) {
+      try {
+        onOnboardingCompleted?.call();
+      } catch (_) {
+        /* la mesure ne casse jamais l'onboarding */
+      }
+    }
   }
 
   OnboardingRecord _toRecord() => OnboardingRecord(

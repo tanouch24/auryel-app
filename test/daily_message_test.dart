@@ -144,4 +144,46 @@ void main() {
       expect(await tr.sharedDaysCount(), 2);
     },
   );
+
+  // -------------------------------------------------------------------------
+  // LOT CONTENU DISTANT — pensée servie par le backend : pas d'asset embarqué.
+  // La feuille ne doit ni crasher ni tenter de charger un asset vide ; le
+  // partage retombe sur le texte seul.
+  // -------------------------------------------------------------------------
+  testWidgets('pensée serveur (imageAsset vide) : feuille stable, aucun '
+      'Image.asset, partage TEXTE seul', (t) async {
+    final serverThought = DailyThought(
+      id: 42,
+      publishDate: DateTime(2026, 9, 9),
+      phrase: 'Une pensée venue du serveur.',
+      interpretation: 'Interprétation serveur.',
+      imageAsset: '',
+    );
+    var calls = 0;
+    Uint8List? sharedBytes;
+    await t.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: DailyMessageSheet(
+            thought: serverThought,
+            tracker: DailyShareTracker(),
+            onShare: ({Uint8List? imageBytes, required String text}) async {
+              calls++;
+              sharedBytes = imageBytes;
+            },
+          ),
+        ),
+      ),
+    );
+    await t.pumpAndSettle();
+
+    expect(t.takeException(), isNull);
+    expect(find.text('TA PUBLICATION DU JOUR'), findsOneWidget);
+    expect(find.byType(Image), findsNothing); // ni asset ni URL -> aplat sombre
+
+    await t.tap(find.text('Partager'));
+    await t.pumpAndSettle();
+    expect(calls, 1);
+    expect(sharedBytes, isNull); // texte seul, aucun octet d'image
+  });
 }

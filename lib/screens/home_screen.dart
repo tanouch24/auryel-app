@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:phosphor_icons/phosphor_icons.dart';
 
+import '../data/content_repository.dart';
 import '../data/daily_like_store.dart';
 import '../data/daily_mission_tracker.dart';
 import '../data/daily_share_tracker.dart';
@@ -18,6 +19,7 @@ import '../widgets/advisors_carousel.dart'
 import '../widgets/auryel_wordmark.dart';
 import '../widgets/consultation_block.dart' show ConsultationState;
 import '../widgets/daily_message_sheet.dart';
+import '../widgets/gold_button.dart';
 import '../widgets/main_nav_scope.dart';
 import 'dashboard_screen.dart';
 import 'premium_screen.dart';
@@ -256,6 +258,11 @@ class _DailyThoughtZoneState extends State<_DailyThoughtZone>
       widget.repository ?? DailyThoughtRepository();
   final DailyShareTracker _tracker = DailyShareTracker();
 
+  /// Source distante (serveur -> cache -> embarqué). `null` = pas de
+  /// [ContentScope] dans l'arbre (tests hérités) -> on lit [_repo] embarqué.
+  ContentRepository? _content;
+  bool _bootstrapped = false;
+
   DailyThought? _thought;
   DateTime? _loadedDay;
   int _sharedDays = 0;
@@ -269,7 +276,16 @@ class _DailyThoughtZoneState extends State<_DailyThoughtZone>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    _refresh();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _content ??= ContentScope.maybeOf(context);
+    if (!_bootstrapped) {
+      _bootstrapped = true;
+      _refresh();
+    }
   }
 
   @override
@@ -283,13 +299,17 @@ class _DailyThoughtZoneState extends State<_DailyThoughtZone>
     if (state == AppLifecycleState.resumed) _refresh();
   }
 
+  Future<DailyThought> _loadThought() => _content != null
+      ? _content!.thoughtFor(DateTime.now())
+      : _repo.thoughtFor(DateTime.now());
+
   Future<void> _refresh() async {
     if (_thought != null && _loadedDay == _today) {
       await _loadCounter();
       return;
     }
     try {
-      final t = await _repo.thoughtFor(DateTime.now());
+      final t = await _loadThought();
       if (!mounted) return;
       setState(() {
         _thought = t;
@@ -354,144 +374,57 @@ class _DailyThoughtZoneState extends State<_DailyThoughtZone>
             ],
           ),
         ),
-        const SizedBox(height: 10),
-        _ShareRewardCta(onTap: _openPreview),
-        const SizedBox(height: 4),
-        _TapHereGuide(onTap: _openPreview),
-        const SizedBox(height: 3),
-        Text(
-          '$_sharedDays / 30 jours',
-          style: AuryelText.body(
-            fontSize: 11.5,
-            fontWeight: FontWeight.w600,
-            color: AuryelColors.goldLight,
-            letterSpacing: 0.4,
-          ),
-        ),
-        const SizedBox(height: 1),
+        const SizedBox(height: 12),
+        _ShareRewardBlock(sharedDays: _sharedDays, onShare: _openPreview),
+        const SizedBox(height: 2),
         const _DailyLikeButton(),
       ],
     );
   }
 }
 
-/// Repère « Cliquez ici » + flèche vers le bouton de partage juste au-dessus.
-/// Toute la zone déclenche le MÊME `onTap` (aucune logique de partage
-/// dupliquée). Animation finie (3 bobs), désactivée si
-/// `MediaQuery.disableAnimationsOf(context)`.
-class _TapHereGuide extends StatelessWidget {
-  const _TapHereGuide({required this.onTap});
+/// Bloc partage de la pensée du jour : bénéfice explicite + VRAI bouton
+/// « Partager maintenant » (plus d'encadré ambigu ni de « Cliquez ici »). Le
+/// compteur de jours reste sous le bouton, en secondaire. La logique de
+/// récompense (30 jours = 1 h) est INCHANGÉE : `onShare` ouvre l'aperçu
+/// partageable exactement comme avant.
+class _ShareRewardBlock extends StatelessWidget {
+  const _ShareRewardBlock({required this.sharedDays, required this.onShare});
 
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final animate = !MediaQuery.disableAnimationsOf(context);
-
-    Widget arrow = const PhosphorIcon(
-      PhosphorIconsFill.arrowUp,
-      size: 13,
-      color: AuryelColors.goldLight,
-    );
-    if (animate) {
-      arrow = arrow
-          .animate(onPlay: (c) => c.repeat(reverse: true, count: 6))
-          .moveY(begin: 0, end: -5, duration: 620.ms, curve: Curves.easeInOut);
-    }
-
-    Widget zone = Semantics(
-      button: true,
-      label: 'Cliquez ici pour partager',
-      child: Material(
-        color: Colors.transparent,
-        borderRadius: BorderRadius.circular(10),
-        child: InkWell(
-          borderRadius: BorderRadius.circular(10),
-          onTap: onTap,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                arrow,
-                const SizedBox(width: 6),
-                Text(
-                  'Cliquez ici',
-                  style: AuryelText.body(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
-                    color: AuryelColors.goldLight,
-                    letterSpacing: 1.2,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-
-    return animate ? zone.animate().fadeIn(duration: 260.ms) : zone;
-  }
-}
-
-class _ShareRewardCta extends StatelessWidget {
-  const _ShareRewardCta({required this.onTap});
-
-  final VoidCallback onTap;
+  final int sharedDays;
+  final VoidCallback onShare;
 
   @override
   Widget build(BuildContext context) {
-    return Material(
-      color: Colors.transparent,
-      borderRadius: BorderRadius.circular(18),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(18),
-        onTap: onTap,
-        child: Container(
-          constraints: const BoxConstraints(minHeight: 42),
-          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 8),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(18),
-            gradient: LinearGradient(
-              colors: [
-                AuryelColors.gold.withValues(alpha: 0.22),
-                AuryelColors.gold.withValues(alpha: 0.10),
-              ],
-            ),
-            border: Border.all(
-              color: AuryelColors.goldLight.withValues(alpha: 0.70),
-              width: 1.1,
-            ),
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const PhosphorIcon(
-                PhosphorIconsFill.gift,
-                size: 14,
-                color: AuryelColors.goldLight,
-              ),
-              const SizedBox(width: 8),
-              Flexible(
-                child: Text(
-                  'Partage cette force avec tes contacts et gagne 1 h de '
-                  'communication offerte.',
-                  textAlign: TextAlign.center,
-                  style: AuryelText.body(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: AuryelColors.goldLight,
-                    letterSpacing: 0.1,
-                    height: 1.25,
-                  ),
-                ),
-              ),
-            ],
+    final block = Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          'Partage cette pensée et gagne 1 h de consultation',
+          textAlign: TextAlign.center,
+          style: AuryelText.body(
+            fontSize: 12.5,
+            fontWeight: FontWeight.w600,
+            color: AuryelColors.textSecondary,
+            height: 1.3,
           ),
         ),
-      ),
-    ).animate().fadeIn(duration: 400.ms);
+        const SizedBox(height: 10),
+        AuryelGoldButton(label: 'Partager maintenant', onTap: onShare),
+        const SizedBox(height: 6),
+        Text(
+          '$sharedDays / 30 jours',
+          style: AuryelText.body(
+            fontSize: 11,
+            fontWeight: FontWeight.w600,
+            color: AuryelColors.textMuted,
+            letterSpacing: 0.4,
+          ),
+        ),
+      ],
+    );
+    if (MediaQuery.disableAnimationsOf(context)) return block;
+    return block.animate().fadeIn(duration: 320.ms);
   }
 }
 
@@ -583,6 +516,9 @@ class _MissionsSectionState extends State<_MissionsSection>
   final DailyShareTracker _shareTracker = DailyShareTracker();
   final DailyMissionTracker _missions = DailyMissionTracker();
 
+  ContentRepository? _content;
+  bool _bootstrapped = false;
+
   DailyThought? _thought;
   DateTime? _loadedDay;
   final Map<_Mission, bool> _done = {for (final m in _Mission.values) m: false};
@@ -596,7 +532,16 @@ class _MissionsSectionState extends State<_MissionsSection>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    _refresh();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _content ??= ContentScope.maybeOf(context);
+    if (!_bootstrapped) {
+      _bootstrapped = true;
+      _refresh();
+    }
   }
 
   @override
@@ -610,6 +555,10 @@ class _MissionsSectionState extends State<_MissionsSection>
     if (state == AppLifecycleState.resumed) _refresh();
   }
 
+  Future<DailyThought> _loadThought() => _content != null
+      ? _content!.thoughtFor(DateTime.now())
+      : _repo.thoughtFor(DateTime.now());
+
   Future<void> _refresh() async {
     // Consultation : une activité serveur RÉELLE (fenêtre de facturation en
     // cours ou session active) vaut « consulté aujourd'hui » et est persistée
@@ -621,7 +570,7 @@ class _MissionsSectionState extends State<_MissionsSection>
 
     try {
       if (_thought == null || _loadedDay != _today) {
-        _thought = await _repo.thoughtFor(DateTime.now());
+        _thought = await _loadThought();
       }
     } catch (_) {
       /* la mission partage reste ouvrable via le CTA pensée */

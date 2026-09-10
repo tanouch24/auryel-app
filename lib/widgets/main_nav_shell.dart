@@ -10,7 +10,7 @@ import '../notifications/notification_service.dart';
 import '../screens/consultation_screen.dart';
 import '../screens/dashboard_screen.dart';
 import '../screens/home_screen.dart';
-import '../screens/meditation_screen.dart';
+import '../screens/meditation_library_screen.dart';
 import '../screens/tirage_jeu_screen.dart';
 import '../state/auth_controller.dart';
 import '../theme/auryel_theme.dart';
@@ -48,7 +48,7 @@ class _MainNavShellState extends State<MainNavShell> {
     HomeScreen(),
     TirageJeuScreen(),
     ConsultationScreen(),
-    MeditationScreen(),
+    MeditationLibraryScreen(),
     DashboardScreen(showBackButton: false),
   ];
 
@@ -56,6 +56,7 @@ class _MainNavShellState extends State<MainNavShell> {
 
   AuryelNotificationService? _notifications;
   StreamSubscription<NotificationPayload>? _openedSub;
+  StreamSubscription<NotificationPayload>? _foregroundTapSub;
 
   /// Destination reçue mais non encore routable (utilisateur pas connecté sur
   /// une cible `requiresAuth`) : rejouée dès que la session devient valide.
@@ -76,6 +77,10 @@ class _MainNavShellState extends State<MainNavShell> {
         NotificationScope.maybeOf(context)?.service;
     if (_openedSub == null && _notifications != null) {
       _openedSub = _notifications!.onMessageOpened.listen(_handlePayload);
+      // Tap sur une notif locale affichée au premier plan (même routage).
+      final coordinator = NotificationScope.maybeOf(context)?.coordinator;
+      _foregroundTapSub =
+          coordinator?.onNotificationTap.listen(_handlePayload);
       // Notification ayant lancé l'app depuis un état terminé — traitée
       // maintenant que la navigation est prête (consommation unique).
       final initial = _notifications!.takeInitialPayload();
@@ -108,6 +113,7 @@ class _MainNavShellState extends State<MainNavShell> {
   @override
   void dispose() {
     _openedSub?.cancel();
+    _foregroundTapSub?.cancel();
     super.dispose();
   }
 

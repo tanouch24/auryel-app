@@ -46,6 +46,8 @@ class _NullGateway implements IapGateway {
   @override
   Future<bool> buyNonConsumable(ProductDetails p) async => false;
   @override
+  Future<bool> buyConsumable(ProductDetails p) async => false;
+  @override
   Future<void> completePurchase(PurchaseDetails p) async {}
   @override
   Future<void> restorePurchases() async {}

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../config/legal_texts.dart';
 import '../data/subscription_manager.dart';
 import '../state/consultation_controller.dart';
+import '../state/meta_consent_controller.dart';
 import '../state/purchase_controller.dart';
 import '../theme/auryel_theme.dart';
 import '../widgets/gold_button.dart';
@@ -19,14 +20,32 @@ import 'legal_document_screen.dart';
 ///
 /// L'app ne résilie jamais elle-même : « Gérer mon abonnement » ouvre la page
 /// officielle Google Play via [SubscriptionManager].
-class PremiumScreen extends StatelessWidget {
+class PremiumScreen extends StatefulWidget {
   const PremiumScreen({super.key, this.subscriptionManager});
 
   /// Test uniquement : sinon [defaultSubscriptionManager].
   final SubscriptionManager? subscriptionManager;
 
   @override
+  State<PremiumScreen> createState() => _PremiumScreenState();
+}
+
+class _PremiumScreenState extends State<PremiumScreen> {
+  bool _paywallLogged = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (_paywallLogged) return;
+    _paywallLogged = true;
+    // Meta : « paywall vu » (une fois par ouverture d'écran). No-op sans
+    // consentement. Aucune donnée personnelle.
+    AnalyticsScope.eventsOf(context).logPaywallViewed();
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final subscriptionManager = widget.subscriptionManager;
     final controller = PurchaseScope.of(context);
     final consultation = ConsultationScope.maybeReadOf(context);
     return Scaffold(
@@ -123,6 +142,8 @@ class _Body extends StatelessWidget {
             )
           else
             _OfferBlock(priceLabel: _priceLabel, controller: controller),
+          const SizedBox(height: 24),
+          _ExtraHourBlock(controller: controller),
           const SizedBox(height: 20),
           const _LegalFooter(),
         ],
@@ -467,6 +488,162 @@ class _StatusArea extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+/// Achat « 1 heure supplémentaire » (consommable, RÉPÉTABLE). Visible pour
+/// tous — abonné ou non. Le crédit de 3600 s est décidé par le serveur ; ici
+/// on n'affiche qu'un état. Le prix vient de `ProductDetails.price` (« 1,99 € »
+/// est un repli).
+class _ExtraHourBlock extends StatelessWidget {
+  const _ExtraHourBlock({required this.controller});
+
+  final PurchaseController controller;
+
+  /// Prix STORE uniquement (régionalisé, autoritaire). Aucun prix inventé si
+  /// le produit n'est pas chargé — le « 1,99 € » de référence vit dans les
+  /// Conditions Premium.
+  String? get _price {
+    final p = controller.extraHourProduct?.price;
+    return (p != null && p.isNotEmpty) ? p : null;
+  }
+
+  ({String message, bool busy})? get _status => switch (controller.extraHourState) {
+    ExtraHourPurchaseState.purchasing => (
+      message: 'Ouverture du paiement…',
+      busy: true,
+    ),
+    ExtraHourPurchaseState.pendingStore => (
+      message: 'Achat en attente de confirmation.',
+      busy: true,
+    ),
+    ExtraHourPurchaseState.verifying => (
+      message: 'Validation de ton achat…',
+      busy: true,
+    ),
+    ExtraHourPurchaseState.credited => (
+      message: '1 heure supplémentaire ajoutée à ton temps de consultation.',
+      busy: false,
+    ),
+    ExtraHourPurchaseState.alreadyCredited => (
+      message: 'Cet achat a déjà été crédité — ton temps est à jour.',
+      busy: false,
+    ),
+    ExtraHourPurchaseState.verifyRetryable => (
+      message:
+          'La validation n’a pas abouti. Ton achat est conservé — réessaie.',
+      busy: false,
+    ),
+    ExtraHourPurchaseState.verifyFatal => (
+      message:
+          'Ton achat n’a pas pu être validé. Contacte le support si le '
+          'problème persiste.',
+      busy: false,
+    ),
+    ExtraHourPurchaseState.requiresAuthentication => (
+      message: 'Reconnecte-toi pour finaliser ton achat.',
+      busy: false,
+    ),
+    ExtraHourPurchaseState.storeError => (
+      message: 'Une erreur est survenue avec le magasin. Réessaie.',
+      busy: false,
+    ),
+    ExtraHourPurchaseState.unavailable => (
+      message: 'L’achat d’une heure supplémentaire n’est pas disponible pour '
+          'le moment.',
+      busy: false,
+    ),
+    ExtraHourPurchaseState.idle || ExtraHourPurchaseState.canceled => null,
+  };
+
+  @override
+  Widget build(BuildContext context) {
+    final s = controller.extraHourState;
+    final status = _status;
+    final unavailable = s == ExtraHourPurchaseState.unavailable ||
+        controller.extraHourProduct == null;
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        border: Border.all(color: AuryelColors.warmBorder),
+        borderRadius: BorderRadius.circular(14),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            '1 heure supplémentaire',
+            style: AuryelText.body(
+              fontSize: 14.5,
+              fontWeight: FontWeight.w700,
+              color: AuryelColors.goldLight,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Ajoute 1 heure de consultation à ton temps disponible. Achat '
+            'unique, renouvelable autant de fois que tu veux.',
+            style: AuryelText.body(
+              fontSize: 12,
+              height: 1.4,
+              color: AuryelColors.textMuted,
+            ),
+          ),
+          if (_price != null) ...[
+            const SizedBox(height: 12),
+            Text(
+              _price!,
+              style: AuryelText.body(
+                fontSize: 14,
+                fontWeight: FontWeight.w600,
+                color: AuryelColors.goldLight,
+              ),
+            ),
+          ],
+          if (status != null) ...[
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                if (status.busy) ...[
+                  const SizedBox(
+                    width: 15,
+                    height: 15,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: AuryelColors.goldLight,
+                    ),
+                  ),
+                  const SizedBox(width: 10),
+                ],
+                Expanded(
+                  child: Text(
+                    status.message,
+                    style: AuryelText.body(
+                      fontSize: 12.5,
+                      color: s == ExtraHourPurchaseState.credited
+                          ? AuryelColors.goldLight
+                          : AuryelColors.textMuted,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+          const SizedBox(height: 14),
+          if (s == ExtraHourPurchaseState.verifyRetryable)
+            AuryelGoldButton(
+              label: 'Réessayer',
+              onTap: controller.retryExtraHourVerification,
+            )
+          else
+            AuryelGoldButton(
+              label: 'Ajouter 1 heure',
+              enabled: !unavailable && controller.canBuyExtraHour,
+              onTap: controller.buyExtraHour,
+            ),
+        ],
+      ),
     );
   }
 }

@@ -12,6 +12,7 @@
         android:label="Auryel"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher"
+        android:roundIcon="@mipmap/ic_launcher_round"
         android:allowBackup="false">
         <!-- allowBackup=false : l'app contient session, profil, consultations et
              achats. La restauration de compte est côté serveur (email/OTP + IAP
@@ -41,6 +42,37 @@
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
         </activity>
+        <!-- FCM : canal Android utilisé quand un message `notification` arrive
+             app en arrière-plan / tuée. Le canal `auryel_default` est créé côté
+             Dart (flutter_local_notifications) avec visibilité PRIVATE (rien de
+             sensible sur écran verrouillé). -->
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_channel_id"
+            android:value="auryel_default" />
+        <!-- Petite icône status bar : silhouette monochrome dédiée (jamais
+             l'icône launcher couleur, illisible en barre d'état). -->
+        <meta-data
+            android:name="com.google.firebase.messaging.default_notification_icon"
+            android:resource="@drawable/ic_stat_auryel" />
+
+        <!-- Meta App Events (mesure publicitaire, sous consentement explicite).
+             Valeurs NON versionnées : injectées par manifestPlaceholders depuis
+             android/meta.properties (gitignore). Auto-logging et collecte de
+             l'identifiant publicitaire DÉSACTIVÉS par défaut ; activés seulement
+             après consentement, côté Dart. -->
+        <meta-data
+            android:name="com.facebook.sdk.ApplicationId"
+            android:value="${metaAppId}" />
+        <meta-data
+            android:name="com.facebook.sdk.ClientToken"
+            android:value="${metaClientToken}" />
+        <meta-data
+            android:name="com.facebook.sdk.AutoLogAppEventsEnabled"
+            android:value="false" />
+        <meta-data
+            android:name="com.facebook.sdk.AdvertiserIDCollectionEnabled"
+            android:value="false" />
+
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->
         <meta-data

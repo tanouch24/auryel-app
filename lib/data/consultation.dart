@@ -3,9 +3,10 @@
 /// corps d'un 402 `time_exhausted`).
 ///
 /// TIMER-D.1 — c'est désormais LA SOURCE DE VÉRITÉ du temps disponible :
-///   - `totalRemainingSeconds` = temps total exploitable (somme des 3 buckets)
-///   - `firstFree/premium/purchased` = détail par bucket (1 h offerte / 8 h
-///     Premium par période / heures achetées)
+///   - `totalRemainingSeconds` = temps total exploitable (somme des buckets)
+///   - `firstFree/premium/earned/purchased` = détail par bucket (1 h offerte /
+///     Premium par période / temps gagné via le parcours / heures achetées).
+///     Ordre de débit backend : first_free -> premium -> earned -> purchased.
 ///   - `windowActive` / `windowExpiresAt` = fenêtre d'activité de 5 min (le
 ///     backend facture le temps par tranche de 5 min ; cette fenêtre ne
 ///     détermine PAS si la consultation est « finie »).
@@ -20,10 +21,15 @@ class ConsultationTimeState {
     required this.totalRemainingSeconds,
     required this.windowActive,
     required this.windowExpiresAt,
+    this.earnedRemainingSeconds = 0,
   });
 
   final int firstFreeRemainingSeconds;
   final int premiumRemainingSeconds;
+
+  /// Temps gagné via le parcours bien-être (`earned_remaining_seconds`). Champ
+  /// absent d'un backend ancien -> 0.
+  final int earnedRemainingSeconds;
   final int purchasedRemainingSeconds;
   final int totalRemainingSeconds;
   final bool windowActive;
@@ -34,6 +40,7 @@ class ConsultationTimeState {
   static const empty = ConsultationTimeState(
     firstFreeRemainingSeconds: 0,
     premiumRemainingSeconds: 0,
+    earnedRemainingSeconds: 0,
     purchasedRemainingSeconds: 0,
     totalRemainingSeconds: 0,
     windowActive: false,
@@ -42,22 +49,26 @@ class ConsultationTimeState {
 
   bool get hasTime => totalRemainingSeconds > 0;
 
-  /// Somme des 3 buckets — filet si le backend n'envoie pas `total`.
+  /// Somme des buckets (first_free + premium + earned + purchased) — filet si
+  /// le backend n'envoie pas `total`.
   int get bucketSum =>
       firstFreeRemainingSeconds +
       premiumRemainingSeconds +
+      earnedRemainingSeconds +
       purchasedRemainingSeconds;
 
   factory ConsultationTimeState.fromJson(Map<String, dynamic> json) {
     final ff = _clampPos(_int(json['first_free_remaining_seconds']));
     final pr = _clampPos(_int(json['premium_remaining_seconds']));
+    final ea = _clampPos(_int(json['earned_remaining_seconds']));
     final pu = _clampPos(_int(json['purchased_remaining_seconds']));
     final total = json.containsKey('total_remaining_seconds')
         ? _clampPos(_int(json['total_remaining_seconds']))
-        : ff + pr + pu;
+        : ff + pr + ea + pu;
     return ConsultationTimeState(
       firstFreeRemainingSeconds: ff,
       premiumRemainingSeconds: pr,
+      earnedRemainingSeconds: ea,
       purchasedRemainingSeconds: pu,
       totalRemainingSeconds: total,
       windowActive: json['window_active'] == true,
@@ -186,6 +197,8 @@ class ConsultationMessageDto {
     required this.role,
     required this.content,
     required this.timestamp,
+    this.messageId,
+    this.llmStatus,
   });
 
   /// `user` ou `assistant`. Toute autre valeur est traitée côté UI comme
@@ -194,6 +207,17 @@ class ConsultationMessageDto {
   final String content;
   final DateTime? timestamp;
 
+  /// Identifiant stable du message côté backend (`message_id`, ou `id` en
+  /// repli). `null` pour une réponse ANCIENNE d'un backend qui ne l'expose pas
+  /// encore — l'UI reste fonctionnelle, le signalement retombe sur le
+  /// `consultation_id`.
+  final String? messageId;
+
+  /// `llm_status` — état de génération LLM de la réponse assistant (ex.
+  /// `ok`, `fallback`, `error`). `null` si absent / non pertinent (message
+  /// utilisateur, backend ancien).
+  final String? llmStatus;
+
   bool get isUser => role == 'user';
 
   factory ConsultationMessageDto.fromJson(Map<String, dynamic> json) =>
@@ -201,6 +225,8 @@ class ConsultationMessageDto {
         role: (json['role'] ?? '').toString(),
         content: (json['content'] ?? '').toString(),
         timestamp: _date(json['timestamp']),
+        messageId: _str(json['message_id']) ?? _str(json['id']),
+        llmStatus: _str(json['llm_status']),
       );
 }
 
@@ -290,6 +316,8 @@ class ConsultationMessageResponse {
     required this.consultation,
     required this.quota,
     this.time,
+    this.replyMessageId,
+    this.llmStatus,
   });
 
   final String reply;
@@ -300,9 +328,24 @@ class ConsultationMessageResponse {
   /// est encore ancien (fallback legacy côté contrôleur).
   final ConsultationTimeState? time;
 
+  /// Identifiant stable de LA réponse assistant renvoyée dans `reply`. Sert à
+  /// cibler le signalement (`POST /api/app/ai/report { message_id }`).
+  ///
+  /// Parsing TOLÉRANT : `message_id` à la racine, sinon `message.message_id` /
+  /// `message.id` si le backend imbrique la réponse dans un objet `message`.
+  /// `null` si aucune de ces formes n'est présente (backend ancien) — le
+  /// signalement retombe alors sur `consultation_id`.
+  final String? replyMessageId;
+
+  /// `llm_status` de la réponse assistant (racine ou `message.llm_status`).
+  /// `null` si absent.
+  final String? llmStatus;
+
   factory ConsultationMessageResponse.fromJson(Map<String, dynamic> json) {
     final c = json['consultation'];
     final q = json['quota'];
+    final m = json['message'];
+    final msg = m is Map<String, dynamic> ? m : const <String, dynamic>{};
     return ConsultationMessageResponse(
       reply: (json['reply'] ?? '').toString(),
       consultation: c is Map<String, dynamic>
@@ -310,6 +353,11 @@ class ConsultationMessageResponse {
           : null,
       quota: q is Map<String, dynamic> ? QuotaDto.fromJson(q) : QuotaDto.empty,
       time: ConsultationTimeState.maybeFromJson(json['time']),
+      replyMessageId:
+          _str(json['message_id']) ??
+          _str(msg['message_id']) ??
+          _str(msg['id']),
+      llmStatus: _str(json['llm_status']) ?? _str(msg['llm_status']),
     );
   }
 }
@@ -352,3 +400,8 @@ int _clampPos(int v) => v < 0 ? 0 : v;
 
 DateTime? _date(Object? v) =>
     (v is String && v.isNotEmpty) ? DateTime.tryParse(v) : null;
+
+/// Chaîne non vide, sinon `null`. Fail-safe : n'accepte QUE des `String`
+/// (les identifiants backend en sont), jamais de coercion depuis un nombre /
+/// objet.
+String? _str(Object? v) => (v is String && v.isNotEmpty) ? v : null;

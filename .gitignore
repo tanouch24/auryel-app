@@ -53,3 +53,13 @@ app.*.map.json
 # Android release signing (F5-B.1) — SECRETS, jamais suivis par Git
 android/key.properties
 android/app/upload-keystore.jks
+
+# Firebase Android — config projet locale, jamais suivie par Git.
+# Fichier fourni hors dépôt (cf. docs/store/android/). project_id/clés restreints
+# par package + SHA côté console, mais on ne le versionne pas.
+android/app/google-services.json
+
+# Config locale Meta App Events (App ID + Client Token) — injectée au build via
+# --dart-define / propriété Gradle, jamais versionnée. Voir lib/analytics/.
+android/meta.properties
+.auryel_meta.env

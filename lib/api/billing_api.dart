@@ -27,6 +27,7 @@ class BillingApi {
   final ApiClient _client;
 
   static const String _path = '/api/billing/verify';
+  static const String _purchasePath = '/api/billing/purchase';
 
   /// Vérifie un achat Google Play. `purchaseToken` =
   /// `PurchaseDetails.verificationData.serverVerificationData` (le purchase
@@ -58,5 +59,29 @@ class BillingApi {
       'transaction_id': transactionId,
     }, bearer: bearer);
     return BillingVerifyResponse.fromJson(json);
+  }
+
+  /// Vérifie + crédite un achat CONSOMMABLE Google Play (« 1 heure
+  /// supplémentaire »). `purchaseToken` =
+  /// `PurchaseDetails.verificationData.serverVerificationData`.
+  ///
+  ///   POST /api/billing/purchase
+  ///     { "store": "google_play", "product_id": "…", "purchase_token": "…" }
+  ///
+  /// Le serveur crédite EXACTLY-ONCE : rejouer un token déjà crédité renvoie
+  /// 200 avec `already_credited: true` (aucun double crédit). Erreurs
+  /// propagées telles quelles par [ApiClient] (401 -> [ApiUnauthorizedException],
+  /// 409 / 422 / 5xx -> [ApiException], réseau -> [ApiNetworkException]).
+  Future<BillingPurchaseResponse> verifyGooglePlayPurchase({
+    required String bearer,
+    required String productId,
+    required String purchaseToken,
+  }) async {
+    final json = await _client.postJson(_purchasePath, {
+      'store': kStoreGooglePlay,
+      'product_id': productId,
+      'purchase_token': purchaseToken,
+    }, bearer: bearer);
+    return BillingPurchaseResponse.fromJson(json);
   }
 }

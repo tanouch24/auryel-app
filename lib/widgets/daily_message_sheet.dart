@@ -178,15 +178,18 @@ class _DailyMessageSheetState extends State<DailyMessageSheet> {
     setState(() => _sharing = true);
     try {
       Uint8List? bytes;
-      try {
-        final data = await (widget.bundle ?? rootBundle).load(
-          widget.thought.imageAsset,
-        );
-        bytes = data.buffer.asUint8List();
-      } catch (_) {
-        // Asset illisible -> on partage au moins le texte.
-        bytes = null;
+      final asset = widget.thought.imageAsset;
+      if (asset.isNotEmpty) {
+        try {
+          final data = await (widget.bundle ?? rootBundle).load(asset);
+          bytes = data.buffer.asUint8List();
+        } catch (_) {
+          // Asset illisible -> on partage au moins le texte.
+          bytes = null;
+        }
       }
+      // Pensée servie par le backend : pas d'asset embarqué -> partage texte
+      // seul (l'image distante n'est pas re-téléchargée pour le partage).
       await widget.onShare(
         imageBytes: bytes,
         text: '${widget.thought.phrase}\n\n— Auryel',
@@ -280,14 +283,9 @@ class _DailyMessageSheetState extends State<DailyMessageSheet> {
                     aspectRatio: 1080 / 1920,
                     child: ClipRRect(
                       borderRadius: BorderRadius.circular(18),
-                      child: Image.asset(
-                        widget.thought.imageAsset,
+                      child: _PublicationImage(
+                        thought: widget.thought,
                         bundle: widget.bundle,
-                        fit: BoxFit.cover,
-                        gaplessPlayback: true,
-                        errorBuilder: (_, _, _) => const ColoredBox(
-                          color: AuryelColors.backgroundDeep,
-                        ),
                       ),
                     ),
                   ),
@@ -324,6 +322,41 @@ class _DailyMessageSheetState extends State<DailyMessageSheet> {
         ),
       ),
     );
+  }
+}
+
+/// Visuel de la publication du jour : asset embarqué (pack local) OU image
+/// distante (`daily_publication.image_url` quand la pensée vient du backend).
+/// Toute défaillance retombe sur un aplat sombre — jamais d'exception, jamais
+/// d'écran vide.
+class _PublicationImage extends StatelessWidget {
+  const _PublicationImage({required this.thought, this.bundle});
+
+  final DailyThought thought;
+  final AssetBundle? bundle;
+
+  @override
+  Widget build(BuildContext context) {
+    const fallback = ColoredBox(color: AuryelColors.backgroundDeep);
+    if (thought.imageAsset.isNotEmpty) {
+      return Image.asset(
+        thought.imageAsset,
+        bundle: bundle,
+        fit: BoxFit.cover,
+        gaplessPlayback: true,
+        errorBuilder: (_, _, _) => fallback,
+      );
+    }
+    final url = thought.imageUrl;
+    if (url != null && url.isNotEmpty) {
+      return Image.network(
+        url,
+        fit: BoxFit.cover,
+        gaplessPlayback: true,
+        errorBuilder: (_, _, _) => fallback,
+      );
+    }
+    return fallback;
   }
 }
 

@@ -9,6 +9,7 @@ import '../state/consultation_controller.dart';
 import '../theme/auryel_theme.dart';
 import '../widgets/advisors_carousel.dart' show AdvisorInfo, advisorByGuideKey;
 import '../widgets/main_nav_scope.dart';
+import 'adult_gate.dart';
 import 'advisor_selector_screen.dart';
 import 'chat_screen.dart';
 import 'onboarding/email_auth_screen.dart';
@@ -144,6 +145,22 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
         MaterialPageRoute(builder: (_) => const EmailAuthScreen()),
         (route) => false,
       );
+    } on ApiForbiddenException catch (e) {
+      if (!mounted) return;
+      setState(() => _busy = false);
+      final code = e.code ?? e.body['error']?.toString();
+      if (code == 'age_verification_required' || code == 'adult_required') {
+        // 403 âge : jamais « réessaie ». On réutilise AdultGate (autorité
+        // serveur forcée) qui route vers `needsDob` ou l'écran bloqué.
+        Navigator.of(context).pushAndRemoveUntil(
+          MaterialPageRoute(
+            builder: (_) => const AdultGate(forceServerCheck: true),
+          ),
+          (route) => false,
+        );
+      } else {
+        _snack('Connexion impossible — réessaie.');
+      }
     } catch (_) {
       if (!mounted) return;
       setState(() => _busy = false);

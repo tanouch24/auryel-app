@@ -4,18 +4,27 @@ import 'package:flutter/material.dart';
 import 'package:phosphor_icons/phosphor_icons.dart';
 
 import '../api/wellbeing_api.dart';
+import '../data/content_repository.dart';
 import '../data/daily_mission_tracker.dart';
 import '../data/meditation_audio.dart';
 import '../data/meditation_catalog.dart';
 import '../data/meditation_item.dart';
+import '../data/relaxation_video.dart';
+import '../data/relaxation_video_selector.dart';
 import '../state/auth_controller.dart';
 import '../theme/auryel_theme.dart';
 import '../widgets/main_nav_scope.dart';
+import '../widgets/relaxation_video_background.dart';
+import '../widgets/relaxation_visual_picker.dart';
 
-/// Onglet « Méditation » — « Ton Moment ». Une vraie séance audio par jour
-/// (rotation locale déterministe), un lecteur complet (lecture / pause /
-/// reprise / progression), et la mission « Moment » validée UNIQUEMENT sur une
-/// écoute réellement aboutie (fin naturelle ou ≥ 90 %).
+/// Lecteur d'une séance « Ton Moment ». Ouvert depuis la bibliothèque
+/// ([MeditationLibraryScreen]) avec une séance précise ([item]), ou sans
+/// [item] -> rotation calendaire « Ton Moment du jour » (comportement
+/// historique). Lecteur complet (lecture / pause / reprise / progression),
+/// mission « Moment » validée UNIQUEMENT sur une écoute réellement aboutie
+/// (fin naturelle ou ≥ 90 %). Un visuel d'ambiance MUET est choisi
+/// automatiquement au lancement ; « Choisir le visuel » permet d'en
+/// sélectionner un autre SANS jamais toucher à l'audio.
 ///
 /// Aucune promesse médicale. Aucune récompense en temps de consultation.
 ///
@@ -27,18 +36,33 @@ import '../widgets/main_nav_scope.dart';
 class MeditationScreen extends StatefulWidget {
   const MeditationScreen({
     super.key,
+    this.item,
     this.audioOverride,
     this.catalog = const MeditationCatalog(),
     this.now,
     this.missionTracker,
     this.wellbeingApi,
+    this.videoSelector,
+    this.videoSurfaceFactory,
   });
+
+  /// Séance à jouer, choisie dans la bibliothèque. `null` -> l'écran retombe
+  /// sur « Ton Moment du jour » (rotation calendaire, serveur -> cache ->
+  /// embarqué), comportement historique inchangé.
+  final MeditationItem? item;
 
   /// Test uniquement : lecteur injecté (aucun canal plateforme en test).
   final MeditationAudio? audioOverride;
   final MeditationCatalog catalog;
   final DateTime? now;
   final DailyMissionTracker? missionTracker;
+
+  /// Sélecteur de vidéo d'ambiance (aléatoire injectable + anti-répétition).
+  /// `null` -> instance par défaut. Injecté en test pour un choix déterministe.
+  final RelaxationVideoSelector? videoSelector;
+
+  /// Test uniquement : fabrique la surface vidéo (aucun canal plateforme).
+  final RelaxationVideoSurface Function()? videoSurfaceFactory;
 
   /// Parcours bien-être : sync serveur de la mission `moment` (aucune trace
   /// serveur propre à la méditation). Injecté en test ; en production, lu via
@@ -58,9 +82,32 @@ class _MeditationScreenState extends State<MeditationScreen>
       widget.audioOverride ?? AudioPlayersMeditationAudio();
   late final DailyMissionTracker _missions =
       widget.missionTracker ?? DailyMissionTracker();
-  late final MeditationItem _item = widget.catalog.momentOfDay(
-    widget.now ?? DateTime.now(),
-  );
+
+  /// Séance affichée. Si [MeditationScreen.item] est fourni (ouverture depuis la
+  /// bibliothèque), c'est lui — définitif. Sinon : catalogue EMBARQUÉ instantané
+  /// puis remplacé une fois si le [ContentRepository] résout la séance du jour
+  /// distante (serveur -> cache).
+  late MeditationItem _item =
+      widget.item ?? widget.catalog.momentOfDay(widget.now ?? DateTime.now());
+  bool _contentResolved = false;
+
+  late final RelaxationVideoSelector _videoSelector =
+      widget.videoSelector ?? RelaxationVideoSelector();
+
+  /// Catalogue distant des visuels d'ambiance résolu pour cette séance
+  /// (serveur -> cache -> vide). Sert le sélecteur « Choisir le visuel » SANS
+  /// initialiser aucun `VideoPlayerController` : seule la vidéo retenue est
+  /// streamée. Vide -> bouton « Choisir le visuel » masqué, fond statique.
+  List<RelaxationVideo> _availableVideos = const [];
+
+  /// Vidéo d'ambiance choisie pour CETTE séance (une seule, préchargée à la
+  /// demande). `null` = aucune vidéo compatible / catalogue vide -> fond
+  /// statique. N'influe JAMAIS sur l'audio.
+  RelaxationVideo? _video;
+
+  /// La vidéo n'est montée qu'après le premier lancement de la séance (data
+  /// mobile : rien n'est streamé tant que l'utilisateur n'a pas appuyé sur play).
+  bool _everStarted = false;
 
   final List<StreamSubscription<dynamic>> _subs = [];
 
@@ -96,6 +143,33 @@ class _MeditationScreenState extends State<MeditationScreen>
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
+
+    // Résolution UNE fois de la séance du jour distante (serveur -> cache ->
+    // embarqué). L'embarqué reste affiché tant que la résolution n'a pas
+    // abouti ; si aucune séance n'est jouable, l'écran garde son état propre
+    // (« bientôt disponible ») sans tenter de lire un asset manquant.
+    if (!_contentResolved) {
+      _contentResolved = true;
+      final content = ContentScope.maybeOf(context);
+      if (content != null) {
+        if (widget.item != null) {
+          // Séance fournie par la bibliothèque : on ne résout que le visuel.
+          _resolveAmbianceVideo(content);
+        } else {
+          content
+              .momentOfDay(widget.now ?? DateTime.now())
+              .then((it) {
+                if (it != null && mounted && it.id != _item.id) {
+                  setState(() => _item = it);
+                }
+              })
+              .whenComplete(() {
+                if (mounted) _resolveAmbianceVideo(content);
+              });
+        }
+      }
+    }
+
     final idx = MainNavScope.maybeOf(context)?.currentIndex;
     final onTab = idx == null || idx == kTabMeditation;
     if (onTab == _onThisTab) return;
@@ -160,6 +234,62 @@ class _MeditationScreenState extends State<MeditationScreen>
     }
   }
 
+  /// Choisit UNE vidéo d'ambiance compatible avec la séance courante (au
+  /// hasard, anti-répétition). Entièrement non bloquant : toute erreur laisse
+  /// [_video] à `null` -> fond statique. L'audio n'est jamais concerné.
+  Future<void> _resolveAmbianceVideo(ContentRepository content) async {
+    try {
+      final catalog = await content.relaxationVideos();
+      if (!mounted) return;
+      setState(() => _availableVideos = catalog);
+      if (catalog.isEmpty) return;
+      final picked = await _videoSelector.pick(
+        catalog,
+        meditationCategory: _item.category.name,
+      );
+      if (mounted && picked != null && _video == null) {
+        setState(() => _video = picked);
+      }
+    } catch (_) {
+      /* pas de vidéo -> fond statique, jamais bloquant */
+    }
+  }
+
+  /// « Aléatoire » dans le sélecteur : re-tire un visuel compatible au hasard
+  /// (anti-répétition conservée). Aucun impact audio.
+  Future<void> _pickRandomVisual() async {
+    if (_availableVideos.isEmpty) return;
+    final picked = await _videoSelector.pick(
+      _availableVideos,
+      meditationCategory: _item.category.name,
+    );
+    if (mounted && picked != null) setState(() => _video = picked);
+  }
+
+  /// Choix manuel d'un visuel : on remplace UNIQUEMENT le visuel. L'audio
+  /// (source, position, état lecture/pause) n'est jamais touché — le
+  /// [RelaxationVideoBackground] dispose l'ancien contrôleur, charge le
+  /// nouveau (volume 0, looping), et le démarre si l'audio joue.
+  void _selectVisual(RelaxationVideo v) {
+    if (_video?.slug == v.slug) return;
+    setState(() => _video = v);
+  }
+
+  Future<void> _openVisualPicker() async {
+    if (_availableVideos.isEmpty) return;
+    final choice = await showRelaxationVisualPicker(
+      context,
+      videos: _availableVideos,
+      currentSlug: _video?.slug,
+    );
+    if (choice == null || !mounted) return;
+    if (choice.isRandom) {
+      await _pickRandomVisual();
+    } else if (choice.video != null) {
+      _selectVisual(choice.video!);
+    }
+  }
+
   Future<void> _onPrimaryTap() async {
     switch (_status) {
       case _PlayStatus.idle:
@@ -176,7 +306,11 @@ class _MeditationScreenState extends State<MeditationScreen>
 
   Future<void> _start() async {
     _elapsed = Duration.zero;
-    final ok = await _audio.play(_item.assetPath);
+    _everStarted = true;
+    // `playbackSource` = URL distante si exploitable, sinon chemin d'asset.
+    // Une séance sans aucune source lisible -> `play` renvoie `false` -> état
+    // « bientôt disponible » (jamais de tentative de lecture d'asset manquant).
+    final ok = await _audio.play(_item.playbackSource);
     if (!mounted) return;
     setState(
       () => _status = ok ? _PlayStatus.playing : _PlayStatus.unavailable,
@@ -224,17 +358,31 @@ class _MeditationScreenState extends State<MeditationScreen>
         : 0.0;
     final playing = _status == _PlayStatus.playing;
 
-    return Container(
-      decoration: const BoxDecoration(
-        gradient: AuryelColors.backgroundGradient,
-      ),
-      child: SafeArea(
-        bottom: false,
-        child: SingleChildScrollView(
+    final content = SafeArea(
+      bottom: false,
+      child: SingleChildScrollView(
           padding: const EdgeInsets.fromLTRB(24, 22, 24, 28),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
+              if (Navigator.of(context).canPop())
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: IconButton(
+                    onPressed: () => Navigator.of(context).maybePop(),
+                    tooltip: 'Retour',
+                    visualDensity: VisualDensity.compact,
+                    constraints: const BoxConstraints(
+                      minWidth: 44,
+                      minHeight: 44,
+                    ),
+                    icon: const PhosphorIcon(
+                      PhosphorIconsRegular.arrowLeft,
+                      size: 20,
+                      color: AuryelColors.textMuted,
+                    ),
+                  ),
+                ),
               Text(
                 'AURYEL · MÉDITATION',
                 style: AuryelText.body(
@@ -246,7 +394,7 @@ class _MeditationScreenState extends State<MeditationScreen>
               ),
               const SizedBox(height: 10),
               Text(
-                'Ton Moment du jour',
+                widget.item != null ? 'Méditation' : 'Ton Moment du jour',
                 textAlign: TextAlign.center,
                 style: AuryelText.display(
                   fontSize: 22,
@@ -339,10 +487,57 @@ class _MeditationScreenState extends State<MeditationScreen>
                   color: AuryelColors.textMuted,
                 ),
               ),
+              // Action SECONDAIRE, discrète : ne concurrence jamais Play/Pause.
+              // Masquée s'il n'y a aucun visuel distant disponible.
+              if (_availableVideos.isNotEmpty) ...[
+                const SizedBox(height: 6),
+                TextButton.icon(
+                  onPressed: _openVisualPicker,
+                  icon: const PhosphorIcon(
+                    PhosphorIconsRegular.image,
+                    size: 15,
+                    color: AuryelColors.goldLight,
+                  ),
+                  label: Text(
+                    'Choisir le visuel',
+                    style: AuryelText.body(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: AuryelColors.goldLight,
+                    ),
+                  ),
+                  style: TextButton.styleFrom(
+                    visualDensity: VisualDensity.compact,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 6,
+                    ),
+                  ),
+                ),
+              ],
             ],
           ),
         ),
-      ),
+    );
+
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        // Base : toujours présente. Reste visible si la vidéo est absente,
+        // échoue, ou n'a pas encore démarré.
+        const DecoratedBox(
+          decoration: BoxDecoration(gradient: AuryelColors.backgroundGradient),
+        ),
+        // Ambiance visuelle (muette) : uniquement après le 1er lancement et si
+        // une vidéo compatible a été choisie. Pause/lecture suivent l'audio.
+        if (_video != null && _everStarted)
+          RelaxationVideoBackground(
+            video: _video,
+            active: playing,
+            surfaceFactory: widget.videoSurfaceFactory,
+          ),
+        content,
+      ],
     );
   }
 }

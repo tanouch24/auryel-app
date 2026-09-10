@@ -58,6 +58,7 @@ typedef _MultiEnv = ({
   ConsultationController controller,
   List<String> posts,
   List<Map<String, dynamic>> openBodies,
+  List<Map<String, dynamic>> msgBodies,
 });
 
 class _FakeAudio implements AdvisorAudio {
@@ -252,8 +253,18 @@ void main() {
         final local = tarotArcanaByKey(k)!;
         expect(find.text(local.interpretation), findsNothing);
       }
-      expect(find.text('Lecture de ton tirage'), findsOneWidget);
-      expect(find.text(_serverCombined), findsOneWidget);
+      expect(find.text('Ce que dit l’ensemble'), findsOneWidget);
+      // Plus de DOUBLE LECTURE : la synthèse relie les cartes par position
+      // et NE recopie PAS `combined_interpretation` (assemblage des interps).
+      expect(find.textContaining('pose le décor'), findsOneWidget);
+      expect(find.text(_serverCombined), findsNothing);
+
+      // LOT 13 — lecture STRUCTURÉE : « Carte 1/2/3 » + synthèse en BLOC
+      // PREMIUM distinct (overline), rendue une seule fois.
+      expect(find.text('Carte 1'), findsOneWidget);
+      expect(find.text('Carte 2'), findsOneWidget);
+      expect(find.text('Carte 3'), findsOneWidget);
+      expect(find.text('LA LECTURE D’ENSEMBLE'), findsOneWidget);
     },
   );
 
@@ -267,6 +278,7 @@ void main() {
   _MultiEnv multiEnv({List<Map<String, dynamic>> threads = const []}) {
     final posts = <String>[];
     final openBodies = <Map<String, dynamic>>[];
+    final msgBodies = <Map<String, dynamic>>[];
     final current = List<Map<String, dynamic>>.from(threads);
     final client = ApiClient(
       httpClient: MockClient((req) async {
@@ -301,6 +313,18 @@ void main() {
             'messages': <dynamic>[],
           });
         }
+        if (p == '/api/consultation/message' && req.method == 'POST') {
+          final body = jsonDecode(req.body) as Map<String, dynamic>;
+          msgBodies.add(body);
+          return _json({
+            'consultation_id': body['consultation_id'] ?? 'c-open-selena',
+            'messages': [
+              {'role': 'user', 'content': body['message']},
+              {'role': 'assistant', 'content': 'Je vois tes trois cartes.'},
+            ],
+            'quota': {'is_premium': true, 'monthly_remaining': 3},
+          });
+        }
         return _json({}, 404);
       }),
       baseUrl: 'http://test.local',
@@ -322,6 +346,7 @@ void main() {
       controller: controller,
       posts: posts,
       openBodies: openBodies,
+      msgBodies: msgBodies,
     );
   }
 
@@ -355,7 +380,7 @@ void main() {
     await tester.pumpAndSettle();
     await _selectThree(tester);
     await _reveal(tester);
-    await tester.ensureVisible(find.text('En parler avec un conseiller'));
+    await tester.ensureVisible(find.text('En parler à mon conseiller'));
     await tester.pumpAndSettle();
   }
 
@@ -364,9 +389,9 @@ void main() {
   ) async {
     final e = multiEnv();
     await pumpToTalk(tester, e);
-    expect(find.text('En parler avec un conseiller'), findsOneWidget);
+    expect(find.text('En parler à mon conseiller'), findsOneWidget);
 
-    await tester.tap(find.text('En parler avec un conseiller'));
+    await tester.tap(find.text('En parler à mon conseiller'));
     await tester.pumpAndSettle();
     expect(find.byType(AdvisorSelectorScreen), findsOneWidget);
     expect(find.text('Avec qui veux-tu en parler ?'), findsOneWidget);
@@ -380,9 +405,9 @@ void main() {
     final e = multiEnv(); // aucun fil
     await pumpToTalk(tester, e);
 
-    await tester.tap(find.text('En parler avec un conseiller'));
+    await tester.tap(find.text('En parler à mon conseiller'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Demander un avis avec Séléna'));
+    await tester.tap(find.text('Parler avec Séléna'));
     await tester.pumpAndSettle();
     await tester.pump(const Duration(milliseconds: 200));
     await tester.pumpAndSettle();
@@ -402,6 +427,42 @@ void main() {
     );
   });
 
+  testWidgets('H-B bis/§2. PREUVE bout-en-bout : « En parler à mon conseiller » '
+      '-> le tirage_id part RÉELLEMENT avec le 1er message (le conseiller '
+      'reçoit le contexte du tirage sans qu\'on le lui redemande)', (
+    tester,
+  ) async {
+    final e = multiEnv();
+    await pumpToTalk(tester, e);
+
+    await tester.tap(find.text('En parler à mon conseiller'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Parler avec Séléna'));
+    await tester.pumpAndSettle();
+    await tester.pump(const Duration(milliseconds: 200));
+    await tester.pumpAndSettle();
+
+    await tester.enterText(find.byType(TextField), 'et cette carte du milieu ?');
+    await tester.pump();
+    await tester.tap(find.byIcon(Icons.send_rounded));
+    await tester.pumpAndSettle();
+    if (find.text('Commencer').evaluate().isNotEmpty) {
+      await tester.tap(find.text('Commencer'));
+      await tester.pumpAndSettle();
+    }
+
+    expect(e.msgBodies, isNotEmpty);
+    expect(e.msgBodies.first['tirage_id'], 'tir-abc-123');
+    expect(e.msgBodies.first['message'], 'et cette carte du milieu ?');
+
+    await tester.enterText(find.byType(TextField), 'ok merci');
+    await tester.pump();
+    await tester.tap(find.byIcon(Icons.send_rounded));
+    await tester.pumpAndSettle();
+    expect(e.msgBodies.length, 2);
+    expect(e.msgBodies[1].containsKey('tirage_id'), isFalse);
+  });
+
   testWidgets('H-C/§25. conseiller avec fil existant -> rouvre CE fil, aucun '
       'POST /open', (tester) async {
     final e = multiEnv(
@@ -417,7 +478,7 @@ void main() {
     );
     await pumpToTalk(tester, e);
 
-    await tester.tap(find.text('En parler avec un conseiller'));
+    await tester.tap(find.text('En parler à mon conseiller'));
     await tester.pumpAndSettle();
     // Ezra = kAdvisors[7] : défiler le feed vertical jusqu'à sa page.
     for (var i = 0; i < 7; i++) {
@@ -441,14 +502,14 @@ void main() {
     final e = multiEnv();
     await pumpToTalk(tester, e);
 
-    await tester.tap(find.text('En parler avec un conseiller'));
+    await tester.tap(find.text('En parler à mon conseiller'));
     await tester.pumpAndSettle();
     await tester.tap(find.byTooltip('Retour'));
     await tester.pumpAndSettle();
 
     expect(find.byType(ChatScreen), findsNothing);
     expect(find.byType(TirageScreen), findsOneWidget);
-    expect(find.text('Lecture de ton tirage'), findsOneWidget);
+    expect(find.text('Ce que dit l’ensemble'), findsOneWidget);
     expect(
       e.posts.where(
         (p) =>
@@ -476,7 +537,7 @@ void main() {
       await _reveal(tester);
 
       // pas de révélation, sélection intacte, bouton Réessayer
-      expect(find.text('Lecture de ton tirage'), findsNothing);
+      expect(find.text('Ce que dit l’ensemble'), findsNothing);
       expect(find.text('3 / 3'), findsOneWidget);
       expect(find.text('Réessayer'), findsOneWidget);
       expect(
@@ -487,8 +548,11 @@ void main() {
 
       await tester.tap(find.text('Réessayer'));
       await tester.pumpAndSettle();
-      expect(find.text('Lecture de ton tirage'), findsOneWidget);
-      expect(find.text(_serverCombined), findsOneWidget);
+      expect(find.text('Ce que dit l’ensemble'), findsOneWidget);
+      // Plus de DOUBLE LECTURE : la synthèse relie les cartes par position
+      // et NE recopie PAS `combined_interpretation` (assemblage des interps).
+      expect(find.textContaining('pose le décor'), findsOneWidget);
+      expect(find.text(_serverCombined), findsNothing);
     },
   );
 
@@ -498,7 +562,7 @@ void main() {
     await _selectThree(tester);
     await _reveal(tester);
     expect(find.text('Réessayer'), findsOneWidget);
-    expect(find.text('Lecture de ton tirage'), findsNothing);
+    expect(find.text('Ce que dit l’ensemble'), findsNothing);
   });
 
   // -------------------------------------------------------------------------
@@ -509,7 +573,7 @@ void main() {
     await _pump(tester, e.auth);
     await _selectThree(tester);
     await _reveal(tester);
-    expect(find.text('Lecture de ton tirage'), findsOneWidget);
+    expect(find.text('Ce que dit l’ensemble'), findsOneWidget);
 
     await tester.ensureVisible(find.text('Recommencer le tirage'));
     await tester.pumpAndSettle();
@@ -535,7 +599,7 @@ void main() {
     await _pump(tester, e.auth);
     await _selectThree(tester);
     await _reveal(tester);
-    expect(find.text('Lecture de ton tirage'), findsNothing);
+    expect(find.text('Ce que dit l’ensemble'), findsNothing);
     expect(
       find.text('Reconnecte-toi pour enregistrer ton tirage.'),
       findsOneWidget,
@@ -547,13 +611,13 @@ void main() {
   // M. J6-F2 §13 — le CTA « En parler » ne dépend PLUS de selectedAdvisor :
   // il est toujours présent (le conseiller est choisi ensuite).
   // -------------------------------------------------------------------------
-  testWidgets('M. CTA « En parler avec un conseiller » présent même si '
+  testWidgets('M. CTA « En parler à mon conseiller » présent même si '
       'selectedAdvisor null', (tester) async {
     final e = _env((_, keys) async => _json(_tirageBody(keys), 201));
     await _pump(tester, e.auth, selectedAdvisor: null);
     await _selectThree(tester);
     await _reveal(tester);
-    expect(find.text('En parler avec un conseiller'), findsOneWidget);
+    expect(find.text('En parler à mon conseiller'), findsOneWidget);
     expect(find.text('Recommencer le tirage'), findsOneWidget);
   });
 
@@ -621,7 +685,7 @@ void main() {
 
       await _selectThree(tester);
       await _reveal(tester);
-      expect(find.text('Lecture de ton tirage'), findsOneWidget);
+      expect(find.text('Ce que dit l’ensemble'), findsOneWidget);
 
       await tester.tap(find.byTooltip('Retour'));
       await tester.pumpAndSettle();
@@ -711,9 +775,9 @@ void main() {
         expect(tester.takeException(), isNull, reason: '${w.toInt()} dp');
 
         // le CTA conseiller reste accessible via scroll (jamais masqué)
-        await tester.ensureVisible(find.text('En parler avec un conseiller'));
+        await tester.ensureVisible(find.text('En parler à mon conseiller'));
         await tester.pumpAndSettle();
-        expect(find.text('En parler avec un conseiller'), findsOneWidget);
+        expect(find.text('En parler à mon conseiller'), findsOneWidget);
       });
     }
   });

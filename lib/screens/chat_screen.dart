@@ -9,6 +9,7 @@ import '../theme/auryel_theme.dart';
 import '../widgets/advisors_carousel.dart';
 import '../widgets/ai_report_sheet.dart';
 import '../widgets/ai_transparency_note.dart';
+import 'adult_gate.dart';
 import 'onboarding/email_auth_screen.dart';
 import 'premium_screen.dart';
 
@@ -70,9 +71,19 @@ class ChatScreen extends StatefulWidget {
 }
 
 class _ChatMessage {
-  const _ChatMessage({required this.fromUser, required this.text});
+  const _ChatMessage({
+    required this.fromUser,
+    required this.text,
+    this.messageId,
+  });
   final bool fromUser;
   final String text;
+
+  /// Identifiant stable backend de la réponse assistant — sert à cibler le
+  /// signalement. `null` pour un message utilisateur ou une réponse d'un
+  /// backend qui ne l'expose pas encore (le signalement retombe alors sur le
+  /// `consultation_id`).
+  final String? messageId;
 }
 
 class _ChatScreenState extends State<ChatScreen> {
@@ -202,7 +213,11 @@ class _ChatScreenState extends State<ChatScreen> {
       final restored = <_ChatMessage>[
         for (final m in res.messages)
           if (m.content.trim().isNotEmpty)
-            _ChatMessage(fromUser: m.isUser, text: m.content),
+            _ChatMessage(
+              fromUser: m.isUser,
+              text: m.content,
+              messageId: m.messageId,
+            ),
       ];
       setState(() {
         _historyLoading = false;
@@ -302,7 +317,13 @@ class _ChatScreenState extends State<ChatScreen> {
       consultation?.updateFromMessageResponse(res);
       setState(() {
         _messages.add(_ChatMessage(fromUser: true, text: _pending!));
-        _messages.add(_ChatMessage(fromUser: false, text: res.reply));
+        _messages.add(
+          _ChatMessage(
+            fromUser: false,
+            text: res.reply,
+            messageId: res.replyMessageId,
+          ),
+        );
         _consultation = res.consultation ?? _consultation;
         _pending = null;
         _sending = false;
@@ -326,6 +347,19 @@ class _ChatScreenState extends State<ChatScreen> {
         _noCredit = true;
         _noCreditQuota = quota;
       });
+    } on ApiForbiddenException catch (e) {
+      if (!mounted) return;
+      final code = e.code ?? e.body['error']?.toString();
+      if (code == 'age_verification_required' || code == 'adult_required') {
+        // Ce N'EST PAS une panne serveur : aucun « le serveur n'a pas
+        // répondu », aucun retry. On renvoie vers le parcours 18+ existant
+        // (AdultGate), qui refait autorité serveur et route vers `needsDob`
+        // (`age_verification_required`) ou l'écran bloqué (`adult_required`).
+        _routeToAgeGate();
+      } else {
+        // Autre 403 (hors périmètre de ce lot) : comportement inchangé.
+        _failNetwork('Le serveur n’a pas répondu. Réessaie dans un instant.');
+      }
     } on ApiNetworkException {
       _failNetwork('Connexion impossible. Ton message n’a pas été envoyé.');
     } on ApiException catch (e) {
@@ -368,6 +402,25 @@ class _ChatScreenState extends State<ChatScreen> {
     if (!mounted) return;
     Navigator.of(context).pushAndRemoveUntil(
       MaterialPageRoute(builder: (_) => const EmailAuthScreen()),
+      (route) => false,
+    );
+  }
+
+  /// Refus 403 lié à l'âge sur une mutation de consultation. Le message n'est
+  /// PAS parti (aucune bulle). On réutilise [AdultGate] — pas de second système
+  /// d'âge : `forceServerCheck` lui fait refaire autorité serveur, puis il
+  /// route lui-même vers `needsDob` (`age_verification_required`) ou vers
+  /// l'écran bloqué (`adult_required`).
+  void _routeToAgeGate() {
+    setState(() {
+      _sending = false;
+      _pending = null; // le message n'a pas été envoyé
+      _networkError = null;
+    });
+    Navigator.of(context).pushAndRemoveUntil(
+      MaterialPageRoute(
+        builder: (_) => const AdultGate(forceServerCheck: true),
+      ),
       (route) => false,
     );
   }
@@ -415,7 +468,11 @@ class _ChatScreenState extends State<ChatScreen> {
   /// Signalement d'UNE réponse conseiller/IA (jamais un message utilisateur).
   /// La feuille ne confirme qu'en cas de 2xx serveur réel ; sinon elle reste
   /// ouverte avec un message d'erreur (aucun faux succès).
-  Future<void> _reportResponse() async {
+  ///
+  /// [messageId] : identifiant stable de la réponse ciblée quand le backend
+  /// l'a fourni. `null` pour une réponse ancienne -> le signalement reste
+  /// exploitable via `consultation_id` seul (jamais de `message_id` inventé).
+  Future<void> _reportResponse(String? messageId) async {
     final auth = AuthScope.maybeOf(context);
     final api = widget.aiReportApi ?? auth?.aiReportApi;
     final consultationId =
@@ -432,8 +489,9 @@ class _ChatScreenState extends State<ChatScreen> {
           await api.report(
             bearer: token,
             reason: reason,
-            // DÉPENDANCE BACKEND : aucun identifiant de message exposé
-            // aujourd'hui -> `message_id` omis, `consultation_id` en contexte.
+            // `message_id` cible la réponse exacte quand il existe ; sinon
+            // `AiReportApi` l'omet et `consultation_id` sert de contexte.
+            messageId: messageId,
             consultationId: consultationId,
             comment: comment,
           );
@@ -539,7 +597,8 @@ class _ChatScreenState extends State<ChatScreen> {
           fromUser: m.fromUser,
           text: m.text,
           // Signalement possible UNIQUEMENT sur une réponse conseiller/IA.
-          onReport: m.fromUser ? null : _reportResponse,
+          // La closure capture le `messageId` de CETTE bulle (nullable).
+          onReport: m.fromUser ? null : () => _reportResponse(m.messageId),
         ),
       if (_pending != null)
         _Bubble(fromUser: true, text: _pending!, pending: true),

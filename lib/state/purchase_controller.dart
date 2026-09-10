@@ -10,6 +10,7 @@ import 'package:in_app_purchase/in_app_purchase.dart';
 
 import '../api/api_client.dart';
 import '../api/billing_api.dart';
+import '../analytics/meta_events.dart';
 import '../data/iap_gateway.dart';
 import '../data/purchase.dart';
 import 'auth_controller.dart';
@@ -64,6 +65,51 @@ enum PurchaseState {
   storeError,
 }
 
+/// États du parcours d'achat CONSOMMABLE « 1 heure supplémentaire »
+/// (`auryel_extra_hour`). Distinct de [PurchaseState] : achat répétable, pas
+/// de restauration, pas d'entitlement — juste un crédit de temps confirmé par
+/// le serveur.
+enum ExtraHourPurchaseState {
+  /// Repos.
+  idle,
+
+  /// Produit `auryel_extra_hour` absent (`notFoundIDs`) ou store indisponible.
+  unavailable,
+
+  /// Achat lancé, en attente du 1er événement du store.
+  purchasing,
+
+  /// Le store a renvoyé `pending` (paiement différé).
+  pendingStore,
+
+  /// `POST /api/billing/purchase` en cours.
+  verifying,
+
+  /// Vérification échouée de façon RÉCUPÉRABLE (503, 5xx, réseau). L'achat est
+  /// conservé pour [PurchaseController.retryExtraHourVerification].
+  verifyRetryable,
+
+  /// Vérification échouée de façon DÉFINITIVE (409, 422, 4xx). Aucun crédit,
+  /// aucun `completePurchase`.
+  verifyFatal,
+
+  /// Pas de session Bearer au moment du verify. L'achat est conservé.
+  requiresAuthentication,
+
+  /// Serveur 200 : CET achat vient de créditer +1 h. Wallet rafraîchi.
+  credited,
+
+  /// Serveur 200 : achat DÉJÀ crédité auparavant (rejeu / restauration
+  /// implicite). Aucun double crédit.
+  alreadyCredited,
+
+  /// L'utilisateur a annulé l'achat.
+  canceled,
+
+  /// Le store a renvoyé `error`.
+  storeError,
+}
+
 /// Orchestration des achats Premium (F5-B — infrastructure seulement).
 ///
 /// INVARIANT : ce contrôleur n'est JAMAIS la source de vérité du Premium.
@@ -81,17 +127,20 @@ class PurchaseController extends ChangeNotifier {
     required AuthController auth,
     required ConsultationController consultation,
     TargetPlatform? platformOverride,
+    MetaEvents metaEvents = const NoopMetaEvents(),
   }) : _billing = billing,
        _gateway = gateway,
        _auth = auth,
        _consultation = consultation,
-       _platformOverride = platformOverride;
+       _platformOverride = platformOverride,
+       _meta = metaEvents;
 
   final BillingApi _billing;
   final IapGateway _gateway;
   final AuthController _auth;
   final ConsultationController _consultation;
   final TargetPlatform? _platformOverride;
+  final MetaEvents _meta;
 
   StreamSubscription<List<PurchaseDetails>>? _subscription;
   bool _initialized = false;
@@ -100,6 +149,11 @@ class PurchaseController extends ChangeNotifier {
   PurchaseState _state = PurchaseState.idle;
   ProductDetails? _premiumProduct;
   String? _errorCode;
+
+  ExtraHourPurchaseState _extraHourState = ExtraHourPurchaseState.idle;
+  ProductDetails? _extraHourProduct;
+  String? _extraHourError;
+  PurchaseDetails? _extraHourPendingRetry;
 
   /// Dédoublonnage des vérifications EN COURS (jamais permanent : la clé est
   /// retirée en fin de verify, succès inclus, pour qu'un restore / relancement
@@ -115,6 +169,22 @@ class PurchaseController extends ChangeNotifier {
   PurchaseState get state => _state;
   ProductDetails? get premiumProduct => _premiumProduct;
   String? get errorCode => _errorCode;
+
+  // --- « 1 heure supplémentaire » (consommable, répétable) ------------------
+
+  ExtraHourPurchaseState get extraHourState => _extraHourState;
+  ProductDetails? get extraHourProduct => _extraHourProduct;
+  String? get extraHourError => _extraHourError;
+
+  /// `true` si un achat « +1 h » peut être lancé maintenant.
+  bool get canBuyExtraHour =>
+      _extraHourProduct != null &&
+      _extraHourState != ExtraHourPurchaseState.purchasing &&
+      _extraHourState != ExtraHourPurchaseState.pendingStore &&
+      _extraHourState != ExtraHourPurchaseState.verifying;
+
+  /// `true` s'il reste un achat « +1 h » en attente de nouvelle vérification.
+  bool get hasExtraHourPendingRetry => _extraHourPendingRetry != null;
 
   /// `true` si un achat peut être lancé maintenant (produit chargé, aucun
   /// achat/vérif en cours).
@@ -163,45 +233,70 @@ class PurchaseController extends ChangeNotifier {
   // --- produits ---------------------------------------------------------
 
   /// 1) `isAvailable()` -> `storeUnavailable` si `false`.
-  /// 2) `queryProductDetails({auryel_premium_monthly})`.
-  /// 3) produit trouvé -> `premiumProduct` + état `idle`.
-  /// 4) dans `notFoundIDs` (ou liste vide) -> `productsUnavailable` (NORMAL
-  ///    tant que le produit n'est pas activé côté store).
+  /// 2) `queryProductDetails({auryel_premium_monthly, auryel_extra_hour})`.
+  /// 3) produit trouvé -> `premiumProduct` / `extraHourProduct` + état `idle`.
+  /// 4) dans `notFoundIDs` (ou liste vide) -> `productsUnavailable` /
+  ///    `ExtraHourPurchaseState.unavailable` (NORMAL tant que le produit n'est
+  ///    pas activé côté store). L'absence de `auryel_extra_hour` NE change PAS
+  ///    l'état Premium, et inversement.
   /// Aucune exception non gérée ne remonte à l'UI.
   Future<void> loadProducts() async {
     if (_disposed) return;
     _set(PurchaseState.loadingProducts);
+    _setExtra(ExtraHourPurchaseState.idle);
     try {
       final available = await _gateway.isAvailable();
       if (_disposed) return;
       if (!available) {
         _set(PurchaseState.storeUnavailable, errorCode: 'store_unavailable');
+        _extraHourProduct = null;
+        _setExtra(ExtraHourPurchaseState.unavailable,
+            errorCode: 'store_unavailable');
         return;
       }
       final resp = await _gateway.queryProductDetails({
         kPremiumMonthlyProductId,
+        kExtraHourProductId,
       });
       if (_disposed) return;
 
-      ProductDetails? found;
+      ProductDetails? premium;
+      ProductDetails? extraHour;
       for (final p in resp.productDetails) {
         if (p.id == kPremiumMonthlyProductId) {
-          found = p;
-          break;
+          premium = p;
+        } else if (p.id == kExtraHourProductId) {
+          extraHour = p;
         }
       }
-      if (found == null ||
+
+      // --- « 1 heure supplémentaire » (indépendant de Premium) ---
+      if (extraHour == null ||
+          resp.notFoundIDs.contains(kExtraHourProductId)) {
+        _extraHourProduct = null;
+        _setExtra(ExtraHourPurchaseState.unavailable,
+            errorCode: 'product_not_found');
+      } else {
+        _extraHourProduct = extraHour;
+        _setExtra(ExtraHourPurchaseState.idle);
+      }
+
+      // --- Premium ---
+      if (premium == null ||
           resp.notFoundIDs.contains(kPremiumMonthlyProductId)) {
         _premiumProduct = null;
         _set(PurchaseState.productsUnavailable, errorCode: 'product_not_found');
         return;
       }
-      _premiumProduct = found;
+      _premiumProduct = premium;
       _set(PurchaseState.idle);
     } on Object catch (e) {
       // Toute panne de query (plateforme, plugin) -> indisponible, pas de crash.
       _premiumProduct = null;
+      _extraHourProduct = null;
       _set(PurchaseState.productsUnavailable, errorCode: 'query_failed:$e');
+      _setExtra(ExtraHourPurchaseState.unavailable,
+          errorCode: 'query_failed:$e');
     }
   }
 
@@ -239,7 +334,32 @@ class PurchaseController extends ChangeNotifier {
   Future<void> retryVerification() async {
     final pending = _pendingRetry;
     if (_disposed || pending == null) return;
-    await _verifyAndComplete(pending);
+    // Reprise : on ne re-déclenche PAS l'événement Meta (déjà émis, ou reprise
+    // d'une restauration) — priorité au non-doublon de conversion.
+    await _verifyAndComplete(pending, isNewPurchase: false);
+  }
+
+  /// Lance l'achat CONSOMMABLE « 1 heure supplémentaire » (répétable). Le
+  /// résultat arrive via `purchaseStream`. Ne touche JAMAIS l'état Premium.
+  /// Aucun ajout local de 3600 s : le crédit est décidé par le backend.
+  Future<void> buyExtraHour() async {
+    if (_disposed) return;
+    final product = _extraHourProduct;
+    if (product == null || !canBuyExtraHour) return;
+    _setExtra(ExtraHourPurchaseState.purchasing);
+    try {
+      await _gateway.buyConsumable(product);
+    } on Object catch (e) {
+      _setExtra(ExtraHourPurchaseState.storeError, errorCode: 'buy_failed:$e');
+    }
+  }
+
+  /// Reprend le dernier achat « +1 h » en attente de vérification, avec un
+  /// Bearer frais. No-op s'il n'y a rien en attente.
+  Future<void> retryExtraHourVerification() async {
+    final pending = _extraHourPendingRetry;
+    if (_disposed || pending == null) return;
+    await _verifyAndCompleteExtraHour(pending);
   }
 
   // --- flux d'achat --------------------------------------------------
@@ -264,6 +384,11 @@ class PurchaseController extends ChangeNotifier {
   }
 
   Future<void> _handleOne(PurchaseDetails pd) async {
+    // Le produit consommable « +1 h » a son propre pipeline / son propre état.
+    if (pd.productID == kExtraHourProductId) {
+      await _handleExtraHourOne(pd);
+      return;
+    }
     switch (pd.status) {
       case PurchaseStatus.pending:
         // Aucune vérif backend, aucun completePurchase.
@@ -281,15 +406,20 @@ class PurchaseController extends ChangeNotifier {
         );
         return;
       case PurchaseStatus.purchased:
+        await _verifyAndComplete(pd, isNewPurchase: true);
+        return;
       case PurchaseStatus.restored:
-        await _verifyAndComplete(pd);
+        await _verifyAndComplete(pd, isNewPurchase: false);
         return;
     }
   }
 
   // --- verify backend + complete (ordre STRICT) ---------------------
 
-  Future<void> _verifyAndComplete(PurchaseDetails pd) async {
+  Future<void> _verifyAndComplete(
+    PurchaseDetails pd, {
+    required bool isNewPurchase,
+  }) async {
     if (_disposed) return;
 
     final platform = _platform;
@@ -363,6 +493,13 @@ class PurchaseController extends ChangeNotifier {
       }
       _pendingRetry = null;
       _set(PurchaseState.active);
+
+      // Meta : conversion « abonnement démarré » — UNIQUEMENT après un verify
+      // serveur 200 et pour un ACHAT NEUF (jamais une restauration / reprise).
+      // No-op sans consentement. Aucune donnée : ni prix, ni user_id, ni reçu.
+      if (isNewPurchase) {
+        unawaited(_meta.logSubscriptionStarted());
+      }
     } on ApiUnauthorizedException {
       // Mécanisme auth existant : purge + sessionExpired.
       await _auth.invalidateSession();
@@ -421,12 +558,129 @@ class PurchaseController extends ChangeNotifier {
     }
   }
 
+  // --- « 1 heure supplémentaire » : flux + verify (ordre STRICT) ----------
+
+  Future<void> _handleExtraHourOne(PurchaseDetails pd) async {
+    switch (pd.status) {
+      case PurchaseStatus.pending:
+        _setExtra(ExtraHourPurchaseState.pendingStore);
+        return;
+      case PurchaseStatus.canceled:
+        _setExtra(ExtraHourPurchaseState.canceled);
+        return;
+      case PurchaseStatus.error:
+        _setExtra(
+          ExtraHourPurchaseState.storeError,
+          errorCode: pd.error?.code ?? 'store_error',
+        );
+        return;
+      case PurchaseStatus.purchased:
+      case PurchaseStatus.restored:
+        await _verifyAndCompleteExtraHour(pd);
+        return;
+    }
+  }
+
+  Future<void> _verifyAndCompleteExtraHour(PurchaseDetails pd) async {
+    if (_disposed) return;
+
+    // Consommable « +1 h » : lot Android. Toute autre plateforme -> fatal
+    // (le backend renverrait 422 pour app_store de toute façon).
+    if (_platform != TargetPlatform.android) {
+      _extraHourPendingRetry = null;
+      _setExtra(ExtraHourPurchaseState.verifyFatal,
+          errorCode: 'unsupported_platform');
+      return;
+    }
+
+    // Google : purchase token = serverVerificationData (JAMAIS purchaseID).
+    final proof = pd.verificationData.serverVerificationData;
+    if (proof.isEmpty) {
+      _extraHourPendingRetry = null;
+      _setExtra(ExtraHourPurchaseState.verifyFatal,
+          errorCode: 'missing_store_proof');
+      return;
+    }
+
+    final key = 'extra_hour|${pd.productID}|$proof';
+    if (_inFlight.contains(key)) return;
+    _inFlight.add(key);
+
+    try {
+      final token = await _auth.currentToken();
+      if (_disposed) return;
+      if (token == null || token.isEmpty) {
+        _extraHourPendingRetry = pd;
+        _setExtra(ExtraHourPurchaseState.requiresAuthentication,
+            errorCode: 'requires_authentication');
+        return;
+      }
+
+      _setExtra(ExtraHourPurchaseState.verifying);
+
+      final resp = await _billing.verifyGooglePlayPurchase(
+        bearer: token,
+        productId: pd.productID,
+        purchaseToken: proof,
+      );
+      if (_disposed) return;
+
+      // ORDRE STRICT : verify 200 -> refresh wallet -> completePurchase.
+      // Jamais d'ajout local de 3600 s : le serveur a déjà crédité le bucket
+      // `purchased`, `refresh()` relit le portefeuille (bloc `time`).
+      await _consultation.refresh();
+      if (_disposed) return;
+
+      if (pd.pendingCompletePurchase) {
+        // autoConsume:true -> le plugin consomme ici -> l'heure redevient
+        // ré-achetable côté Play Billing.
+        await _gateway.completePurchase(pd);
+      }
+      _extraHourPendingRetry = null;
+      _setExtra(resp.purchase.alreadyCredited
+          ? ExtraHourPurchaseState.alreadyCredited
+          : ExtraHourPurchaseState.credited);
+    } on ApiUnauthorizedException {
+      await _auth.invalidateSession();
+      _extraHourPendingRetry = pd;
+      _setExtra(ExtraHourPurchaseState.requiresAuthentication,
+          errorCode: 'requires_authentication');
+    } on ApiNetworkException {
+      _extraHourPendingRetry = pd;
+      _setExtra(ExtraHourPurchaseState.verifyRetryable, errorCode: 'network');
+    } on ApiException catch (e) {
+      if (e.statusCode == 503 || e.statusCode >= 500) {
+        _extraHourPendingRetry = pd;
+        _setExtra(ExtraHourPurchaseState.verifyRetryable,
+            errorCode: e.code ?? 'server_error');
+      } else {
+        // 409 account_mismatch / 422 invalid_store_receipt / 400 -> fatal,
+        // aucun completePurchase.
+        _extraHourPendingRetry = null;
+        _setExtra(ExtraHourPurchaseState.verifyFatal,
+            errorCode: e.code ?? 'bad_request');
+      }
+    } on FormatException {
+      _extraHourPendingRetry = null;
+      _setExtra(ExtraHourPurchaseState.verifyFatal, errorCode: 'bad_response');
+    } finally {
+      _inFlight.remove(key);
+    }
+  }
+
   // --- helpers ---------------------------------------------------------
 
   void _set(PurchaseState state, {String? errorCode}) {
     if (_disposed) return;
     _state = state;
     _errorCode = errorCode;
+    notifyListeners();
+  }
+
+  void _setExtra(ExtraHourPurchaseState state, {String? errorCode}) {
+    if (_disposed) return;
+    _extraHourState = state;
+    _extraHourError = errorCode;
     notifyListeners();
   }
 }

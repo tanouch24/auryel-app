@@ -17,7 +17,7 @@ class NotificationSettingsScreen extends StatefulWidget {
   const NotificationSettingsScreen({
     super.key,
     this.serviceOverride,
-    this.settingsOpener = const NoopAppSettingsOpener(),
+    this.settingsOpener = const SystemAppSettingsOpener(),
   });
 
   /// Test uniquement : sinon lu depuis [NotificationScope].

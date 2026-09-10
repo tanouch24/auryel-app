@@ -35,6 +35,32 @@ class ApiNoCreditException extends ApiException {
   final Map<String, dynamic> body;
 }
 
+/// 403 — le backend refuse l'action (droit manquant). Sur les mutations de
+/// consultation, le `code` vaut notamment `age_verification_required` (date de
+/// naissance absente / invalide côté serveur) ou `adult_required` (moins de
+/// 18 ans, ou date future). Porte le corps décodé pour permettre un routage UX
+/// (retour au parcours 18+) sans nouvel appel — jamais présenté comme une
+/// panne serveur générique.
+class ApiForbiddenException extends ApiException {
+  ApiForbiddenException(this.body, {super.code, super.message}) : super(403);
+
+  final Map<String, dynamic> body;
+}
+
+/// Réponse « brute » d'un GET conditionnel ([ApiClient.getRaw]) : statut HTTP,
+/// corps décodé (vide sur 304), et `ETag` s'il est présent. `notModified` ->
+/// l'appelant conserve son cache.
+class ApiRawResponse {
+  ApiRawResponse({required this.statusCode, required this.body, this.etag});
+
+  final int statusCode;
+  final Map<String, dynamic> body;
+  final String? etag;
+
+  bool get ok => statusCode >= 200 && statusCode < 300;
+  bool get notModified => statusCode == 304;
+}
+
 /// Le serveur n'a pas pu être joint (DNS, socket, timeout, TLS...). Ne signifie
 /// PAS que la session est invalide : on ne détruit jamais le token là-dessus.
 class ApiNetworkException implements Exception {
@@ -103,6 +129,47 @@ class ApiClient {
     );
   }
 
+  /// GET « brut » pour le contenu distant conditionnel (cache HTTP) :
+  /// renvoie statut + corps + `ETag`, et NE traite PAS le 304 comme une
+  /// erreur. `ifNoneMatch` -> en-tête `If-None-Match`. 401 -> exception (comme
+  /// les autres verbes) ; réseau -> [ApiNetworkException] ; 4xx/5xx (hors 401)
+  /// -> [ApiRawResponse] avec le statut, à l'appelant de décider (le contenu
+  /// distant ne doit jamais bloquer l'app).
+  Future<ApiRawResponse> getRaw(
+    String path, {
+    String? bearer,
+    String? ifNoneMatch,
+  }) async {
+    final headers = _headers(bearer: bearer);
+    if (ifNoneMatch != null && ifNoneMatch.isNotEmpty) {
+      headers['If-None-Match'] = ifNoneMatch;
+    }
+    final http.Response response;
+    try {
+      response = await _http.get(_uri(path), headers: headers).timeout(timeout);
+    } on TimeoutException catch (e) {
+      throw ApiNetworkException(e);
+    } on SocketException catch (e) {
+      throw ApiNetworkException(e);
+    } on http.ClientException catch (e) {
+      throw ApiNetworkException(e);
+    } on HandshakeException catch (e) {
+      throw ApiNetworkException(e);
+    }
+    if (response.statusCode == 401) {
+      final decoded = _decode(response.body);
+      throw ApiUnauthorizedException(
+        code: decoded['error'] as String?,
+        message: decoded['message'] as String?,
+      );
+    }
+    return ApiRawResponse(
+      statusCode: response.statusCode,
+      body: response.statusCode == 304 ? const {} : _decode(response.body),
+      etag: response.headers['etag'],
+    );
+  }
+
   void close() => _http.close();
 
   // ---------------------------------------------------------------------------
@@ -147,6 +214,9 @@ class ApiClient {
     }
     if (response.statusCode == 402) {
       throw ApiNoCreditException(decoded, code: code, message: message);
+    }
+    if (response.statusCode == 403) {
+      throw ApiForbiddenException(decoded, code: code, message: message);
     }
     throw ApiException(response.statusCode, code: code, message: message);
   }

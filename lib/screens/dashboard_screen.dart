@@ -20,6 +20,7 @@ import '../theme/auryel_theme.dart';
 import '../widgets/advisors_carousel.dart';
 import '../widgets/ai_transparency_note.dart';
 import '../widgets/auryel_wordmark.dart';
+import '../widgets/meta_consent_tile.dart';
 import '../widgets/daily_message_sheet.dart';
 import '../widgets/gold_button.dart';
 import 'advisor_chooser_screen.dart';
@@ -163,9 +164,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   void _openSupport() {
-    Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => const SupportScreen()),
-    );
+    Navigator.of(context)
+        .push(MaterialPageRoute(builder: (_) => const SupportScreen()));
   }
 
   /// « Noter l'appli » — VOLONTAIRE (tap explicite). Ouvre la boîte de
@@ -182,9 +182,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     if (outcome == AppReviewOutcome.unavailable) {
       messenger.showSnackBar(
         const SnackBar(
-          content: Text(
-            'La notation n’est pas disponible pour le moment.',
-          ),
+          content: Text('La notation n’est pas disponible pour le moment.'),
         ),
       );
     }
@@ -514,6 +512,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 ),
                 const SizedBox(height: 16),
                 _Section(
+                  title: 'Confidentialité',
+                  icon: PhosphorIconsRegular.shieldCheck,
+                  child: const MetaConsentTile(),
+                ),
+                const SizedBox(height: 16),
+                _Section(
                   title: 'Aide',
                   icon: PhosphorIconsRegular.lifebuoy,
                   child: Column(
@@ -805,6 +809,15 @@ class _TimeSection extends StatelessWidget {
                 'Temps Premium',
                 ConsultationController.formatTotalTime(
                   t.premiumRemainingSeconds,
+                ),
+              ),
+            // Ordre = ordre de débit backend (first_free -> premium -> earned
+            // -> purchased) pour que le total se réconcilie avec les lignes.
+            if (t.earnedRemainingSeconds > 0)
+              _TimeRow(
+                'Temps gagné',
+                ConsultationController.formatTotalTime(
+                  t.earnedRemainingSeconds,
                 ),
               ),
             if (t.purchasedRemainingSeconds > 0)
@@ -1236,9 +1249,7 @@ class _MemoryRewardBlock extends StatelessWidget {
                 if (p == null) return null;
                 if (p.eligibleNow) return 'disponible';
                 final until = _humanizeUntil(p.nextEligibleAt);
-                return until == null
-                    ? 'déjà obtenue'
-                    : 'à nouveau dans $until';
+                return until == null ? 'déjà obtenue' : 'à nouveau dans $until';
               }(),
             ),
           ),

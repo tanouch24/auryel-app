@@ -16,11 +16,11 @@ import 'package:auryel/notifications/push_token_registrar.dart';
 
 class _RecordingRegistrar implements PushTokenRegistrar {
   final List<String> registered = [];
-  int unregisterCalls = 0;
+  final List<String> unregistered = [];
   @override
   Future<void> register(String token) async => registered.add(token);
   @override
-  Future<void> unregister() async => unregisterCalls++;
+  Future<void> unregister(String token) async => unregistered.add(token);
 }
 
 void main() {

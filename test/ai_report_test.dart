@@ -17,9 +17,11 @@ import 'package:auryel/data/auth_repository.dart';
 import 'package:auryel/data/onboarding_record.dart';
 import 'package:auryel/data/onboarding_repository.dart';
 import 'package:auryel/data/token_store.dart';
+import 'package:auryel/data/consultation.dart';
 import 'package:auryel/screens/chat_screen.dart';
 import 'package:auryel/state/auryel_state.dart';
 import 'package:auryel/state/auth_controller.dart';
+import 'package:auryel/state/consultation_controller.dart';
 import 'package:auryel/widgets/advisors_carousel.dart';
 
 // ===========================================================================
@@ -53,13 +55,20 @@ Map<String, dynamic> _quota() => {
 };
 
 class _Rig {
-  _Rig({int reportStatus = 200, Completer<void>? reportGate}) {
+  _Rig({
+    int reportStatus = 200,
+    Completer<void>? reportGate,
+    String? replyMessageId = 'm-1',
+    Map<String, dynamic>? history,
+  }) {
     final client = ApiClient(
       httpClient: MockClient((req) async {
         final p = req.url.path;
         if (p == '/api/consultation/message') {
           return _json({
             'reply': 'Voici ma réponse de conseiller.',
+            'message_id': ?replyMessageId,
+            'llm_status': 'ok',
             'consultation': {
               'id': 'c-1',
               'advisor_id': 'selena',
@@ -74,7 +83,7 @@ class _Rig {
           });
         }
         if (p == '/api/consultation/messages') {
-          return _json({'consultation_id': null, 'messages': []});
+          return _json(history ?? {'consultation_id': null, 'messages': []});
         }
         if (p == '/api/app/ai/report') {
           reportBodies.add(jsonDecode(req.body) as Map<String, dynamic>);
@@ -105,7 +114,11 @@ class _Rig {
   final List<Map<String, dynamic>> reportBodies = [];
 }
 
-Future<void> _pump(WidgetTester t, _Rig rig) {
+Future<void> _pump(
+  WidgetTester t,
+  _Rig rig, {
+  ConsultationController? consultation,
+}) {
   final state = AuryelState(
     repository: LocalOnboardingRepository(),
     initial: OnboardingRecord(
@@ -118,20 +131,54 @@ Future<void> _pump(WidgetTester t, _Rig rig) {
       onboardingCompleted: true,
     ),
   );
+  Widget chat = ChatScreen(
+    advisor: advisorByNameOrNull('Séléna')!,
+    aiReportApi: rig.aiReportApi,
+  );
+  if (consultation != null) {
+    chat = ConsultationScope(controller: consultation, child: chat);
+  }
   return t.pumpWidget(
     AuthScope(
       controller: rig.auth,
       child: AuryelStateScope(
         state: state,
-        child: MaterialApp(
-          home: ChatScreen(
-            advisor: advisorByNameOrNull('Séléna')!,
-            aiReportApi: rig.aiReportApi,
-          ),
-        ),
+        child: MaterialApp(home: chat),
       ),
     ),
   );
+}
+
+/// Session active injectée (id `c-1`) pour tester la reprise d'historique.
+ConsultationController _resumableConsultation(_Rig rig) {
+  final c = ConsultationController(
+    api: rig.auth.consultationApi,
+    auth: rig.auth,
+  );
+  c.updateFromMessageResponse(
+    ConsultationMessageResponse.fromJson({
+      'reply': 'x',
+      'consultation': {
+        'id': 'c-1',
+        'advisor_id': 'selena',
+        'started_at': '2026-09-06T10:00:00Z',
+        'expires_at': '2999-01-01T00:00:00Z',
+        'seconds_remaining': 6000,
+        'credit_source': 'time',
+      },
+      'quota': _quota(),
+      // window_active: false -> aucun Timer.periodic (pas de tick à nettoyer).
+      'time': {
+        'first_free_remaining_seconds': 0,
+        'premium_remaining_seconds': 6000,
+        'purchased_remaining_seconds': 0,
+        'total_remaining_seconds': 6000,
+        'window_active': false,
+        'window_expires_at': null,
+      },
+    }),
+  );
+  return c;
 }
 
 /// Envoie un message et obtient une réponse conseiller à l'écran.
@@ -195,32 +242,109 @@ void main() {
     },
   );
 
-  testWidgets('J6/J7 — envoi : POST /api/app/ai/report avec raison + '
-      'consultation_id réel + commentaire ; succès -> confirmation', (t) async {
+  testWidgets(
+    'J6/J7 — envoi : POST /api/app/ai/report avec raison + '
+    'message_id réel + consultation_id + commentaire ; succès -> confirmation',
+    (t) async {
+      final rig = _Rig();
+      addTearDown(rig.auth.dispose);
+      await _pump(t, rig);
+      await _sendAndReceive(t);
+      await _openReportSheet(t);
+
+      await t.tap(find.text('Réponse dangereuse'));
+      await t.pump();
+      await t.enterText(find.byType(TextField).last, 'ça me choque');
+      await t.pump();
+      await t.tap(find.text('Envoyer le signalement'));
+      await t.pumpAndSettle();
+
+      expect(rig.reportBodies, hasLength(1));
+      expect(rig.reportBodies.single['reason'], 'unsafe');
+      // Le contrat backend expose maintenant un message_id stable : la réponse
+      // assistant fraîche le porte, il est transmis au signalement.
+      expect(rig.reportBodies.single['message_id'], 'm-1');
+      expect(
+        rig.reportBodies.single['consultation_id'],
+        'c-1',
+      ); // contexte conservé
+      expect(rig.reportBodies.single['comment'], 'ça me choque');
+
+      expect(
+        find.text('Signaler cette réponse'),
+        findsNothing,
+      ); // feuille fermée
+      expect(
+        find.text('Merci. Ton signalement a bien été transmis.'),
+        findsOneWidget,
+      );
+    },
+  );
+
+  testWidgets('J11 — réponse assistant issue de l\'historique : le message_id '
+      'du DTO est transmis au signalement', (t) async {
+    final rig = _Rig(
+      history: {
+        'consultation_id': 'c-1',
+        'messages': [
+          {
+            'role': 'assistant',
+            'content': 'réponse restaurée',
+            'timestamp': '2026-09-06T10:00:00Z',
+            'message_id': 'h-9',
+            'llm_status': 'ok',
+          },
+        ],
+      },
+    );
+    addTearDown(rig.auth.dispose);
+    final consultation = _resumableConsultation(rig);
+    addTearDown(consultation.dispose);
+    await _pump(t, rig, consultation: consultation);
+    await t.pumpAndSettle();
+
+    expect(find.text('réponse restaurée'), findsOneWidget);
+    await _openReportSheet(t);
+    await t.tap(find.text('Envoyer le signalement'));
+    await t.pumpAndSettle();
+
+    expect(rig.reportBodies.single['message_id'], 'h-9');
+    expect(rig.reportBodies.single['consultation_id'], 'c-1');
+  });
+
+  testWidgets('J12 — réponse sans message_id (backend ancien) : signalement '
+      'encore possible via consultation_id, aucun message_id inventé', (
+    t,
+  ) async {
+    final rig = _Rig(replyMessageId: null);
+    addTearDown(rig.auth.dispose);
+    await _pump(t, rig);
+    await _sendAndReceive(t);
+    await _openReportSheet(t);
+
+    await t.tap(find.text('Envoyer le signalement'));
+    await t.pumpAndSettle();
+
+    expect(rig.reportBodies, hasLength(1));
+    expect(rig.reportBodies.single.containsKey('message_id'), isFalse);
+    expect(rig.reportBodies.single['consultation_id'], 'c-1');
+    expect(
+      find.text('Merci. Ton signalement a bien été transmis.'),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('J13 — le champ commentaire est plafonné à 1000 caractères', (
+    t,
+  ) async {
     final rig = _Rig();
     addTearDown(rig.auth.dispose);
     await _pump(t, rig);
     await _sendAndReceive(t);
     await _openReportSheet(t);
 
-    await t.tap(find.text('Réponse dangereuse'));
-    await t.pump();
-    await t.enterText(find.byType(TextField).last, 'ça me choque');
-    await t.pump();
-    await t.tap(find.text('Envoyer le signalement'));
-    await t.pumpAndSettle();
-
-    expect(rig.reportBodies, hasLength(1));
-    expect(rig.reportBodies.single['reason'], 'unsafe');
-    expect(rig.reportBodies.single['consultation_id'], 'c-1');
-    expect(rig.reportBodies.single['comment'], 'ça me choque');
-    expect(rig.reportBodies.single.containsKey('message_id'), isFalse);
-
-    expect(find.text('Signaler cette réponse'), findsNothing); // feuille fermée
-    expect(
-      find.text('Merci. Ton signalement a bien été transmis.'),
-      findsOneWidget,
-    );
+    final field = t.widget<TextField>(find.byType(TextField).last);
+    expect(field.maxLength, 1000);
   });
 
   testWidgets('J8/J10 — erreur serveur : PAS de faux succès, écran stable', (

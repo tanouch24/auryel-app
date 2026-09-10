@@ -63,7 +63,9 @@ Widget _hostNoAnim() => AuryelStateScope(
   ),
 );
 
-const _shareCta = 'gagne 1 h de communication offerte';
+// Nouveau bénéfice du bloc partage (bouton dédié « Partager maintenant »).
+const _shareCta = 'gagne 1 h de consultation';
+const _shareBtn = 'Partager maintenant';
 
 void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
@@ -84,20 +86,18 @@ void main() {
     expect(find.textContaining('/ 30 jours'), findsOneWidget);
   });
 
-  testWidgets('C quater. le wording exact du CTA de partage est affiché', (
-    t,
-  ) async {
+  testWidgets('C quater. bénéfice + VRAI bouton « Partager maintenant » ; '
+      'plus d\'encadré ambigu ni de « Cliquez ici »', (t) async {
     await t.pumpWidget(_host());
     await t.pump(const Duration(seconds: 1));
     expect(
-      find.text(
-        'Partage cette force avec tes contacts et gagne 1 h de '
-        'communication offerte.',
-      ),
+      find.text('Partage cette pensée et gagne 1 h de consultation'),
       findsOneWidget,
     );
+    expect(find.text(_shareBtn), findsOneWidget);
+    expect(find.text('Cliquez ici'), findsNothing);
     expect(
-      find.textContaining('gagne 1 h de consultation offerte'),
+      find.textContaining('gagne 1 h de communication offerte'),
       findsNothing,
     );
   });
@@ -107,7 +107,7 @@ void main() {
     await t.pumpWidget(_host());
     await t.pump(const Duration(seconds: 1));
 
-    await t.tap(find.textContaining(_shareCta));
+    await t.tap(find.text(_shareBtn));
     await t.pump();
     await t.pump(const Duration(milliseconds: 400));
 
@@ -133,31 +133,30 @@ void main() {
     expect(ctaDy, greaterThan(phraseDy));
   });
 
-  testWidgets('GUIDE. « Cliquez ici » présent ENTRE le CTA de partage et le '
-      'compteur « X / 30 » ; les trois coexistent', (t) async {
+  testWidgets('CTA partage : bénéfice, puis VRAI bouton, puis compteur '
+      '(ordre vertical) ; « Cliquez ici » supprimé', (t) async {
     await t.pumpWidget(_host());
     await t.pump(const Duration(seconds: 1));
 
-    expect(find.text('Cliquez ici'), findsOneWidget);
-    expect(find.textContaining(_shareCta), findsOneWidget); // CTA toujours là
-    expect(
-      find.textContaining('/ 30 jours'),
-      findsOneWidget,
-    ); // compteur toujours là
+    expect(find.text('Cliquez ici'), findsNothing);
+    expect(find.textContaining(_shareCta), findsOneWidget); // bénéfice
+    expect(find.text(_shareBtn), findsOneWidget); // vrai bouton
+    expect(find.textContaining('/ 30 jours'), findsOneWidget); // compteur
 
-    final ctaDy = t.getTopLeft(find.textContaining(_shareCta)).dy;
-    final guideDy = t.getTopLeft(find.text('Cliquez ici')).dy;
+    final benefitDy = t.getTopLeft(find.textContaining(_shareCta)).dy;
+    final btnDy = t.getTopLeft(find.text(_shareBtn)).dy;
     final counterDy = t.getTopLeft(find.textContaining('/ 30 jours')).dy;
-    expect(guideDy, greaterThan(ctaDy), reason: 'guide sous le bouton');
-    expect(counterDy, greaterThan(guideDy), reason: 'compteur sous le guide');
+    expect(btnDy, greaterThan(benefitDy), reason: 'bouton sous le bénéfice');
+    expect(counterDy, greaterThan(btnDy), reason: 'compteur sous le bouton');
   });
 
-  testWidgets('GUIDE. tap sur « Cliquez ici » déclenche le MÊME flux que le '
-      'bouton (aperçu de la publication)', (t) async {
+  testWidgets('tap « Partager maintenant » -> aperçu de la publication', (
+    t,
+  ) async {
     await t.pumpWidget(_host());
     await t.pump(const Duration(seconds: 1));
 
-    await t.tap(find.text('Cliquez ici'));
+    await t.tap(find.text(_shareBtn));
     await t.pump();
     await t.pump(const Duration(milliseconds: 400));
 
@@ -171,7 +170,8 @@ void main() {
   ) async {
     await t.pumpWidget(_hostNoAnim());
     await t.pumpAndSettle(); // ne DOIT pas expirer : aucune animation en cours
-    expect(find.text('Cliquez ici'), findsOneWidget);
+    expect(find.text('Cliquez ici'), findsNothing);
+    expect(find.text(_shareBtn), findsOneWidget);
     expect(find.textContaining(_shareCta), findsOneWidget);
     expect(find.textContaining('/ 30 jours'), findsOneWidget);
     expect(t.takeException(), isNull);
@@ -183,7 +183,7 @@ void main() {
     addTearDown(t.view.reset);
     await t.pumpWidget(_host());
     await t.pump(const Duration(seconds: 1));
-    expect(find.text('Cliquez ici'), findsOneWidget);
+    expect(find.text(_shareBtn), findsOneWidget);
     expect(t.takeException(), isNull);
   });
 
@@ -268,7 +268,7 @@ void main() {
   ) async {
     await t.pumpWidget(_host());
     await t.pump(const Duration(seconds: 1));
-    await t.tap(find.textContaining(_shareCta));
+    await t.tap(find.text(_shareBtn));
     await t.pump();
     await t.pump(const Duration(milliseconds: 400));
 

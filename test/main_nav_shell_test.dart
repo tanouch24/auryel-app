@@ -17,7 +17,7 @@ import 'package:auryel/data/token_store.dart';
 import 'package:auryel/screens/consultation_screen.dart';
 import 'package:auryel/screens/dashboard_screen.dart';
 import 'package:auryel/screens/home_screen.dart';
-import 'package:auryel/screens/meditation_screen.dart';
+import 'package:auryel/screens/meditation_library_screen.dart';
 import 'package:auryel/screens/tirage_jeu_screen.dart';
 import 'package:auryel/screens/tirage_screen.dart';
 import 'package:auryel/state/auryel_state.dart';
@@ -102,7 +102,7 @@ void main() {
   });
 
   testWidgets('Accueil -> HomeScreen ; Tirage & Jeu -> hub ; Consultation -> '
-      'feed ; Méditation -> MeditationScreen ; Mon compte -> Dashboard ; '
+      'feed ; Méditation -> bibliothèque ; Mon compte -> Dashboard ; '
       'retour Accueil', (tester) async {
     await tester.pumpWidget(_wrap());
     await tester.pumpAndSettle();
@@ -124,11 +124,11 @@ void main() {
     expect(find.byType(ConsultationScreen), findsOneWidget);
     expect(find.text('Consultations en cours'), findsOneWidget);
 
-    // Méditation : vrai écran « Ton Moment ».
+    // Méditation : la BIBLIOTHÈQUE (1 audio = 1 fiche ; le lecteur s'ouvre au tap).
     await tester.tap(_tab('Méditation'));
     await tester.pumpAndSettle();
-    expect(find.byType(MeditationScreen), findsOneWidget);
-    expect(find.text('Ton Moment du jour'), findsOneWidget);
+    expect(find.byType(MeditationLibraryScreen), findsOneWidget);
+    expect(find.text('Bibliothèque'), findsOneWidget);
 
     // Mon compte : réutilise le Dashboard existant (une seule implémentation).
     await tester.tap(_tab('Mon compte'));

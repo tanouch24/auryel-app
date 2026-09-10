@@ -105,7 +105,9 @@ class AuthController extends ChangeNotifier {
     SupportApi? supportApi,
     LocalUserData? localUserData,
     InstallationIdStore? installationIdStore,
+    Future<void> Function()? pushUnregister,
   }) : _repo = repository,
+       _pushUnregister = pushUnregister,
        _profileApi = profileApi,
        _consultationApi = consultationApi,
        _tirageApi = tirageApi,
@@ -130,6 +132,29 @@ class AuthController extends ChangeNotifier {
   final SupportApi? _supportApi;
   final LocalUserData _localUserData;
   final InstallationIdStore? _installationIdStore;
+
+  /// Désenregistrement du jeton push de CET appareil, exécuté AVANT de perdre
+  /// le Bearer (logout / suppression de compte). Best effort : ne bloque
+  /// jamais, n'échoue jamais l'opération. `null` dans les tests hérités.
+  ///
+  /// Peut être fourni au constructeur ou rattaché après coup (le
+  /// `NotificationCoordinator` est construit après l'`AuthController`).
+  Future<void> Function()? _pushUnregister;
+
+  // ignore: use_setters_to_change_properties
+  void attachPushUnregister(Future<void> Function() hook) {
+    _pushUnregister = hook;
+  }
+
+  Future<void> _runPushUnregister() async {
+    final hook = _pushUnregister;
+    if (hook == null) return;
+    try {
+      await hook();
+    } catch (_) {
+      /* le push ne bloque jamais un logout / une suppression */
+    }
+  }
 
   /// Exposé pour les écrans qui appellent le backend consultation (F3+).
   ConsultationApi get consultationApi => _consultationApi;
@@ -368,6 +393,9 @@ class AuthController extends ChangeNotifier {
   }
 
   Future<void> logout() async {
+    // AVANT de perdre le Bearer : désenregistrer le jeton push de cet appareil
+    // (best effort — ne désactive JAMAIS les autres appareils du compte).
+    await _runPushUnregister();
     await _repo.logout();
     _set(AuthStatus.signedOut, null);
   }
@@ -403,6 +431,9 @@ class AuthController extends ChangeNotifier {
       return AccountDeletionOutcome.retryable; // session CONSERVÉE
     }
     // Succès serveur confirmé -> on nettoie, dans cet ordre.
+    // Désenregistrement push best-effort AVANT la purge du jeton (le serveur
+    // purge de toute façon push_devices dans la transaction de suppression).
+    await _runPushUnregister();
     await _localUserData.clearPersonal();
     await _repo.clearSession();
     _set(AuthStatus.signedOut, null);

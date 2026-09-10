@@ -96,13 +96,17 @@ class _FakeNotificationService implements AuryelNotificationService {
 
 class _RecordingRegistrar implements PushTokenRegistrar {
   final List<String> registered = [];
+  final List<String> unregistered = [];
   int unregisterCalls = 0;
 
   @override
   Future<void> register(String token) async => registered.add(token);
 
   @override
-  Future<void> unregister() async => unregisterCalls++;
+  Future<void> unregister(String token) async {
+    unregisterCalls++;
+    unregistered.add(token);
+  }
 }
 
 class _RecordingOpener implements AppSettingsOpener {
@@ -304,11 +308,12 @@ void main() {
       coord.dispose();
     });
 
-    test('13 — token null -> registrar jamais appelé', () async {
+    test('13 — token null (même connecté) -> registrar jamais appelé', () async {
       final reg = _RecordingRegistrar();
       final coord = NotificationCoordinator(
         service: _FakeNotificationService(token: null),
         registrar: reg,
+        isSignedIn: () => true,
       );
       await coord.start();
       await Future<void>.delayed(Duration.zero);
@@ -316,10 +321,15 @@ void main() {
       coord.dispose();
     });
 
-    test('14 — token présent + refresh -> registrar.register appelé', () async {
+    test('14 — connecté : token initial + refresh -> registrar.register '
+        'appelé', () async {
       final fake = _FakeNotificationService(token: 'tok-abc');
       final reg = _RecordingRegistrar();
-      final coord = NotificationCoordinator(service: fake, registrar: reg);
+      final coord = NotificationCoordinator(
+        service: fake,
+        registrar: reg,
+        isSignedIn: () => true,
+      );
       await coord.start();
       await Future<void>.delayed(Duration.zero);
       expect(reg.registered, contains('tok-abc'));
@@ -330,10 +340,34 @@ void main() {
       coord.dispose();
     });
 
+    test('14b — déconnecté : le jeton est bufferisé, register PAS appelé, '
+        'puis onSignedIn() le flush ; unregisterCurrent() désenregistre',
+        () async {
+      final fake = _FakeNotificationService(token: 'tok-buf');
+      final reg = _RecordingRegistrar();
+      var signedIn = false;
+      final coord = NotificationCoordinator(
+        service: fake,
+        registrar: reg,
+        isSignedIn: () => signedIn,
+      );
+      await coord.start();
+      await Future<void>.delayed(Duration.zero);
+      expect(reg.registered, isEmpty); // pas de session -> rien envoyé
+
+      signedIn = true;
+      await coord.onSignedIn();
+      expect(reg.registered, contains('tok-buf'));
+
+      await coord.unregisterCurrent();
+      expect(reg.unregistered, contains('tok-buf'));
+      coord.dispose();
+    });
+
     test('NoopPushTokenRegistrar — n\'échoue jamais', () async {
       const reg = NoopPushTokenRegistrar();
       await reg.register('x');
-      await reg.unregister();
+      await reg.unregister('x');
     });
   });
 

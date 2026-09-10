@@ -293,15 +293,17 @@ void main() {
 
   group('Pensée du jour — préservée', () {
     testWidgets(
-      'CTA partage + « Cliquez ici » + « X / 30 jours » + aucune date',
+      'bloc partage : bénéfice + bouton « Partager maintenant » + « X / 30 '
+      'jours » + aucune date',
       (t) async {
         await t.pumpWidget(_host());
         await t.pump(const Duration(seconds: 1));
         expect(
-          find.textContaining('gagne 1 h de communication offerte'),
+          find.textContaining('gagne 1 h de consultation'),
           findsOneWidget,
         );
-        expect(find.text('Cliquez ici'), findsOneWidget);
+        expect(find.text('Partager maintenant'), findsOneWidget);
+        expect(find.text('Cliquez ici'), findsNothing);
         expect(find.textContaining('/ 30 jours'), findsOneWidget);
         expect(find.textContaining('AOÛT'), findsNothing);
         expect(find.textContaining('2026'), findsNothing);
@@ -313,7 +315,7 @@ void main() {
     ) async {
       await t.pumpWidget(_host());
       await t.pump(const Duration(seconds: 1));
-      await t.tap(find.textContaining('gagne 1 h de communication offerte'));
+      await t.tap(find.text('Partager maintenant'));
       await t.pump();
       await t.pump(const Duration(milliseconds: 400));
       expect(find.byType(DailyMessageSheet), findsOneWidget);
