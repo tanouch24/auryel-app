@@ -529,11 +529,19 @@ class _TirageScreenState extends State<TirageScreen> {
                       children: [
                         for (var i = 0; i < cards.length; i++) ...[
                           _CardDetail(index: i, card: cards[i]),
-                          const SizedBox(height: 18),
+                          if (i < cards.length - 1) ...[
+                            const SizedBox(height: 16),
+                            Divider(
+                              color: AuryelColors.warmBorder.withValues(
+                                alpha: 0.5,
+                              ),
+                              height: 1,
+                              thickness: 0.5,
+                            ),
+                            const SizedBox(height: 16),
+                          ] else
+                            const SizedBox(height: 22),
                         ],
-                        const SizedBox(height: 4),
-                        Divider(color: AuryelColors.warmBorder, height: 1),
-                        const SizedBox(height: 18),
                         // TIRAGE-UX — plus de recopie des 3 explications : une
                         // vraie SYNTHÈSE qui relie les cartes et conclut. Le
                         // champ serveur `combined_interpretation` n'étant qu'un
@@ -877,23 +885,44 @@ class _TirageSynthesis extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'Ce que dit l’ensemble',
-          style: AuryelText.display(fontSize: 19, fontWeight: FontWeight.w600),
-        ),
-        const SizedBox(height: 10),
-        Text(
-          _body,
-          style: AuryelText.body(
-            fontSize: 13.5,
-            height: 1.6,
-            color: AuryelColors.textSecondary,
+    // Bloc PREMIUM distinct des interprétations carte par carte : fond de
+    // surface, liseré doré, coin arrondi. La logique du texte est inchangée.
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(18, 16, 18, 18),
+      decoration: BoxDecoration(
+        color: AuryelColors.surface.withValues(alpha: 0.55),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AuryelColors.gold.withValues(alpha: 0.35)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'LA LECTURE D’ENSEMBLE',
+            style: AuryelText.body(
+              fontSize: 9.5,
+              fontWeight: FontWeight.w700,
+              color: AuryelColors.goldLight,
+              letterSpacing: 1.8,
+            ),
           ),
-        ),
-      ],
+          const SizedBox(height: 6),
+          Text(
+            'Ce que dit l’ensemble',
+            style: AuryelText.display(fontSize: 19, fontWeight: FontWeight.w600),
+          ),
+          const SizedBox(height: 10),
+          Text(
+            _body,
+            style: AuryelText.body(
+              fontSize: 13.5,
+              height: 1.6,
+              color: AuryelColors.textSecondary,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

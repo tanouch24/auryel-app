@@ -50,6 +50,11 @@ class _AdvisorSelectorScreenState extends State<AdvisorSelectorScreen>
   bool _muted = false;
   bool _reduceMotion = false;
 
+  /// Indice « il y a d'autres conseillers plus bas » : visible tant que
+  /// l'utilisateur n'a pas encore fait défiler. Une fois qu'il a changé de
+  /// page au moins une fois, il a compris — l'indice ne revient jamais.
+  bool _scrollCueSeen = false;
+
   @override
   void initState() {
     super.initState();
@@ -119,7 +124,10 @@ class _AdvisorSelectorScreenState extends State<AdvisorSelectorScreen>
 
   Future<void> _onPageChanged(int i) async {
     if (i == _page) return;
-    setState(() => _page = i);
+    setState(() {
+      _page = i;
+      _scrollCueSeen = true; // l'utilisateur a compris qu'on peut défiler
+    });
     await _stopAudio();
     await _maybePlayCurrent();
   }
@@ -186,6 +194,11 @@ class _AdvisorSelectorScreenState extends State<AdvisorSelectorScreen>
                       alreadyConsulted: known,
                       primaryLabel: known ? 'Reprendre' : 'Parler',
                       onPrimary: () => _pick(advisor),
+                      // Indice de défilement : seulement sur la 1re carte, et
+                      // seulement tant que l'utilisateur n'a pas encore défilé.
+                      showScrollCue: i == 0 &&
+                          !_scrollCueSeen &&
+                          kAdvisors.length > 1,
                     );
                   },
                 ),
@@ -273,6 +286,7 @@ class _AdvisorPage extends StatelessWidget {
     required this.alreadyConsulted,
     required this.primaryLabel,
     required this.onPrimary,
+    this.showScrollCue = false,
   });
 
   final AdvisorInfo advisor;
@@ -281,6 +295,7 @@ class _AdvisorPage extends StatelessWidget {
   final bool alreadyConsulted;
   final String primaryLabel;
   final VoidCallback onPrimary;
+  final bool showScrollCue;
 
   List<String> get _specialties => advisor.specialty
       .split(RegExp(r'\s*&\s*'))
@@ -430,6 +445,11 @@ class _AdvisorPage extends StatelessWidget {
                 ),
             ],
           ),
+          // Indice « d'autres conseillers plus bas » : discret, entre les tags
+          // et le CTA (ne masque jamais le portrait, ne concurrence jamais le
+          // CTA). `SizedBox.shrink()` quand masqué -> aucun impact de mise en
+          // page. Disparaît définitivement au 1er défilement.
+          _ScrollCue(visible: showScrollCue, reduceMotion: reduceMotion),
           const SizedBox(height: 12),
           // Le CTA n'est jamais masqué par la barre système Android : la
           // SafeArea racine ne réserve pas le bas (feed vertical) -> on ajoute
@@ -455,6 +475,100 @@ class _AdvisorPage extends StatelessWidget {
         duration: const Duration(milliseconds: 220),
         curve: Curves.easeOut,
         child: content,
+      ),
+    );
+  }
+}
+
+/// Indice de défilement vertical — libellé court + chevron bas avec un très
+/// léger va-et-vient. Purement décoratif (`IgnorePointer`). Rendu nul quand
+/// masqué : aucun impact sur la mise en page, y compris petits écrans.
+class _ScrollCue extends StatefulWidget {
+  const _ScrollCue({required this.visible, required this.reduceMotion});
+
+  final bool visible;
+  final bool reduceMotion;
+
+  @override
+  State<_ScrollCue> createState() => _ScrollCueState();
+}
+
+class _ScrollCueState extends State<_ScrollCue>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _bob = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 1400),
+  );
+
+  void _startBob() {
+    if (!widget.visible || widget.reduceMotion || _bob.isAnimating) return;
+    // Va-et-vient FINI (quelques allers-retours puis repos) — jamais d'animation
+    // infinie, pour ne pas bloquer pumpAndSettle.
+    _bob.repeat(reverse: true, count: 6);
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _startBob();
+  }
+
+  @override
+  void didUpdateWidget(_ScrollCue old) {
+    super.didUpdateWidget(old);
+    if (!old.visible && widget.visible) _startBob();
+  }
+
+  @override
+  void dispose() {
+    _bob.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!widget.visible) return const SizedBox.shrink();
+    Widget chevron = const PhosphorIcon(
+      PhosphorIconsRegular.caretDown,
+      size: 15,
+      color: AuryelColors.goldLight,
+    );
+    if (!widget.reduceMotion) {
+      chevron = AnimatedBuilder(
+        animation: _bob,
+        child: chevron,
+        builder: (_, child) => Transform.translate(
+          offset: Offset(0, (_bob.value * 4) - 1),
+          child: child,
+        ),
+      );
+    }
+    return IgnorePointer(
+      child: Padding(
+        padding: const EdgeInsets.only(top: 8),
+        child: Semantics(
+          label: 'Fais défiler pour découvrir les autres conseillers',
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Flexible(
+                child: Text(
+                  'Découvrir les autres',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AuryelText.body(
+                    fontSize: 10.5,
+                    fontWeight: FontWeight.w600,
+                    color: AuryelColors.goldLight.withValues(alpha: 0.85),
+                    letterSpacing: 1.1,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 2),
+              chevron,
+            ],
+          ),
+        ),
       ),
     );
   }

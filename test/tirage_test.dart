@@ -258,6 +258,13 @@ void main() {
       // et NE recopie PAS `combined_interpretation` (assemblage des interps).
       expect(find.textContaining('pose le décor'), findsOneWidget);
       expect(find.text(_serverCombined), findsNothing);
+
+      // LOT 13 — lecture STRUCTURÉE : « Carte 1/2/3 » + synthèse en BLOC
+      // PREMIUM distinct (overline), rendue une seule fois.
+      expect(find.text('Carte 1'), findsOneWidget);
+      expect(find.text('Carte 2'), findsOneWidget);
+      expect(find.text('Carte 3'), findsOneWidget);
+      expect(find.text('LA LECTURE D’ENSEMBLE'), findsOneWidget);
     },
   );
 
