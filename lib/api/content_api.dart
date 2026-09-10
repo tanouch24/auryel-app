@@ -1,5 +1,6 @@
 import '../data/daily_thought.dart';
 import '../data/meditation_item.dart';
+import '../data/relaxation_video.dart';
 import 'api_client.dart';
 
 /// Contenu du jour renvoyé par `GET /api/app/content/today`.
@@ -61,6 +62,31 @@ class MeditationsCatalogResult {
   bool get ok => status == 200;
 }
 
+/// Résultat de `GET /api/app/content/relaxation-videos` (catalogue conditionnel,
+/// même philosophie que [MeditationsCatalogResult]).
+///
+///  - `status == 304` -> l'appelant CONSERVE son cache (pas une erreur).
+///  - `status == 200` -> `videos` = catalogue actif (peut être VIDE) +
+///    `catalogVersion` + `etag`.
+///  - autre -> `videos` vide : l'app retombe sur cache / fond statique. Une
+///    absence de vidéo ne bloque JAMAIS une méditation.
+class RelaxationVideosResult {
+  const RelaxationVideosResult({
+    required this.status,
+    required this.videos,
+    this.catalogVersion,
+    this.etag,
+  });
+
+  final int status;
+  final List<RelaxationVideo> videos;
+  final String? catalogVersion;
+  final String? etag;
+
+  bool get notModified => status == 304;
+  bool get ok => status == 200;
+}
+
 /// Couche API du contenu distant (pensée du jour + méditations). Réutilise
 /// l'[ApiClient] commun (aucun second client HTTP) via [ApiClient.getRaw] pour
 /// exploiter l'`ETag` / le `304`.
@@ -106,6 +132,44 @@ class ContentApi {
     return MeditationsCatalogResult(
       status: 200,
       items: items,
+      catalogVersion: _str(res.body['catalog_version']),
+      etag: res.etag ?? etag,
+    );
+  }
+
+  /// Catalogue des vidéos d'ambiance. Même contrat que [meditations] :
+  /// `etag` -> `If-None-Match`, `304` -> `RelaxationVideosResult(status: 304)`.
+  /// Ne bloque jamais l'app : un statut hors-2xx renvoie une liste vide.
+  Future<RelaxationVideosResult> relaxationVideos({
+    String? bearer,
+    String? etag,
+  }) async {
+    final res = await _client.getRaw(
+      '/api/app/content/relaxation-videos',
+      bearer: bearer,
+      ifNoneMatch: etag,
+    );
+    if (res.notModified) {
+      return RelaxationVideosResult(
+        status: 304,
+        videos: const [],
+        etag: etag,
+      );
+    }
+    if (!res.ok) {
+      return RelaxationVideosResult(status: res.statusCode, videos: const []);
+    }
+    final raw = res.body['videos'];
+    final videos = raw is List
+        ? raw
+              .whereType<Map<String, dynamic>>()
+              .map(RelaxationVideo.tryFromJson)
+              .whereType<RelaxationVideo>()
+              .toList(growable: false)
+        : const <RelaxationVideo>[];
+    return RelaxationVideosResult(
+      status: 200,
+      videos: videos,
       catalogVersion: _str(res.body['catalog_version']),
       etag: res.etag ?? etag,
     );

@@ -9,9 +9,12 @@ import '../data/daily_mission_tracker.dart';
 import '../data/meditation_audio.dart';
 import '../data/meditation_catalog.dart';
 import '../data/meditation_item.dart';
+import '../data/relaxation_video.dart';
+import '../data/relaxation_video_selector.dart';
 import '../state/auth_controller.dart';
 import '../theme/auryel_theme.dart';
 import '../widgets/main_nav_scope.dart';
+import '../widgets/relaxation_video_background.dart';
 
 /// Onglet « Méditation » — « Ton Moment ». Une vraie séance audio par jour
 /// (rotation locale déterministe), un lecteur complet (lecture / pause /
@@ -33,6 +36,8 @@ class MeditationScreen extends StatefulWidget {
     this.now,
     this.missionTracker,
     this.wellbeingApi,
+    this.videoSelector,
+    this.videoSurfaceFactory,
   });
 
   /// Test uniquement : lecteur injecté (aucun canal plateforme en test).
@@ -40,6 +45,13 @@ class MeditationScreen extends StatefulWidget {
   final MeditationCatalog catalog;
   final DateTime? now;
   final DailyMissionTracker? missionTracker;
+
+  /// Sélecteur de vidéo d'ambiance (aléatoire injectable + anti-répétition).
+  /// `null` -> instance par défaut. Injecté en test pour un choix déterministe.
+  final RelaxationVideoSelector? videoSelector;
+
+  /// Test uniquement : fabrique la surface vidéo (aucun canal plateforme).
+  final RelaxationVideoSurface Function()? videoSurfaceFactory;
 
   /// Parcours bien-être : sync serveur de la mission `moment` (aucune trace
   /// serveur propre à la méditation). Injecté en test ; en production, lu via
@@ -67,6 +79,18 @@ class _MeditationScreenState extends State<MeditationScreen>
     widget.now ?? DateTime.now(),
   );
   bool _contentResolved = false;
+
+  late final RelaxationVideoSelector _videoSelector =
+      widget.videoSelector ?? RelaxationVideoSelector();
+
+  /// Vidéo d'ambiance choisie pour CETTE séance (une seule, préchargée à la
+  /// demande). `null` = aucune vidéo compatible / catalogue vide -> fond
+  /// statique. N'influe JAMAIS sur l'audio.
+  RelaxationVideo? _video;
+
+  /// La vidéo n'est montée qu'après le premier lancement de la séance (data
+  /// mobile : rien n'est streamé tant que l'utilisateur n'a pas appuyé sur play).
+  bool _everStarted = false;
 
   final List<StreamSubscription<dynamic>> _subs = [];
 
@@ -111,11 +135,16 @@ class _MeditationScreenState extends State<MeditationScreen>
       _contentResolved = true;
       final content = ContentScope.maybeOf(context);
       if (content != null) {
-        content.momentOfDay(widget.now ?? DateTime.now()).then((it) {
-          if (it != null && mounted && it.id != _item.id) {
-            setState(() => _item = it);
-          }
-        });
+        content
+            .momentOfDay(widget.now ?? DateTime.now())
+            .then((it) {
+              if (it != null && mounted && it.id != _item.id) {
+                setState(() => _item = it);
+              }
+            })
+            .whenComplete(() {
+              if (mounted) _resolveAmbianceVideo(content);
+            });
       }
     }
 
@@ -183,6 +212,23 @@ class _MeditationScreenState extends State<MeditationScreen>
     }
   }
 
+  /// Choisit UNE vidéo d'ambiance compatible avec la séance courante (au
+  /// hasard, anti-répétition). Entièrement non bloquant : toute erreur laisse
+  /// [_video] à `null` -> fond statique. L'audio n'est jamais concerné.
+  Future<void> _resolveAmbianceVideo(ContentRepository content) async {
+    try {
+      final catalog = await content.relaxationVideos();
+      if (!mounted || catalog.isEmpty) return;
+      final picked = await _videoSelector.pick(
+        catalog,
+        meditationCategory: _item.category.name,
+      );
+      if (mounted && picked != null) setState(() => _video = picked);
+    } catch (_) {
+      /* pas de vidéo -> fond statique, jamais bloquant */
+    }
+  }
+
   Future<void> _onPrimaryTap() async {
     switch (_status) {
       case _PlayStatus.idle:
@@ -199,6 +245,7 @@ class _MeditationScreenState extends State<MeditationScreen>
 
   Future<void> _start() async {
     _elapsed = Duration.zero;
+    _everStarted = true;
     // `playbackSource` = URL distante si exploitable, sinon chemin d'asset.
     // Une séance sans aucune source lisible -> `play` renvoie `false` -> état
     // « bientôt disponible » (jamais de tentative de lecture d'asset manquant).
@@ -250,13 +297,9 @@ class _MeditationScreenState extends State<MeditationScreen>
         : 0.0;
     final playing = _status == _PlayStatus.playing;
 
-    return Container(
-      decoration: const BoxDecoration(
-        gradient: AuryelColors.backgroundGradient,
-      ),
-      child: SafeArea(
-        bottom: false,
-        child: SingleChildScrollView(
+    final content = SafeArea(
+      bottom: false,
+      child: SingleChildScrollView(
           padding: const EdgeInsets.fromLTRB(24, 22, 24, 28),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.center,
@@ -368,7 +411,26 @@ class _MeditationScreenState extends State<MeditationScreen>
             ],
           ),
         ),
-      ),
+    );
+
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        // Base : toujours présente. Reste visible si la vidéo est absente,
+        // échoue, ou n'a pas encore démarré.
+        const DecoratedBox(
+          decoration: BoxDecoration(gradient: AuryelColors.backgroundGradient),
+        ),
+        // Ambiance visuelle (muette) : uniquement après le 1er lancement et si
+        // une vidéo compatible a été choisie. Pause/lecture suivent l'audio.
+        if (_video != null && _everStarted)
+          RelaxationVideoBackground(
+            video: _video,
+            active: playing,
+            surfaceFactory: widget.videoSurfaceFactory,
+          ),
+        content,
+      ],
     );
   }
 }

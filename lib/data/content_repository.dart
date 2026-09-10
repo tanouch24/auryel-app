@@ -11,6 +11,7 @@ import '../api/content_api.dart';
 import 'daily_thought.dart';
 import 'meditation_catalog.dart';
 import 'meditation_item.dart';
+import 'relaxation_video.dart';
 
 /// Orchestrateur du contenu distant (pensée du jour + méditations) avec cache
 /// local et fallback embarqué.
@@ -47,6 +48,7 @@ class ContentRepository {
 
   static const String _todayKey = 'auryel.content.today.v1';
   static const String _medsKey = 'auryel.content.meditations.v1';
+  static const String _videosKey = 'auryel.content.relaxation_videos.v1';
 
   Future<SharedPreferences> get _prefs async =>
       _injectedPrefs ?? await SharedPreferences.getInstance();
@@ -170,6 +172,85 @@ class ContentRepository {
     return list[MeditationCatalog.indexForDay(now, list.length)];
   }
 
+  // =========================================================================
+  // VIDÉOS D'AMBIANCE APAISANTES
+  // =========================================================================
+
+  /// Catalogue des vidéos d'ambiance résolu (serveur -> cache -> liste vide).
+  ///
+  /// Ne lève JAMAIS. Une liste vide est un résultat NORMAL : l'écran de
+  /// méditation affiche alors un fond statique. L'absence de vidéo ne bloque
+  /// jamais la lecture audio.
+  Future<List<RelaxationVideo>> relaxationVideos() async {
+    final cached = await _readVideosCache();
+    final api = _api;
+
+    if (api != null) {
+      try {
+        final token = await _token?.call();
+        final res = await api.relaxationVideos(
+          bearer: token,
+          etag: cached?.etag,
+        );
+        if (res.notModified && cached != null) return cached.items;
+        if (res.ok) {
+          await _writeVideosCache(res.videos, res.etag, res.catalogVersion);
+          return res.videos;
+        }
+        // Autre statut -> cache / vide ci-dessous.
+      } catch (_) {
+        /* réseau KO -> cache / vide */
+      }
+    }
+
+    return cached?.items ?? const <RelaxationVideo>[];
+  }
+
+  Future<_VideosCache?> _readVideosCache() async {
+    try {
+      final p = await _prefs;
+      final raw = p.getString(_videosKey);
+      if (raw == null) return null;
+      final decoded = jsonDecode(raw);
+      if (decoded is! Map) return null;
+      final rawItems = decoded['items'];
+      final items = rawItems is List
+          ? rawItems
+                .whereType<Map<String, dynamic>>()
+                .map(RelaxationVideo.tryFromJson)
+                .whereType<RelaxationVideo>()
+                .toList(growable: false)
+          : const <RelaxationVideo>[];
+      return _VideosCache(
+        etag: decoded['etag'] as String?,
+        version: decoded['catalog_version'] as String?,
+        items: items,
+      );
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<void> _writeVideosCache(
+    List<RelaxationVideo> items,
+    String? etag,
+    String? version,
+  ) async {
+    try {
+      final p = await _prefs;
+      await p.setString(
+        _videosKey,
+        jsonEncode({
+          'etag': ?etag,
+          'catalog_version': ?version,
+          'items': [for (final v in items) v.toCacheJson()],
+        }),
+      );
+    } catch (_) {
+      /* cache best-effort */
+    }
+  }
+
   Future<_MedsCache?> _readMedsCache() async {
     try {
       final p = await _prefs;
@@ -233,6 +314,14 @@ class _MedsCache {
   final String? etag;
   final String? version;
   final List<MeditationItem> items;
+}
+
+@immutable
+class _VideosCache {
+  const _VideosCache({this.etag, this.version, required this.items});
+  final String? etag;
+  final String? version;
+  final List<RelaxationVideo> items;
 }
 
 /// Fournit le [ContentRepository] à l'arbre. Absent (tests hérités) ->
