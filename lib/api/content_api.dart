@@ -45,6 +45,9 @@ class TodayContent {
 ///  - `status == 200` -> `items` = catalogue actif (peut être VIDE si le
 ///    backend n'a encore rien publié) + `catalogVersion` + `etag`.
 ///  - autre -> `items` vide, à l'appelant de retomber sur cache / embarqué.
+///
+/// Contrat serveur réel : `{ "version", "catalog_version", "meditations": [...] }`.
+/// La clé historique `items` est encore acceptée en repli (compat ascendante).
 class MeditationsCatalogResult {
   const MeditationsCatalogResult({
     required this.status,
@@ -121,7 +124,9 @@ class ContentApi {
     if (!res.ok) {
       return MeditationsCatalogResult(status: res.statusCode, items: const []);
     }
-    final rawItems = res.body['items'];
+    // Contrat serveur : clé `meditations`. `items` = repli pour une éventuelle
+    // ancienne réponse.
+    final rawItems = res.body['meditations'] ?? res.body['items'];
     final items = rawItems is List
         ? rawItems
               .whereType<Map<String, dynamic>>()

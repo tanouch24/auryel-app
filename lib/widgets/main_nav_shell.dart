@@ -10,7 +10,7 @@ import '../notifications/notification_service.dart';
 import '../screens/consultation_screen.dart';
 import '../screens/dashboard_screen.dart';
 import '../screens/home_screen.dart';
-import '../screens/meditation_screen.dart';
+import '../screens/meditation_library_screen.dart';
 import '../screens/tirage_jeu_screen.dart';
 import '../state/auth_controller.dart';
 import '../theme/auryel_theme.dart';
@@ -48,7 +48,7 @@ class _MainNavShellState extends State<MainNavShell> {
     HomeScreen(),
     TirageJeuScreen(),
     ConsultationScreen(),
-    MeditationScreen(),
+    MeditationLibraryScreen(),
     DashboardScreen(showBackButton: false),
   ];
 

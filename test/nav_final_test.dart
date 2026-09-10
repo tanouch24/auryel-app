@@ -21,7 +21,7 @@ import 'package:auryel/screens/consultation_screen.dart';
 import 'package:auryel/screens/dashboard_screen.dart';
 import 'package:auryel/screens/home_screen.dart';
 import 'package:auryel/screens/jeu_auryel_screen.dart';
-import 'package:auryel/screens/meditation_screen.dart';
+import 'package:auryel/screens/meditation_library_screen.dart';
 import 'package:auryel/screens/tirage_jeu_screen.dart';
 import 'package:auryel/screens/tirage_screen.dart';
 import 'package:auryel/screens/wellbeing_journey_screen.dart';
@@ -317,8 +317,8 @@ void main() {
 
       await t.tap(find.text('Prends ton Moment'));
       await t.pumpAndSettle();
-      expect(find.byType(MeditationScreen), findsOneWidget);
-      expect(find.text('Ton Moment du jour'), findsOneWidget);
+      expect(find.byType(MeditationLibraryScreen), findsOneWidget);
+      expect(find.text('Bibliothèque'), findsOneWidget);
     });
   });
 

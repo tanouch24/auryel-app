@@ -243,5 +243,101 @@ void main() {
         expect(res.items, isEmpty);
       },
     );
+
+    // ---- LOT 11 : contrat serveur RÉEL = clé `meditations` ----
+    test('LOT11 — contrat production {version, catalog_version, meditations:[…]}'
+        ' est parsé', () async {
+      final api = _api(
+        MockClient(
+          (_) async => _json({
+            'version': 1,
+            'catalog_version': 'abc',
+            'meditations': [
+              {
+                'id': 'quand-tu-attends-un-message',
+                'slug': 'quand-tu-attends-un-message',
+                'title': 'Quand tu attends un message',
+                'audio_url':
+                    'https://pub-xxx.r2.dev/m%C3%A9ditations/21-quand-tu-attends-un-message.mp3',
+                'category': 'amour',
+                'duration_seconds': 0,
+              },
+            ],
+          }, 200, {'etag': 'abc'}),
+        ),
+      );
+      final res = await api.meditations();
+      expect(res.ok, isTrue);
+      expect(res.items, hasLength(1));
+      expect(res.items.single.id, 'quand-tu-attends-un-message');
+      expect(
+        res.items.single.playbackSource,
+        startsWith('https://pub-xxx.r2.dev/'),
+      );
+      expect(res.catalogVersion, 'abc');
+    });
+
+    test('LOT11 — 50 entrées sous la clé `meditations` sont TOUTES parsées',
+        () async {
+      final fifty = [
+        for (var i = 1; i <= 50; i++)
+          {
+            'id': 'med-$i',
+            'slug': 'med-$i',
+            'title': 'Méditation $i',
+            'audio_url': 'https://pub-xxx.r2.dev/m%C3%A9ditations/$i.mp3',
+            'sort_order': i,
+          },
+      ];
+      final api = _api(
+        MockClient(
+          (_) async => _json({'catalog_version': 'v50', 'meditations': fifty}),
+        ),
+      );
+      final res = await api.meditations();
+      expect(res.items, hasLength(50));
+      expect(res.items.first.id, 'med-1');
+      expect(res.items.last.id, 'med-50');
+    });
+
+    test('LOT11 — repli : ancienne réponse avec `items` reste acceptée',
+        () async {
+      final api = _api(
+        MockClient(
+          (_) async => _json({
+            'catalog_version': 'legacy',
+            'items': [
+              {
+                'id': 'legacy-1',
+                'title': 'Ancienne clé',
+                'audio_url': 'https://cdn/legacy.m4a',
+              },
+            ],
+          }),
+        ),
+      );
+      final res = await api.meditations();
+      expect(res.items, hasLength(1));
+      expect(res.items.single.id, 'legacy-1');
+    });
+
+    test('LOT11 — `meditations` prioritaire sur `items` si les deux présents',
+        () async {
+      final api = _api(
+        MockClient(
+          (_) async => _json({
+            'catalog_version': 'both',
+            'meditations': [
+              {'id': 'new', 'title': 'Nouvelle', 'audio_url': 'https://cdn/n.m4a'},
+            ],
+            'items': [
+              {'id': 'old', 'title': 'Ancienne', 'audio_url': 'https://cdn/o.m4a'},
+            ],
+          }),
+        ),
+      );
+      final res = await api.meditations();
+      expect(res.items.map((m) => m.id), ['new']);
+    });
   });
 }

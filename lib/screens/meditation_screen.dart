@@ -15,11 +15,16 @@ import '../state/auth_controller.dart';
 import '../theme/auryel_theme.dart';
 import '../widgets/main_nav_scope.dart';
 import '../widgets/relaxation_video_background.dart';
+import '../widgets/relaxation_visual_picker.dart';
 
-/// Onglet « Méditation » — « Ton Moment ». Une vraie séance audio par jour
-/// (rotation locale déterministe), un lecteur complet (lecture / pause /
-/// reprise / progression), et la mission « Moment » validée UNIQUEMENT sur une
-/// écoute réellement aboutie (fin naturelle ou ≥ 90 %).
+/// Lecteur d'une séance « Ton Moment ». Ouvert depuis la bibliothèque
+/// ([MeditationLibraryScreen]) avec une séance précise ([item]), ou sans
+/// [item] -> rotation calendaire « Ton Moment du jour » (comportement
+/// historique). Lecteur complet (lecture / pause / reprise / progression),
+/// mission « Moment » validée UNIQUEMENT sur une écoute réellement aboutie
+/// (fin naturelle ou ≥ 90 %). Un visuel d'ambiance MUET est choisi
+/// automatiquement au lancement ; « Choisir le visuel » permet d'en
+/// sélectionner un autre SANS jamais toucher à l'audio.
 ///
 /// Aucune promesse médicale. Aucune récompense en temps de consultation.
 ///
@@ -31,6 +36,7 @@ import '../widgets/relaxation_video_background.dart';
 class MeditationScreen extends StatefulWidget {
   const MeditationScreen({
     super.key,
+    this.item,
     this.audioOverride,
     this.catalog = const MeditationCatalog(),
     this.now,
@@ -39,6 +45,11 @@ class MeditationScreen extends StatefulWidget {
     this.videoSelector,
     this.videoSurfaceFactory,
   });
+
+  /// Séance à jouer, choisie dans la bibliothèque. `null` -> l'écran retombe
+  /// sur « Ton Moment du jour » (rotation calendaire, serveur -> cache ->
+  /// embarqué), comportement historique inchangé.
+  final MeditationItem? item;
 
   /// Test uniquement : lecteur injecté (aucun canal plateforme en test).
   final MeditationAudio? audioOverride;
@@ -72,16 +83,22 @@ class _MeditationScreenState extends State<MeditationScreen>
   late final DailyMissionTracker _missions =
       widget.missionTracker ?? DailyMissionTracker();
 
-  /// Séance affichée. Initialisée depuis le catalogue EMBARQUÉ (instantané,
-  /// aucun écran vide) ; remplacée une fois si le [ContentRepository] résout
-  /// une séance du jour distante (serveur -> cache).
-  late MeditationItem _item = widget.catalog.momentOfDay(
-    widget.now ?? DateTime.now(),
-  );
+  /// Séance affichée. Si [MeditationScreen.item] est fourni (ouverture depuis la
+  /// bibliothèque), c'est lui — définitif. Sinon : catalogue EMBARQUÉ instantané
+  /// puis remplacé une fois si le [ContentRepository] résout la séance du jour
+  /// distante (serveur -> cache).
+  late MeditationItem _item =
+      widget.item ?? widget.catalog.momentOfDay(widget.now ?? DateTime.now());
   bool _contentResolved = false;
 
   late final RelaxationVideoSelector _videoSelector =
       widget.videoSelector ?? RelaxationVideoSelector();
+
+  /// Catalogue distant des visuels d'ambiance résolu pour cette séance
+  /// (serveur -> cache -> vide). Sert le sélecteur « Choisir le visuel » SANS
+  /// initialiser aucun `VideoPlayerController` : seule la vidéo retenue est
+  /// streamée. Vide -> bouton « Choisir le visuel » masqué, fond statique.
+  List<RelaxationVideo> _availableVideos = const [];
 
   /// Vidéo d'ambiance choisie pour CETTE séance (une seule, préchargée à la
   /// demande). `null` = aucune vidéo compatible / catalogue vide -> fond
@@ -135,16 +152,21 @@ class _MeditationScreenState extends State<MeditationScreen>
       _contentResolved = true;
       final content = ContentScope.maybeOf(context);
       if (content != null) {
-        content
-            .momentOfDay(widget.now ?? DateTime.now())
-            .then((it) {
-              if (it != null && mounted && it.id != _item.id) {
-                setState(() => _item = it);
-              }
-            })
-            .whenComplete(() {
-              if (mounted) _resolveAmbianceVideo(content);
-            });
+        if (widget.item != null) {
+          // Séance fournie par la bibliothèque : on ne résout que le visuel.
+          _resolveAmbianceVideo(content);
+        } else {
+          content
+              .momentOfDay(widget.now ?? DateTime.now())
+              .then((it) {
+                if (it != null && mounted && it.id != _item.id) {
+                  setState(() => _item = it);
+                }
+              })
+              .whenComplete(() {
+                if (mounted) _resolveAmbianceVideo(content);
+              });
+        }
       }
     }
 
@@ -218,14 +240,53 @@ class _MeditationScreenState extends State<MeditationScreen>
   Future<void> _resolveAmbianceVideo(ContentRepository content) async {
     try {
       final catalog = await content.relaxationVideos();
-      if (!mounted || catalog.isEmpty) return;
+      if (!mounted) return;
+      setState(() => _availableVideos = catalog);
+      if (catalog.isEmpty) return;
       final picked = await _videoSelector.pick(
         catalog,
         meditationCategory: _item.category.name,
       );
-      if (mounted && picked != null) setState(() => _video = picked);
+      if (mounted && picked != null && _video == null) {
+        setState(() => _video = picked);
+      }
     } catch (_) {
       /* pas de vidéo -> fond statique, jamais bloquant */
+    }
+  }
+
+  /// « Aléatoire » dans le sélecteur : re-tire un visuel compatible au hasard
+  /// (anti-répétition conservée). Aucun impact audio.
+  Future<void> _pickRandomVisual() async {
+    if (_availableVideos.isEmpty) return;
+    final picked = await _videoSelector.pick(
+      _availableVideos,
+      meditationCategory: _item.category.name,
+    );
+    if (mounted && picked != null) setState(() => _video = picked);
+  }
+
+  /// Choix manuel d'un visuel : on remplace UNIQUEMENT le visuel. L'audio
+  /// (source, position, état lecture/pause) n'est jamais touché — le
+  /// [RelaxationVideoBackground] dispose l'ancien contrôleur, charge le
+  /// nouveau (volume 0, looping), et le démarre si l'audio joue.
+  void _selectVisual(RelaxationVideo v) {
+    if (_video?.slug == v.slug) return;
+    setState(() => _video = v);
+  }
+
+  Future<void> _openVisualPicker() async {
+    if (_availableVideos.isEmpty) return;
+    final choice = await showRelaxationVisualPicker(
+      context,
+      videos: _availableVideos,
+      currentSlug: _video?.slug,
+    );
+    if (choice == null || !mounted) return;
+    if (choice.isRandom) {
+      await _pickRandomVisual();
+    } else if (choice.video != null) {
+      _selectVisual(choice.video!);
     }
   }
 
@@ -304,6 +365,24 @@ class _MeditationScreenState extends State<MeditationScreen>
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.center,
             children: [
+              if (Navigator.of(context).canPop())
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: IconButton(
+                    onPressed: () => Navigator.of(context).maybePop(),
+                    tooltip: 'Retour',
+                    visualDensity: VisualDensity.compact,
+                    constraints: const BoxConstraints(
+                      minWidth: 44,
+                      minHeight: 44,
+                    ),
+                    icon: const PhosphorIcon(
+                      PhosphorIconsRegular.arrowLeft,
+                      size: 20,
+                      color: AuryelColors.textMuted,
+                    ),
+                  ),
+                ),
               Text(
                 'AURYEL · MÉDITATION',
                 style: AuryelText.body(
@@ -315,7 +394,7 @@ class _MeditationScreenState extends State<MeditationScreen>
               ),
               const SizedBox(height: 10),
               Text(
-                'Ton Moment du jour',
+                widget.item != null ? 'Méditation' : 'Ton Moment du jour',
                 textAlign: TextAlign.center,
                 style: AuryelText.display(
                   fontSize: 22,
@@ -408,6 +487,34 @@ class _MeditationScreenState extends State<MeditationScreen>
                   color: AuryelColors.textMuted,
                 ),
               ),
+              // Action SECONDAIRE, discrète : ne concurrence jamais Play/Pause.
+              // Masquée s'il n'y a aucun visuel distant disponible.
+              if (_availableVideos.isNotEmpty) ...[
+                const SizedBox(height: 6),
+                TextButton.icon(
+                  onPressed: _openVisualPicker,
+                  icon: const PhosphorIcon(
+                    PhosphorIconsRegular.image,
+                    size: 15,
+                    color: AuryelColors.goldLight,
+                  ),
+                  label: Text(
+                    'Choisir le visuel',
+                    style: AuryelText.body(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                      color: AuryelColors.goldLight,
+                    ),
+                  ),
+                  style: TextButton.styleFrom(
+                    visualDensity: VisualDensity.compact,
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 6,
+                    ),
+                  ),
+                ),
+              ],
             ],
           ),
         ),

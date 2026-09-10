@@ -14,6 +14,7 @@ import 'package:auryel/data/content_repository.dart';
 import 'package:auryel/data/daily_thought.dart';
 import 'package:auryel/data/meditation_audio.dart';
 import 'package:auryel/data/meditation_catalog.dart';
+import 'package:auryel/data/meditation_item.dart';
 import 'package:auryel/data/relaxation_video_selector.dart';
 import 'package:auryel/screens/meditation_screen.dart';
 import 'package:auryel/widgets/main_nav_scope.dart';
@@ -68,6 +69,10 @@ class _FakeAudio implements MeditationAudio {
   final _done = StreamController<void>.broadcast();
   final List<String> calls = [];
   bool _playing = false;
+
+  void emitDuration(Duration d) => _dur.add(d);
+  void emitPosition(Duration d) => _pos.add(d);
+  void emitComplete() => _done.add(null);
 
   @override
   Stream<Duration> get onPosition => _pos.stream;
@@ -147,8 +152,10 @@ Widget _host(
   MeditationAudio audio, {
   ContentRepository? content,
   RelaxationVideoSurface Function()? surfaceFactory,
+  MeditationItem? item,
 }) {
   final screen = MeditationScreen(
+    item: item,
     audioOverride: audio,
     now: DateTime(2026, 1, 1),
     videoSelector: RelaxationVideoSelector(random: Random(0)),
@@ -318,5 +325,231 @@ void main() {
     expect(t.takeException(), isNull);
     expect(find.byType(MeditationScreen), findsOneWidget);
     expect(find.byType(RelaxationVideoBackground), findsOneWidget);
+  });
+
+  // =========================================================================
+  // LOT 11 — « Choisir le visuel »
+  // =========================================================================
+
+  MeditationItem libItem() => const MeditationItem(
+    id: 'quand-tu-attends-un-message',
+    title: 'Quand tu attends un message',
+    description: '',
+    assetPath: '',
+    duration: Duration(minutes: 4),
+    category: MeditationCategory.detente,
+    audioUrl: 'https://cdn.auryel.app/med.mp3',
+  );
+
+  testWidgets('bouton « Choisir le visuel » visible quand le catalogue vidéo '
+      'n\'est pas vide', (t) async {
+    final a = _FakeAudio();
+    await t.pumpWidget(
+      _host(
+        a,
+        item: libItem(),
+        content: _repoWithVideos([_v('a'), _v('b'), _v('c')]),
+        surfaceFactory: () => _FakeSurface(),
+      ),
+    );
+    await t.pumpAndSettle();
+    expect(find.text('Choisir le visuel'), findsOneWidget);
+  });
+
+  testWidgets('bouton « Choisir le visuel » ABSENT si aucun visuel disponible', (
+    t,
+  ) async {
+    final a = _FakeAudio();
+    await t.pumpWidget(
+      _host(a, item: libItem(), content: _repoWithVideos(const [])),
+    );
+    await t.pumpAndSettle();
+    expect(find.text('Choisir le visuel'), findsNothing);
+    // et l'écran + l'audio fonctionnent normalement
+    await t.tap(find.bySemanticsLabel('Lancer le moment'));
+    await t.pump();
+    expect(a.isPlaying, isTrue);
+  });
+
+  testWidgets('bottom sheet : « Aléatoire » + les visuels, AUCUNE vidéo réelle '
+      'initialisée en plus (perf)', (t) async {
+    final a = _FakeAudio();
+    final surfaces = <_FakeSurface>[];
+    await t.pumpWidget(
+      _host(
+        a,
+        item: libItem(),
+        content: _repoWithVideos([for (var i = 0; i < 12; i++) _v('v$i')]),
+        surfaceFactory: () {
+          final s = _FakeSurface();
+          surfaces.add(s);
+          return s;
+        },
+      ),
+    );
+    await t.pumpAndSettle();
+    await t.tap(find.bySemanticsLabel('Lancer le moment'));
+    await t.pumpAndSettle();
+    expect(surfaces, hasLength(1)); // 1 seule vidéo streamée (le fond)
+
+    await t.tap(find.text('Choisir le visuel'));
+    await t.pumpAndSettle();
+    expect(find.text('Aléatoire'), findsOneWidget);
+    expect(find.text('T v0'), findsOneWidget); // 1 tuile par visuel
+    // ouvrir la sheet n'a créé AUCUNE nouvelle surface vidéo
+    expect(surfaces, hasLength(1));
+    expect(find.byType(RelaxationVideoBackground), findsOneWidget);
+  });
+
+  /// Slug ('a'..) du visuel actuellement chargé par la dernière surface.
+  String currentSlug(List<_FakeSurface> surfaces) {
+    final load = surfaces.last.calls.firstWhere((c) => c.startsWith('load:'));
+    return load.split('/').last.split('.').first;
+  }
+
+  testWidgets('choix manuel d\'un visuel : l\'AUDIO ne bouge pas '
+      '(source, position, état), la vidéo précédente est disposée', (t) async {
+    final a = _FakeAudio();
+    final surfaces = <_FakeSurface>[];
+    await t.pumpWidget(
+      _host(
+        a,
+        item: libItem(),
+        content: _repoWithVideos([_v('a'), _v('b'), _v('c')]),
+        surfaceFactory: () {
+          final s = _FakeSurface();
+          surfaces.add(s);
+          return s;
+        },
+      ),
+    );
+    await t.pumpAndSettle();
+
+    await t.tap(find.bySemanticsLabel('Lancer le moment'));
+    await t.pumpAndSettle();
+    a.emitDuration(const Duration(minutes: 4));
+    a.emitPosition(const Duration(seconds: 90));
+    await t.pumpAndSettle();
+    expect(find.text('01:30'), findsOneWidget); // position affichée
+
+    final audioCallsBefore = [...a.calls];
+    final firstSurface = surfaces.last;
+    final autoSlug = currentSlug(surfaces);
+    final target = ['a', 'b', 'c'].firstWhere((s) => s != autoSlug);
+
+    await t.tap(find.text('Choisir le visuel'));
+    await t.pumpAndSettle();
+    await t.tap(find.text('T $target')); // titre propre "T a"/"T b"/"T c"
+    await t.pumpAndSettle();
+
+    // AUDIO : aucune nouvelle commande, position et état conservés.
+    expect(a.calls, audioCallsBefore);
+    expect(a.isPlaying, isTrue);
+    expect(find.text('01:30'), findsOneWidget);
+
+    // VIDÉO : ancienne surface disposée, nouvelle sur une autre URL, relancée
+    // (audio en lecture). Le muet est garanti par l'impl. réelle (setVolume 0).
+    expect(firstSurface.disposed, isTrue);
+    final newSurface = surfaces.last;
+    expect(newSurface, isNot(same(firstSurface)));
+    expect(currentSlug(surfaces), target);
+    expect(newSurface.calls, contains('play'));
+    expect(find.text('Aléatoire'), findsNothing); // sheet refermée
+  });
+
+  testWidgets('erreur de chargement du nouveau visuel -> AUDIO CONTINUE, '
+      'fond statique', (t) async {
+    final a = _FakeAudio();
+    final surfaces = <_FakeSurface>[];
+    var n = 0;
+    await t.pumpWidget(
+      _host(
+        a,
+        item: libItem(),
+        content: _repoWithVideos([_v('a'), _v('b'), _v('c')]),
+        // surface #0 (visuel auto) OK ; toute surface suivante ÉCHOUE.
+        surfaceFactory: () {
+          final s = _FakeSurface(loadResult: n++ == 0);
+          surfaces.add(s);
+          return s;
+        },
+      ),
+    );
+    await t.pumpAndSettle();
+    await t.tap(find.bySemanticsLabel('Lancer le moment'));
+    await t.pumpAndSettle();
+    a.emitDuration(const Duration(minutes: 4));
+    a.emitPosition(const Duration(seconds: 30));
+    await t.pumpAndSettle();
+    expect(find.byKey(_kVideoViewKey), findsOneWidget); // visuel auto affiché
+
+    final autoSlug = currentSlug(surfaces);
+    final target = ['a', 'b', 'c'].firstWhere((s) => s != autoSlug);
+    await t.tap(find.text('Choisir le visuel'));
+    await t.pumpAndSettle();
+    await t.tap(find.text('T $target'));
+    await t.pumpAndSettle();
+
+    expect(t.takeException(), isNull);
+    expect(a.isPlaying, isTrue); // l'audio n'est jamais coupé
+    expect(find.text('00:30'), findsOneWidget); // position intacte
+    expect(find.byKey(_kVideoViewKey), findsNothing); // fond statique Auryel
+  });
+
+  testWidgets('option « Aléatoire » : re-tire un visuel, audio intact', (
+    t,
+  ) async {
+    final a = _FakeAudio();
+    final surfaces = <_FakeSurface>[];
+    await t.pumpWidget(
+      _host(
+        a,
+        item: libItem(),
+        content: _repoWithVideos([_v('a'), _v('b'), _v('c'), _v('d')]),
+        surfaceFactory: () {
+          final s = _FakeSurface();
+          surfaces.add(s);
+          return s;
+        },
+      ),
+    );
+    await t.pumpAndSettle();
+    await t.tap(find.bySemanticsLabel('Lancer le moment'));
+    await t.pumpAndSettle();
+    final audioCalls = [...a.calls];
+
+    await t.tap(find.text('Choisir le visuel'));
+    await t.pumpAndSettle();
+    await t.tap(find.text('Aléatoire'));
+    await t.pumpAndSettle();
+
+    expect(a.calls, audioCalls); // audio non touché
+    expect(a.isPlaying, isTrue);
+    expect(t.takeException(), isNull);
+  });
+
+  testWidgets('petit écran Android : « Choisir le visuel » + sheet sans '
+      'overflow', (t) async {
+    t.view.physicalSize = const Size(320, 520);
+    t.view.devicePixelRatio = 1.0;
+    addTearDown(t.view.resetPhysicalSize);
+    addTearDown(t.view.resetDevicePixelRatio);
+
+    final a = _FakeAudio();
+    await t.pumpWidget(
+      _host(
+        a,
+        item: libItem(),
+        content: _repoWithVideos([for (var i = 0; i < 12; i++) _v('v$i')]),
+        surfaceFactory: () => _FakeSurface(),
+      ),
+    );
+    await t.pumpAndSettle();
+    final btn = find.text('Choisir le visuel');
+    await t.ensureVisible(btn);
+    await t.tap(btn);
+    await t.pumpAndSettle();
+    expect(t.takeException(), isNull);
+    expect(find.text('Aléatoire'), findsOneWidget);
   });
 }
