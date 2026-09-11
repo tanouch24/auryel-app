@@ -10,12 +10,15 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:auryel/api/api_client.dart';
 import 'package:auryel/api/auth_api.dart';
 import 'package:auryel/api/consultation_api.dart';
+import 'package:auryel/api/content_api.dart';
 import 'package:auryel/api/profile_api.dart';
 import 'package:auryel/api/tirage_api.dart';
 import 'package:auryel/api/wellbeing_api.dart';
 import 'package:auryel/data/auth_repository.dart';
+import 'package:auryel/data/content_repository.dart';
 import 'package:auryel/data/daily_thought.dart';
 import 'package:auryel/data/meditation_audio.dart';
+import 'package:auryel/data/meditation_catalog.dart';
 import 'package:auryel/data/token_store.dart';
 import 'package:auryel/screens/meditation_screen.dart';
 import 'package:auryel/screens/tirage_screen.dart';
@@ -23,6 +26,7 @@ import 'package:auryel/screens/wellbeing_journey_screen.dart';
 import 'package:auryel/state/auth_controller.dart';
 import 'package:auryel/state/wellbeing_controller.dart';
 import 'package:auryel/widgets/daily_message_sheet.dart';
+import 'package:auryel/widgets/relaxation_video_background.dart';
 
 // ===========================================================================
 // J7 — « Mon parcours bien-être » : API parsing, contrôleur, écran, récompense.
@@ -127,6 +131,75 @@ class _FakeAudio implements MeditationAudio {
   Future<void> stop() async {}
   @override
   void dispose() => _done.close();
+}
+
+/// Surface vidéo factice minimale — sert uniquement à confirmer un
+/// démarrage RÉEL (`play()` -> `true`), seul déclencheur de la mission
+/// « Prends ton temps ». Aucun canal plateforme.
+class _FakeVideoSurface implements RelaxationVideoSurface {
+  bool _ready = false;
+  @override
+  bool get isReady => _ready;
+  @override
+  Future<bool> load(String url) async {
+    _ready = true;
+    return true;
+  }
+
+  @override
+  Future<bool> play() async => true;
+  @override
+  Future<void> pause() async {}
+  @override
+  Widget? buildView() => _ready ? const SizedBox.shrink() : null;
+  @override
+  void dispose() {
+    _ready = false;
+  }
+}
+
+ContentRepository _repoWithOneVideo() {
+  final client = ApiClient(
+    httpClient: MockClient((req) async {
+      if (req.url.path.contains('relaxation-videos')) {
+        return http.Response(
+          jsonEncode({
+            'catalog_version': 'v1',
+            'videos': [
+              {
+                'id': 'id-ocean',
+                'slug': 'ocean',
+                'title': 'Océan',
+                'video_url': 'https://cdn.auryel.app/ocean.mp4',
+                'category': 'calm',
+                'is_generic': true,
+              },
+            ],
+          }),
+          200,
+          headers: {'content-type': 'application/json', 'etag': '"v1"'},
+        );
+      }
+      return http.Response(jsonEncode({}), 500); // méditations -> embarqué
+    }),
+    baseUrl: 'http://test.local',
+  );
+  return ContentRepository(
+    api: ContentApi(client),
+    tokenProvider: () async => 'tok',
+    embeddedThoughts: DailyThoughtRepository(
+      seed: [
+        DailyThought(
+          id: 1,
+          publishDate: DateTime(2026, 1, 1),
+          phrase: 'x',
+          interpretation: 'y',
+          imageAsset: 'assets/pensees/x.webp',
+        ),
+      ],
+    ),
+    embeddedMeditations: const MeditationCatalog(),
+  );
 }
 
 AuthController _authWithToken(ApiClient client, String? token) =>
@@ -447,8 +520,8 @@ void main() {
   // -------------------------------------------------------------------------
   group('MeditationScreen -> mission moment', () {
     testWidgets(
-      '17 démarrage réel (repli sans vidéo) -> POST /api/app/wellbeing/'
-      'mission { moment }',
+      '17 vidéo réellement démarrée -> POST /api/app/wellbeing/mission '
+      '{ moment }',
       (t) async {
         final hits = <String>[];
         final bodies = <Map<String, dynamic>>[];
@@ -468,10 +541,14 @@ void main() {
             controller: _authWithToken(client, 'tok'),
             child: MaterialApp(
               home: Scaffold(
-                body: MeditationScreen(
-                  audioOverride: audio,
-                  now: DateTime(2026, 1, 1),
-                  wellbeingApi: WellbeingApi(client),
+                body: ContentScope(
+                  repository: _repoWithOneVideo(),
+                  child: MeditationScreen(
+                    audioOverride: audio,
+                    now: DateTime(2026, 1, 1),
+                    wellbeingApi: WellbeingApi(client),
+                    videoSurfaceFactory: () => _FakeVideoSurface(),
+                  ),
                 ),
               ),
             ),
@@ -479,13 +556,11 @@ void main() {
         );
         await t.pumpAndSettle();
 
-        // Règle définitive : sans vidéo disponible (aucun ContentScope ici),
-        // le démarrage RÉEL de l'audio valide la mission — plus besoin
-        // d'attendre la fin.
+        // Règle définitive : seul un démarrage vidéo RÉELLEMENT confirmé
+        // valide la mission (l'audio, à lui seul, ne la coche jamais).
         await t.ensureVisible(find.bySemanticsLabel('Lancer le moment'));
         await t.tap(find.bySemanticsLabel('Lancer le moment'));
-        await t.pump();
-        await t.pump();
+        await t.pumpAndSettle();
 
         expect(hits, contains('POST /api/app/wellbeing/mission'));
         expect(bodies.single, {'mission_id': 'moment'});

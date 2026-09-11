@@ -23,12 +23,13 @@ import '../widgets/relaxation_visual_picker.dart';
 /// historique). Lecteur complet (lecture / pause / reprise / progression /
 /// précédent / suivant).
 ///
-/// MISSION « Prends ton temps » — règle produit définitive : validée DÈS
-/// QU'UNE VIDÉO DE RELAXATION COMMENCE RÉELLEMENT À ÊTRE LUE (confirmation
-/// effective du démarrage, jamais au simple tap). Si aucune vidéo n'est
-/// disponible pour cette séance (catalogue vide, hors ligne, chargement en
-/// échec), on retombe sur le démarrage RÉEL de l'audio — jamais bloquant,
-/// jamais en attente de la fin. Un seul marquage par jour (idempotent).
+/// MISSION « Prends ton temps » — règle produit définitive : validée
+/// UNIQUEMENT quand une vidéo de relaxation commence RÉELLEMENT à être lue
+/// (confirmation effective du démarrage vidéo, jamais au simple tap). Le
+/// démarrage de l'audio, à lui seul, NE COCHE JAMAIS cette mission — aucun
+/// repli. Si aucune vidéo ne peut démarrer (catalogue vide, hors ligne,
+/// échec de chargement ou de lecture), la mission reste NON cochée pour la
+/// séance. Un seul marquage par jour (idempotent), persistant.
 ///
 /// Un visuel d'ambiance MUET est choisi automatiquement au lancement ;
 /// « Choisir le visuel » permet d'en sélectionner un autre SANS jamais
@@ -121,11 +122,6 @@ class _MeditationScreenState extends State<MeditationScreen>
   bool _onThisTab = true;
   bool _momentMarked = false;
 
-  /// `true` dès qu'on sait que la vidéo ne jouera PAS pour cette séance
-  /// (catalogue vide, ou chargement en échec) — déclenche alors le repli sur
-  /// le démarrage réel de l'audio pour la mission « Prends ton temps ».
-  bool _videoUnavailableForSession = false;
-
   /// Catalogue ordonné pour précédent/suivant : liste distante résolue
   /// (même source que [MeditationLibraryScreen]) si disponible, sinon
   /// [MeditationCatalog.all] embarqué. Toujours utilisable, même hors ligne.
@@ -217,16 +213,12 @@ class _MeditationScreenState extends State<MeditationScreen>
     });
   }
 
-  /// La vidéo vient RÉELLEMENT de démarrer sa lecture -> valide la mission.
+  /// SEUL déclencheur de la mission « Prends ton temps » : la vidéo vient
+  /// RÉELLEMENT de démarrer sa lecture (confirmation effective du player
+  /// vidéo). Le démarrage de l'audio, à lui seul, ne coche JAMAIS cette
+  /// mission — si aucune vidéo ne peut démarrer (catalogue vide, hors ligne,
+  /// échec de chargement ou de lecture), la mission reste NON cochée.
   void _onVideoStarted() => _markMomentDone();
-
-  /// La vidéo a définitivement échoué à charger : ne bloque jamais la mission
-  /// derrière un média qui ne jouera pas. Si l'audio joue déjà, on valide tout
-  /// de suite ; sinon le prochain démarrage audio validera (cf. [_start]).
-  void _onVideoFailed() {
-    _videoUnavailableForSession = true;
-    if (_status == _PlayStatus.playing) _markMomentDone();
-  }
 
   /// Idempotent : le tracker est déjà « une fois par jour », et [_momentMarked]
   /// évite de le ré-appeler à chaque tick au-delà de 90 %.
@@ -395,12 +387,10 @@ class _MeditationScreenState extends State<MeditationScreen>
     setState(
       () => _status = ok ? _PlayStatus.playing : _PlayStatus.unavailable,
     );
-    // Repli mission : aucune vidéo pour cette séance -> le démarrage RÉEL de
-    // l'audio valide « Prends ton temps ». Si une vidéo est en cours de
-    // résolution/chargement, on attend sa confirmation (_onVideoStarted).
-    if (ok && (_video == null || _videoUnavailableForSession)) {
-      _markMomentDone();
-    }
+    // AUCUN repli mission ici : le démarrage de l'audio, à lui seul, ne coche
+    // JAMAIS « Prends ton temps ». Seul un démarrage vidéo RÉELLEMENT
+    // confirmé le fait (cf. _onVideoStarted). Si aucune vidéo ne peut
+    // démarrer, la mission reste non cochée pour cette séance.
   }
 
   Future<void> _pause() async {
@@ -478,7 +468,6 @@ class _MeditationScreenState extends State<MeditationScreen>
                   caption: _item.title,
                   fallback: placeholder,
                   onStarted: _onVideoStarted,
-                  onFailed: _onVideoFailed,
                 )
               : placeholder,
         ),

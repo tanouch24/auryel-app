@@ -758,8 +758,8 @@ void main() {
     });
 
     testWidgets(
-      'vidéo qui échoue à charger -> repli sur l’audio déjà en lecture, '
-      'mission quand même validée (jamais bloquant)',
+      'vidéo qui échoue à charger -> AUCUN repli, mission NON cochée '
+      '(même avec l’audio en lecture)',
       (t) async {
         final a = _FakeAudio();
         await t.pumpWidget(
@@ -775,17 +775,18 @@ void main() {
         await t.tap(find.bySemanticsLabel('Lancer le moment'));
         await t.pumpAndSettle();
         expect(find.byKey(_kVideoViewKey), findsNothing); // placeholder
+        expect(a.isPlaying, isTrue, reason: 'l’audio, lui, joue bien');
         expect(
           await DailyMissionTracker().isDone(DailyMissionTracker.moment),
-          isTrue,
-          reason: 'échec vidéo confirmé -> repli audio, jamais bloquant',
+          isFalse,
+          reason: 'échec de chargement confirmé -> aucun repli sur l’audio',
         );
       },
     );
 
     testWidgets(
       'vidéo chargée mais qui échoue à RÉELLEMENT démarrer (play() renvoie '
-      'false) -> repli sur l’audio déjà en lecture (jamais bloquant)',
+      'false) -> AUCUN repli, mission NON cochée',
       (t) async {
         final a = _FakeAudio();
         await t.pumpWidget(
@@ -803,9 +804,9 @@ void main() {
         expect(a.isPlaying, isTrue, reason: 'l’audio, lui, joue bien');
         expect(
           await DailyMissionTracker().isDone(DailyMissionTracker.moment),
-          isTrue,
-          reason: 'la vidéo n’a jamais confirmé son démarrage -> repli sur '
-              'l’audio déjà en lecture, jamais bloquant',
+          isFalse,
+          reason: 'play() vidéo a échoué -> jamais de démarrage confirmé, '
+              'aucun repli sur l’audio',
         );
       },
     );

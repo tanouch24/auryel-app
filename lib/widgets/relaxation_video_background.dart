@@ -174,9 +174,10 @@ class RelaxationVideoStage extends StatefulWidget {
   /// référence à l'audio, il expose seulement le fait.
   final VoidCallback? onStarted;
 
-  /// Appelé quand la vidéo choisie a définitivement échoué à charger (URL
-  /// invalide, réseau, format). Permet à l'hôte de ne pas bloquer sur une
-  /// vidéo qui ne jouera jamais.
+  /// Appelé quand la vidéo choisie a définitivement échoué (chargement OU
+  /// tentative de lecture). Purement informatif : ce widget ne décide
+  /// d'aucun repli — l'hôte fait ce qu'il veut de ce signal (aucune mission
+  /// n'y est plus rattachée : « Prends ton temps » n'écoute que [onStarted]).
   final VoidCallback? onFailed;
 
   @override

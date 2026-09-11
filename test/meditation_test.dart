@@ -200,16 +200,16 @@ void main() {
     );
   });
 
-  // RÈGLE PRODUIT DÉFINITIVE (ce lot) : « Prends ton temps » se coche dès
-  // qu'une vidéo de relaxation commence RÉELLEMENT à être lue. Cet écran
-  // (`_host`) n'a aucun `ContentScope` -> aucune vidéo n'est jamais
-  // disponible -> on est dans le cas de REPLI documenté : le démarrage RÉEL
-  // de l'audio coche alors la mission (jamais bloquant sans média visuel).
-  // Les scénarios AVEC vidéo (tap seul insuffisant, démarrage confirmé
-  // requis) sont couverts dans meditation_video_test.dart.
+  // RÈGLE PRODUIT DÉFINITIVE (ce lot) : « Prends ton temps » se coche
+  // UNIQUEMENT quand une vidéo de relaxation commence RÉELLEMENT à être lue.
+  // AUCUN repli sur l'audio, jamais. Cet écran (`_host`) n'a aucun
+  // `ContentScope` -> aucune vidéo n'est jamais disponible -> la mission ne
+  // doit JAMAIS se cocher ici, quels que soient les signaux audio (tap,
+  // position, complétion). Les scénarios AVEC vidéo sont couverts dans
+  // meditation_video_test.dart.
   testWidgets(
-    '10 — sans vidéo disponible : le démarrage RÉEL de l\'audio coche '
-    'immédiatement la mission (repli)',
+    '10 — sans vidéo disponible : le démarrage de l\'audio NE coche PAS la '
+    'mission',
     (t) async {
       final a = _FakeMeditationAudio();
       await t.pumpWidget(_host(a));
@@ -217,32 +217,23 @@ void main() {
       expect(
         await DailyMissionTracker().isDone(DailyMissionTracker.moment),
         isFalse,
-        reason: 'pas encore de tap -> pas de démarrage réel',
       );
 
       await t.ensureVisible(find.bySemanticsLabel('Lancer le moment'));
       await t.tap(find.bySemanticsLabel('Lancer le moment'));
       await t.pump();
+      expect(a.isPlaying, isTrue, reason: 'l’audio, lui, démarre bien');
       expect(
         await DailyMissionTracker().isDone(DailyMissionTracker.moment),
-        isTrue,
-        reason: 'audio réellement démarré (play() a renvoyé true)',
-      );
-
-      // Une écoute partielle ensuite ne change rien : déjà coché, jamais
-      // décoché, et on n'attend plus la fin.
-      a.emitDuration(const Duration(minutes: 10));
-      a.emitPosition(const Duration(minutes: 1)); // 10 %
-      await t.pump();
-      expect(
-        await DailyMissionTracker().isDone(DailyMissionTracker.moment),
-        isTrue,
+        isFalse,
+        reason: 'audio démarré SANS vidéo -> aucun repli, mission non cochée',
       );
     },
   );
 
   testWidgets(
-    '10 bis — tap qui ÉCHOUE à démarrer réellement ne coche pas la mission',
+    '10 bis — tap qui échoue à démarrer l\'audio ne coche pas non plus '
+    '(à plus forte raison)',
     (t) async {
       final a = _FakeMeditationAudio()..available = false;
       await t.pumpWidget(_host(a));
@@ -253,67 +244,69 @@ void main() {
       expect(
         await DailyMissionTracker().isDone(DailyMissionTracker.moment),
         isFalse,
-        reason: 'play() a renvoyé false : pas de démarrage réel',
       );
     },
   );
 
-  testWidgets('11 — la mission reste cochée jusqu\'à la fin naturelle', (
-    t,
-  ) async {
-    final a = _FakeMeditationAudio();
-    await t.pumpWidget(_host(a));
-    await t.pumpAndSettle();
-    await t.ensureVisible(find.bySemanticsLabel('Lancer le moment'));
-    await t.tap(find.bySemanticsLabel('Lancer le moment'));
-    await t.pump();
-    expect(
-      await DailyMissionTracker().isDone(DailyMissionTracker.moment),
-      isTrue,
-    );
+  testWidgets(
+    '11 — sans vidéo disponible, même la fin naturelle de l\'audio ne coche '
+    'PAS la mission',
+    (t) async {
+      final a = _FakeMeditationAudio();
+      await t.pumpWidget(_host(a));
+      await t.pumpAndSettle();
+      await t.ensureVisible(find.bySemanticsLabel('Lancer le moment'));
+      await t.tap(find.bySemanticsLabel('Lancer le moment'));
+      await t.pump();
 
-    a.emitDuration(const Duration(minutes: 5));
-    a.emitComplete();
-    await t.pump();
-    expect(
-      await DailyMissionTracker().isDone(DailyMissionTracker.moment),
-      isTrue,
-    );
-    expect(find.textContaining('Moment terminé'), findsOneWidget);
-  });
+      a.emitDuration(const Duration(minutes: 5));
+      a.emitComplete();
+      await t.pump();
+      expect(find.textContaining('Moment terminé'), findsOneWidget);
+      expect(
+        await DailyMissionTracker().isDone(DailyMissionTracker.moment),
+        isFalse,
+        reason: 'la fin naturelle de l’audio n’est pas un démarrage vidéo',
+      );
+    },
+  );
 
-  testWidgets('12 — la mission ne se marque qu\'une fois par jour', (t) async {
-    var markCalls = 0;
-    final tracker = _CountingTracker(() => markCalls++);
-    final a = _FakeMeditationAudio();
-    await t.pumpWidget(
-      MaterialApp(
-        home: MainNavScope(
-          goToTab: (_) {},
-          currentIndex: kTabMeditation,
-          child: Scaffold(
-            body: MeditationScreen(
-              audioOverride: a,
-              now: DateTime(2026, 1, 1),
-              missionTracker: tracker,
+  testWidgets(
+    '12 — sans vidéo, la mission ne se marque JAMAIS, quels que soient les '
+    'signaux audio',
+    (t) async {
+      var markCalls = 0;
+      final tracker = _CountingTracker(() => markCalls++);
+      final a = _FakeMeditationAudio();
+      await t.pumpWidget(
+        MaterialApp(
+          home: MainNavScope(
+            goToTab: (_) {},
+            currentIndex: kTabMeditation,
+            child: Scaffold(
+              body: MeditationScreen(
+                audioOverride: a,
+                now: DateTime(2026, 1, 1),
+                missionTracker: tracker,
+              ),
             ),
           ),
         ),
-      ),
-    );
-    await t.pumpAndSettle();
-    await t.ensureVisible(find.bySemanticsLabel('Lancer le moment'));
-    await t.tap(find.bySemanticsLabel('Lancer le moment'));
-    await t.pump();
+      );
+      await t.pumpAndSettle();
+      await t.ensureVisible(find.bySemanticsLabel('Lancer le moment'));
+      await t.tap(find.bySemanticsLabel('Lancer le moment'));
+      await t.pump();
 
-    a.emitDuration(const Duration(seconds: 100));
-    a.emitPosition(const Duration(seconds: 95));
-    a.emitPosition(const Duration(seconds: 96));
-    a.emitPosition(const Duration(seconds: 99));
-    a.emitComplete();
-    await t.pump();
-    expect(markCalls, 1, reason: 'un seul markDone malgré plusieurs signaux');
-  });
+      a.emitDuration(const Duration(seconds: 100));
+      a.emitPosition(const Duration(seconds: 95));
+      a.emitPosition(const Duration(seconds: 96));
+      a.emitPosition(const Duration(seconds: 99));
+      a.emitComplete();
+      await t.pump();
+      expect(markCalls, 0, reason: 'aucune vidéo -> jamais de markDone');
+    },
+  );
 
   testWidgets('13 — fichier absent : pas de crash, état « bientôt » affiché', (
     t,
