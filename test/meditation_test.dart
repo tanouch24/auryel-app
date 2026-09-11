@@ -99,7 +99,10 @@ void main() {
     await t.pumpAndSettle();
 
     expect(find.byType(MeditationScreen), findsOneWidget);
-    expect(find.text('Ton Moment du jour'), findsOneWidget);
+    // REFONTE ÉPURÉE — l'ancien bloc de légende « Ton Moment du jour » /
+    // « Méditation », redondant avec l'en-tête « AURYEL · MÉDITATION » et le
+    // titre affiché, a été supprimé. La preuve que la VRAIE séance du jour
+    // est affichée (pas de PlaceholderScreen) reste le titre exact.
     // Séance déterministe pour le 2026-01-01 (index 0 du catalogue).
     expect(find.text(MeditationCatalog.items.first.title), findsOneWidget);
   });

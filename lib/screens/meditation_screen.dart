@@ -12,6 +12,7 @@ import '../data/meditation_item.dart';
 import '../data/relaxation_video.dart';
 import '../data/relaxation_video_selector.dart';
 import '../state/auth_controller.dart';
+import '../state/wellbeing_controller.dart';
 import '../theme/auryel_theme.dart';
 import '../widgets/main_nav_scope.dart';
 import '../widgets/relaxation_video_background.dart';
@@ -226,15 +227,32 @@ class _MeditationScreenState extends State<MeditationScreen>
     if (_momentMarked) return;
     _momentMarked = true;
     await _missions.markDone(DailyMissionTracker.moment);
-    // PARCOURS BIEN-ÊTRE — la mission `moment` n'a AUCUNE trace serveur propre :
-    // on l'enregistre (1 fois / jour côté serveur). Fire-and-forget, toutes les
-    // erreurs absorbées : la coche locale reste la source d'affichage, la
-    // méditation ne crédite jamais de temps par elle-même.
+    // PARCOURS BIEN-ÊTRE — enregistrement serveur (1 fois / jour, idempotent).
+    // Fire-and-forget, toutes les erreurs absorbées : la coche locale reste
+    // la source d'affichage immédiate, la méditation ne crédite jamais de
+    // temps par elle-même.
     unawaited(_syncServerMoment());
   }
 
+  /// AUDIT ACCUEIL/PARCOURS — passe PAR l'instance PARTAGÉE de
+  /// [WellbeingController] quand elle est disponible (`WellbeingScope`,
+  /// câblée dans main()) : sa `notifyListeners()` propage IMMÉDIATEMENT vers
+  /// Accueil ET « Mon parcours bien-être », sans qu'aucun des deux n'ait
+  /// besoin de rouvrir l'écran. Repli sur l'appel direct à [WellbeingApi]
+  /// (comportement historique) UNIQUEMENT si aucun scope n'est câblé (tests
+  /// isolés qui injectent [MeditationScreen.wellbeingApi] sans
+  /// [WellbeingScope]).
   Future<void> _syncServerMoment() async {
     if (!mounted) return;
+    final shared = WellbeingScope.maybeReadOf(context);
+    if (shared != null) {
+      try {
+        await shared.recordMission('moment');
+      } catch (_) {
+        /* progression serveur non bloquante */
+      }
+      return;
+    }
     final auth = AuthScope.maybeOf(context);
     final api = widget.wellbeingApi ?? auth?.wellbeingApi;
     if (api == null || auth == null) return;
@@ -439,234 +457,247 @@ class _MeditationScreenState extends State<MeditationScreen>
       playing: playing,
     );
 
-    // SCÈNE VIDÉO — élément PRINCIPAL de l'écran, façon lecteur média : quasi
-    // toute la largeur, ratio 16:9 propre, fond noir, très peu de bordure
-    // (juste une ombre légère pour la détacher du fond). Plus de gros
-    // encadrement doré autour du média : l'épure est le point de ce lot.
-    final stage = AspectRatio(
+    // VIDÉO PLEIN ÉCRAN — élément PRINCIPAL de TOUT L'ÉCRAN (façon lecteur
+    // média immersif type YouTube en ergonomie, jamais en identité visuelle) :
+    // bord-à-bord, derrière toute l'interface. `RelaxationVideoStage` recadre
+    // déjà en `BoxFit.cover` (portrait ET paysage) ; `borderRadius: zero` -> ni
+    // coin arrondi ni cadre, l'épure est le point de ce lot. Un fond noir
+    // constant sert de rideau pendant le chargement -> jamais de flash blanc.
+    // La vidéo reste TOUJOURS muette : le MP3 est la SEULE source audio, et ce
+    // widget n'a aucune référence au lecteur audio.
+    final video = Positioned.fill(
       key: const Key('meditation-video-stage'),
-      aspectRatio: 16 / 9,
       child: DecoratedBox(
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(14),
-          color: Colors.black,
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.45),
-              blurRadius: 16,
-              offset: const Offset(0, 6),
+        decoration: const BoxDecoration(color: Colors.black),
+        child: _video != null
+            ? RelaxationVideoStage(
+                video: _video,
+                active: playing,
+                surfaceFactory: widget.videoSurfaceFactory,
+                fallback: placeholder,
+                onStarted: _onVideoStarted,
+                borderRadius: BorderRadius.zero,
+              )
+            : placeholder,
+      ),
+    );
+
+    // Dégradé TRÈS léger : lisibilité du texte seulement, jamais un
+    // assombrissement de la vidéo. Un peu plus soutenu tout en haut (header)
+    // et tout en bas (infos + contrôles), transparent au centre.
+    const scrim = Positioned.fill(
+      child: IgnorePointer(
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [
+                Color(0x59000000),
+                Color(0x00000000),
+                Color(0x00000000),
+                Color(0x9E000000),
+              ],
+              stops: [0.0, 0.16, 0.52, 1.0],
             ),
-          ],
-        ),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(14),
-          child: _video != null
-              ? RelaxationVideoStage(
-                  video: _video,
-                  active: playing,
-                  surfaceFactory: widget.videoSurfaceFactory,
-                  caption: _item.title,
-                  fallback: placeholder,
-                  onStarted: _onVideoStarted,
-                )
-              : placeholder,
+          ),
         ),
       ),
     );
 
-    final controls = SingleChildScrollView(
-      padding: const EdgeInsets.fromLTRB(24, 12, 24, 24),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          Text(
-            widget.item != null ? 'Méditation' : 'Ton Moment du jour',
-            textAlign: TextAlign.center,
-            style: AuryelText.body(
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-              color: AuryelColors.textMuted,
-              letterSpacing: 0.6,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(
-            _item.category.label.toUpperCase(),
-            style: AuryelText.body(
-              fontSize: 10,
-              fontWeight: FontWeight.w600,
-              color: AuryelColors.gold,
-              letterSpacing: 2,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            _item.title,
-            textAlign: TextAlign.center,
-            maxLines: 2,
-            overflow: TextOverflow.ellipsis,
-            style: AuryelText.display(
-              fontSize: 18,
-              fontWeight: FontWeight.w600,
-              color: AuryelColors.textCream,
-            ),
-          ),
-          if (_item.description.isNotEmpty) ...[
-            const SizedBox(height: 6),
-            Text(
-              _item.description,
-              textAlign: TextAlign.center,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              style: AuryelText.body(
-                fontSize: 12,
-                height: 1.35,
-                color: AuryelColors.textSecondary,
-              ),
-            ),
-          ],
-          const SizedBox(height: 16),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(999),
-            child: LinearProgressIndicator(
-              value: progress,
-              minHeight: 4,
-              backgroundColor: AuryelColors.warmBorder.withValues(alpha: 0.6),
-              valueColor: const AlwaysStoppedAnimation<Color>(
-                AuryelColors.goldLight,
-              ),
-            ),
-          ),
-          const SizedBox(height: 8),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text(
-                _mmss(_elapsed),
-                style: AuryelText.body(
-                  fontSize: 11,
-                  color: AuryelColors.textMuted,
-                ),
-              ),
-              Text(
-                _mmss(total),
-                style: AuryelText.body(
-                  fontSize: 11,
-                  color: AuryelColors.textMuted,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            crossAxisAlignment: CrossAxisAlignment.center,
-            children: [
-              _SkipButton(
-                key: const Key('meditation-previous-button'),
-                icon: Icons.skip_previous_rounded,
-                tooltip: 'Méditation précédente',
-                onTap: _canGoPrevious ? _goPrevious : null,
-              ),
-              const SizedBox(width: 22),
-              _PlayButton(playing: playing, onTap: _onPrimaryTap),
-              const SizedBox(width: 22),
-              _SkipButton(
-                key: const Key('meditation-next-button'),
-                icon: Icons.skip_next_rounded,
-                tooltip: 'Méditation suivante',
-                onTap: _canGoNext ? _goNext : null,
-              ),
-            ],
-          ),
-          const SizedBox(height: 10),
-          Text(
-            _statusText,
-            textAlign: TextAlign.center,
-            style: AuryelText.body(fontSize: 12, color: AuryelColors.textMuted),
-          ),
-          // Action SECONDAIRE, discrète : ne concurrence jamais Play/Pause.
-          // Masquée s'il n'y a aucun visuel distant disponible.
-          if (_availableVideos.isNotEmpty) ...[
-            const SizedBox(height: 4),
-            TextButton.icon(
-              onPressed: _openVisualPicker,
-              icon: const PhosphorIcon(
-                PhosphorIconsRegular.image,
-                size: 15,
-                color: AuryelColors.goldLight,
-              ),
-              label: Text(
-                'Choisir le visuel',
-                style: AuryelText.body(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w600,
-                  color: AuryelColors.goldLight,
-                ),
-              ),
-              style: TextButton.styleFrom(
-                visualDensity: VisualDensity.compact,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 6,
-                ),
-              ),
-            ),
-          ],
-        ],
-      ),
-    );
-
-    return DecoratedBox(
-      decoration: const BoxDecoration(
-        gradient: AuryelColors.backgroundGradient,
-      ),
+    final header = Positioned(
+      top: 0,
+      left: 0,
+      right: 0,
       child: SafeArea(
         bottom: false,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Row(
-              children: [
-                if (Navigator.of(context).canPop())
-                  IconButton(
-                    onPressed: () => Navigator.of(context).maybePop(),
-                    tooltip: 'Retour',
-                    visualDensity: VisualDensity.compact,
-                    constraints: const BoxConstraints(
-                      minWidth: 44,
-                      minHeight: 44,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(4, 4, 16, 0),
+          child: Row(
+            children: [
+              if (Navigator.of(context).canPop())
+                IconButton(
+                  onPressed: () => Navigator.of(context).maybePop(),
+                  tooltip: 'Retour',
+                  visualDensity: VisualDensity.compact,
+                  constraints: const BoxConstraints(
+                    minWidth: 44,
+                    minHeight: 44,
+                  ),
+                  icon: const PhosphorIcon(
+                    PhosphorIconsRegular.arrowLeft,
+                    size: 20,
+                    color: Colors.white,
+                  ),
+                )
+              else
+                const SizedBox(width: 44),
+              Expanded(
+                child: Column(
+                  children: [
+                    Text(
+                      'AURYEL · MÉDITATION',
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: AuryelText.body(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: Colors.white,
+                        letterSpacing: 3.0,
+                      ),
                     ),
-                    icon: const PhosphorIcon(
-                      PhosphorIconsRegular.arrowLeft,
-                      size: 20,
-                      color: AuryelColors.textMuted,
+                    const SizedBox(height: 3),
+                    // Seul l'or Auryel, en accent très discret : une simple
+                    // ligne de texte, jamais de soulignement.
+                    Text(
+                      _item.category.label.toUpperCase(),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: AuryelText.body(
+                        fontSize: 9.5,
+                        fontWeight: FontWeight.w600,
+                        color: AuryelColors.goldLight,
+                        letterSpacing: 1.8,
+                      ),
                     ),
-                  )
-                else
-                  const SizedBox(width: 12),
-                Expanded(
-                  child: Text(
-                    'AURYEL · MÉDITATION',
+                  ],
+                ),
+              ),
+              const SizedBox(width: 44),
+            ],
+          ),
+        ),
+      ),
+    );
+
+    // BAS D'ÉCRAN — directement posé sur la vidéo : titre + phrase courte,
+    // barre de progression fine, contrôles, « Choisir le visuel ». Aucune
+    // carte, aucun fond opaque, aucun contour.
+    final bottom = Positioned(
+      left: 0,
+      right: 0,
+      bottom: 0,
+      child: SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(22, 0, 22, 14),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                _item.title,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: AuryelText.display(
+                  fontSize: 20,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.white,
+                ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                _statusText,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: AuryelText.body(
+                  fontSize: 13,
+                  color: Colors.white.withValues(alpha: 0.82),
+                ),
+              ),
+              const SizedBox(height: 20),
+              _ThinProgressBar(progress: progress),
+              const SizedBox(height: 6),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    _mmss(_elapsed),
                     style: AuryelText.body(
                       fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                      color: AuryelColors.gold,
-                      letterSpacing: 3.2,
+                      color: Colors.white.withValues(alpha: 0.75),
+                    ),
+                  ),
+                  Text(
+                    _mmss(total),
+                    style: AuryelText.body(
+                      fontSize: 11,
+                      color: Colors.white.withValues(alpha: 0.75),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 18),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.center,
+                children: [
+                  _SkipButton(
+                    key: const Key('meditation-previous-button'),
+                    icon: Icons.skip_previous_rounded,
+                    tooltip: 'Méditation précédente',
+                    onTap: _canGoPrevious ? _goPrevious : null,
+                  ),
+                  const SizedBox(width: 26),
+                  _PlayButton(playing: playing, onTap: _onPrimaryTap),
+                  const SizedBox(width: 26),
+                  _SkipButton(
+                    key: const Key('meditation-next-button'),
+                    icon: Icons.skip_next_rounded,
+                    tooltip: 'Méditation suivante',
+                    onTap: _canGoNext ? _goNext : null,
+                  ),
+                ],
+              ),
+              // Action SECONDAIRE, discrète : ne concurrence jamais Play/Pause.
+              // Masquée s'il n'y a aucun visuel distant disponible.
+              if (_availableVideos.isNotEmpty) ...[
+                const SizedBox(height: 16),
+                Center(
+                  child: Material(
+                    color: Colors.black.withValues(alpha: 0.26),
+                    borderRadius: BorderRadius.circular(999),
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(999),
+                      onTap: _openVisualPicker,
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 14,
+                          vertical: 8,
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const PhosphorIcon(
+                              PhosphorIconsRegular.image,
+                              size: 15,
+                              color: Colors.white,
+                            ),
+                            const SizedBox(width: 6),
+                            Text(
+                              'Choisir le visuel',
+                              style: AuryelText.body(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                                color: Colors.white,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
                     ),
                   ),
                 ),
-                const SizedBox(width: 44),
               ],
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(10, 6, 10, 4),
-              child: stage,
-            ),
-            Expanded(child: controls),
-          ],
+            ],
+          ),
         ),
       ),
+    );
+
+    return Stack(
+      fit: StackFit.expand,
+      children: [video, scrim, header, bottom],
     );
   }
 }
@@ -752,6 +783,10 @@ class _Medallion extends StatelessWidget {
   }
 }
 
+/// Bouton central lecture/pause — sobre : disque blanc translucide (effet
+/// « verre »), icône blanche, SANS contour ni remplissage doré. Nettement
+/// plus grand que les boutons précédent/suivant (élément principal des
+/// contrôles).
 class _PlayButton extends StatelessWidget {
   const _PlayButton({required this.playing, required this.onTap});
 
@@ -770,16 +805,20 @@ class _PlayButton extends StatelessWidget {
           customBorder: const CircleBorder(),
           onTap: onTap,
           child: Ink(
-            width: 76,
-            height: 76,
-            decoration: const BoxDecoration(
+            width: 78,
+            height: 78,
+            decoration: BoxDecoration(
               shape: BoxShape.circle,
-              gradient: AuryelColors.goldGradient,
+              color: Colors.white.withValues(alpha: 0.18),
+              border: Border.all(
+                color: Colors.white.withValues(alpha: 0.55),
+                width: 1.2,
+              ),
             ),
             child: Icon(
               playing ? Icons.pause_rounded : Icons.play_arrow_rounded,
-              size: 40,
-              color: AuryelColors.backgroundDeep,
+              size: 38,
+              color: Colors.white,
             ),
           ),
         ),
@@ -789,8 +828,10 @@ class _PlayButton extends StatelessWidget {
 }
 
 /// Bouton latéral précédent/suivant — plus petit que le bouton central,
-/// design sobre (pas de gros encadrement doré), désactivé proprement aux
-/// extrémités du catalogue (jamais de crash, jamais d'action fantôme).
+/// design sobre (blanc / noir translucide, sans contour doré), désactivé
+/// proprement aux extrémités du catalogue (jamais de crash, jamais d'action
+/// fantôme). CHANGE UNIQUEMENT L'AUDIO (voir `_goPrevious`/`_goNext`) : ce
+/// bouton n'a et n'aura jamais de référence au visuel affiché.
 class _SkipButton extends StatelessWidget {
   const _SkipButton({
     super.key,
@@ -817,21 +858,79 @@ class _SkipButton extends StatelessWidget {
           customBorder: const CircleBorder(),
           onTap: onTap,
           child: Ink(
-            width: 48,
-            height: 48,
+            width: 46,
+            height: 46,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: AuryelColors.surfaceLight.withValues(alpha: enabled ? 0.7 : 0.3),
+              color: Colors.black.withValues(alpha: enabled ? 0.26 : 0.12),
             ),
             child: Icon(
               icon,
-              size: 26,
-              color: enabled
-                  ? AuryelColors.goldLight
-                  : AuryelColors.textMuted.withValues(alpha: 0.5),
+              size: 24,
+              color: Colors.white.withValues(alpha: enabled ? 0.95 : 0.35),
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// Barre de progression fine et sobre : ligne blanche/grise, petit curseur —
+/// remplace l'ancienne grosse barre dorée. Aucune promesse temporelle : les
+/// temps affichés viennent du MP3 (voir l'appelant).
+class _ThinProgressBar extends StatelessWidget {
+  const _ThinProgressBar({required this.progress});
+
+  /// 0.0 -> 1.0.
+  final double progress;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 12,
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final w = constraints.maxWidth;
+          final x = (w * progress).clamp(0.0, w);
+          return Stack(
+            alignment: Alignment.centerLeft,
+            children: [
+              Container(
+                height: 2,
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.3),
+                  borderRadius: BorderRadius.circular(999),
+                ),
+              ),
+              Container(
+                width: x,
+                height: 2,
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.92),
+                  borderRadius: BorderRadius.circular(999),
+                ),
+              ),
+              Positioned(
+                left: (x - 4).clamp(0.0, w - 8 < 0 ? 0.0 : w - 8),
+                child: Container(
+                  width: 8,
+                  height: 8,
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: Colors.white,
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.35),
+                        blurRadius: 3,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          );
+        },
       ),
     );
   }

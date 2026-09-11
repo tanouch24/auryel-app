@@ -1,14 +1,28 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
 import 'package:phosphor_icons/phosphor_icons.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'package:auryel/api/api_client.dart';
+import 'package:auryel/api/auth_api.dart';
+import 'package:auryel/api/consultation_api.dart';
+import 'package:auryel/api/profile_api.dart';
+import 'package:auryel/api/tirage_api.dart';
+import 'package:auryel/api/wellbeing_api.dart';
+import 'package:auryel/data/auth_repository.dart';
 import 'package:auryel/data/daily_mission_tracker.dart';
 import 'package:auryel/data/daily_thought.dart';
 import 'package:auryel/data/onboarding_record.dart';
 import 'package:auryel/data/onboarding_repository.dart';
+import 'package:auryel/data/token_store.dart';
 import 'package:auryel/screens/home_screen.dart';
 import 'package:auryel/state/auryel_state.dart';
+import 'package:auryel/state/auth_controller.dart';
+import 'package:auryel/state/wellbeing_controller.dart';
 import 'package:auryel/widgets/advisors_carousel.dart';
 import 'package:auryel/widgets/daily_message_sheet.dart';
 import 'package:auryel/widgets/main_nav_scope.dart';
@@ -60,6 +74,102 @@ String _todayKey() {
   return '${d.year}-$m-$day';
 }
 
+// ===========================================================================
+// AUDIT ACCUEIL/PARCOURS — Accueil lit désormais l'état des 4 missions
+// EXCLUSIVEMENT depuis `WellbeingController.progress.today.missions` (la même
+// instance que « Mon parcours bien-être » lirait). Ce rig construit ce
+// contrôleur, branché sur un `GET /api/app/wellbeing/progress` mocké, et
+// l'expose via `WellbeingScope` autour de `HomeScreen` — exactement le
+// câblage réel de main().
+// ===========================================================================
+
+Map<String, dynamic> _progressJson({List<String> doneToday = const []}) => {
+  'completed_days_total': 3,
+  'cycle_completed_days': 3,
+  'current_level': null,
+  'next_level': 'Élan',
+  'days_to_next_level': 2,
+  'today': {
+    'date': _todayKey(),
+    'missions': [
+      for (final m in kWellbeingMissions)
+        {'id': m, 'completed': doneToday.contains(m)},
+    ],
+    'completed': doneToday.length >= kWellbeingMissions.length,
+  },
+  'cycle_number': 1,
+  'reward_earned_for_current_cycle': false,
+};
+
+typedef _WellbeingRig = ({
+  WellbeingController wellbeing,
+  AuthController auth,
+  List<String> hits,
+});
+
+_WellbeingRig _wellbeingRig({List<String> doneToday = const []}) {
+  final hits = <String>[];
+  // État MUTABLE : un POST /mission « accomplit » réellement la mission pour
+  // les appels suivants — comme le ferait le vrai serveur.
+  final done = [...doneToday];
+  final client = ApiClient(
+    httpClient: MockClient((req) async {
+      hits.add('${req.method} ${req.url.path}');
+      if (req.url.path == '/api/app/wellbeing/progress') {
+        return http.Response(
+          jsonEncode(_progressJson(doneToday: done)),
+          200,
+          headers: {'content-type': 'application/json'},
+        );
+      }
+      if (req.url.path == '/api/app/wellbeing/mission') {
+        final body = jsonDecode(req.body) as Map<String, dynamic>;
+        final id = (body['mission_id'] ?? '').toString();
+        if (id.isNotEmpty && !done.contains(id)) done.add(id);
+        return http.Response(
+          jsonEncode(_progressJson(doneToday: done)),
+          200,
+          headers: {'content-type': 'application/json'},
+        );
+      }
+      return http.Response(jsonEncode({}), 404);
+    }),
+    baseUrl: 'http://test.local',
+  );
+  final auth = AuthController(
+    repository: AuthRepository(
+      api: AuthApi(client),
+      tokenStore: InMemoryTokenStore('tok'),
+    ),
+    profileApi: ProfileApi(client),
+    consultationApi: ConsultationApi(client),
+    tirageApi: TirageApi(client),
+  );
+  final wellbeing = WellbeingController(
+    api: WellbeingApi(client),
+    tokenProvider: auth.currentToken,
+  );
+  return (wellbeing: wellbeing, auth: auth, hits: hits);
+}
+
+Widget _hostWithWellbeing(_WellbeingRig rig, {List<int>? tabTaps}) =>
+    AuthScope(
+      controller: rig.auth,
+      child: WellbeingScope(
+        controller: rig.wellbeing,
+        child: AuryelStateScope(
+          state: _state(),
+          child: MaterialApp(
+            home: MainNavScope(
+              goToTab: (i) => tabTaps?.add(i),
+              currentIndex: kTabHome,
+              child: HomeScreen(thoughtRepository: _repo()),
+            ),
+          ),
+        ),
+      ),
+    );
+
 void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
 
@@ -95,52 +205,62 @@ void main() {
   });
 
   group('Missions', () {
-    testWidgets('exactement 4 missions, compteur 0/4 au départ', (t) async {
-      await t.pumpWidget(_host());
-      await t.pump(const Duration(seconds: 1));
+    testWidgets(
+      'exactement les 4 missions serveur (mêmes libellés que Parcours), '
+      'compteur 0/4 au départ',
+      (t) async {
+        final rig = _wellbeingRig();
+        await t.pumpWidget(_hostWithWellbeing(rig));
+        await t.pump(const Duration(seconds: 1));
+        await t.pump(const Duration(milliseconds: 50));
 
-      expect(find.text('Fais ton tirage'), findsOneWidget);
-      expect(find.text('Consulte ton conseiller'), findsOneWidget);
-      expect(find.text('Partage ta pensée'), findsOneWidget);
-      expect(find.text('Prends ton temps'), findsOneWidget);
-      expect(find.text('0/4'), findsOneWidget);
-      expect(find.text('Journée Auryel complétée'), findsNothing);
-      // aucune coche
-      expect(
-        find.byWidgetPredicate(
-          (w) => w is PhosphorIcon && w.icon == PhosphorIconsFill.checkCircle,
-        ),
-        findsNothing,
-      );
-    });
+        expect(find.text('Pensée du jour'), findsOneWidget);
+        expect(find.text('Carte du jour'), findsOneWidget);
+        expect(find.text('Consultation'), findsOneWidget);
+        expect(find.text('Prends ton temps'), findsOneWidget);
+        expect(find.text('0/4'), findsOneWidget);
+        expect(find.text('Journée Auryel complétée'), findsNothing);
+        expect(
+          find.byWidgetPredicate(
+            (w) => w is PhosphorIcon && w.icon == PhosphorIconsFill.checkCircle,
+          ),
+          findsNothing,
+        );
+      },
+    );
 
-    testWidgets('partage déjà fait aujourd\'hui -> mission « Partage » cochée, '
-        'compteur 1/4', (t) async {
-      SharedPreferences.setMockInitialValues({
-        'auryel.daily_share.days': [_todayKey()],
-      });
-      await t.pumpWidget(_host());
-      await t.pump(const Duration(seconds: 1));
-      await t.pump(const Duration(milliseconds: 50));
+    testWidgets(
+      'AUDIT — 3/4 côté serveur : compteur 3/4, PAS "Journée complétée" '
+      '(reproduit le bug : Consultation non terminée)',
+      (t) async {
+        final rig = _wellbeingRig(
+          doneToday: ['pensee', 'tirage', 'moment'],
+        );
+        await t.pumpWidget(_hostWithWellbeing(rig));
+        await t.pump(const Duration(seconds: 1));
+        await t.pump(const Duration(milliseconds: 50));
 
-      expect(find.text('1/4'), findsOneWidget);
-      expect(
-        find.byWidgetPredicate(
-          (w) => w is PhosphorIcon && w.icon == PhosphorIconsFill.checkCircle,
-        ),
-        findsOneWidget,
-      );
-    });
+        expect(find.text('3/4'), findsOneWidget);
+        expect(
+          find.text('Journée Auryel complétée'),
+          findsNothing,
+          reason: 'Accueil ne doit JAMAIS annoncer la journée terminée '
+              'tant que le serveur dit 3/4',
+        );
+        expect(
+          find.byWidgetPredicate(
+            (w) => w is PhosphorIcon && w.icon == PhosphorIconsFill.checkCircle,
+          ),
+          findsNWidgets(3),
+        );
+      },
+    );
 
-    testWidgets('4/4 -> « Journée Auryel complétée »', (t) async {
-      final today = _todayKey();
-      SharedPreferences.setMockInitialValues({
-        'auryel.daily_share.days': [today],
-        'auryel.daily_mission.tirage': today,
-        'auryel.daily_mission.consultation': today,
-        'auryel.daily_mission.moment': today,
-      });
-      await t.pumpWidget(_host());
+    testWidgets('4/4 côté serveur -> « Journée Auryel complétée »', (
+      t,
+    ) async {
+      final rig = _wellbeingRig(doneToday: kWellbeingMissions);
+      await t.pumpWidget(_hostWithWellbeing(rig));
       await t.pump(const Duration(seconds: 1));
       await t.pump(const Duration(milliseconds: 50));
 
@@ -148,73 +268,75 @@ void main() {
       expect(find.text('Journée Auryel complétée'), findsOneWidget);
     });
 
-    testWidgets('tap « Fais ton tirage » -> demande l\'onglet Tirage (1)', (
+    testWidgets('tap « Carte du jour » -> demande l\'onglet Tirage (1)', (
       t,
     ) async {
+      final rig = _wellbeingRig();
       final taps = <int>[];
-      await t.pumpWidget(_host(tabTaps: taps));
+      await t.pumpWidget(_hostWithWellbeing(rig, tabTaps: taps));
       await t.pump(const Duration(seconds: 1));
+      await t.pump(const Duration(milliseconds: 50));
 
-      await t.tap(find.text('Fais ton tirage'));
+      await t.tap(find.text('Carte du jour'));
       await t.pump();
       expect(taps, contains(kTabTirage));
     });
 
-    testWidgets('tap « Consulte ton conseiller » -> demande l\'onglet '
-        'CONSULTATION (2), sans cocher la mission', (t) async {
+    testWidgets('tap « Consultation » -> demande l\'onglet CONSULTATION (2), '
+        'sans cocher la mission localement', (t) async {
+      final rig = _wellbeingRig();
       final taps = <int>[];
-      await t.pumpWidget(_host(tabTaps: taps));
+      await t.pumpWidget(_hostWithWellbeing(rig, tabTaps: taps));
       await t.pump(const Duration(seconds: 1));
+      await t.pump(const Duration(milliseconds: 50));
 
-      await t.tap(find.text('Consulte ton conseiller'));
+      await t.tap(find.text('Consultation'));
       await t.pump();
       await t.pump(const Duration(milliseconds: 50));
 
       expect(taps, contains(kTabConsultation));
-      expect(
-        await DailyMissionTracker().isDone(DailyMissionTracker.consultation),
-        isFalse,
-      );
+      // Le serveur reste seul juge : ouvrir l'onglet ne coche rien tout seul.
+      expect(rig.wellbeing.isMissionDone('consultation'), isFalse);
     });
 
     testWidgets('tap « Prends ton temps » -> onglet Méditation, mission NON '
-        'marquée à l\'ouverture (uniquement sur une séance aboutie)', (
+        'marquée à l\'ouverture (uniquement sur un démarrage vidéo confirmé)', (
       t,
     ) async {
+      final rig = _wellbeingRig();
       final taps = <int>[];
-      await t.pumpWidget(_host(tabTaps: taps));
+      await t.pumpWidget(_hostWithWellbeing(rig, tabTaps: taps));
       await t.pump(const Duration(seconds: 1));
+      await t.pump(const Duration(milliseconds: 50));
 
       await t.tap(find.text('Prends ton temps'));
       await t.pump();
       await t.pump(const Duration(milliseconds: 50));
 
       expect(taps, contains(kTabMeditation));
-      expect(
-        await DailyMissionTracker().isDone(DailyMissionTracker.moment),
-        isFalse,
-      );
+      expect(rig.wellbeing.isMissionDone('moment'), isFalse);
     });
 
     testWidgets(
-      'tap « Partage ta pensée » -> ouvre l\'aperçu de la publication',
+      'tap « Pensée du jour » -> ouvre l\'aperçu de la publication',
       (t) async {
-        await t.pumpWidget(_host());
+        final rig = _wellbeingRig();
+        await t.pumpWidget(_hostWithWellbeing(rig));
         await t.pump(const Duration(seconds: 1));
+        await t.pump(const Duration(milliseconds: 50));
 
-        await t.tap(find.text('Partage ta pensée'));
+        await t.tap(find.text('Pensée du jour'));
         await t.pump();
         await t.pump(const Duration(milliseconds: 400));
         expect(find.byType(DailyMessageSheet), findsOneWidget);
       },
     );
 
-    testWidgets('lignes de mission : Semantics bouton + état coché', (t) async {
-      final today = _todayKey();
-      SharedPreferences.setMockInitialValues({
-        'auryel.daily_mission.tirage': today,
-      });
-      await t.pumpWidget(_host());
+    testWidgets('lignes de mission : Semantics bouton + état coché', (
+      t,
+    ) async {
+      final rig = _wellbeingRig(doneToday: ['tirage']);
+      await t.pumpWidget(_hostWithWellbeing(rig));
       await t.pump(const Duration(seconds: 1));
       await t.pump(const Duration(milliseconds: 50));
 
@@ -223,16 +345,37 @@ void main() {
         (w) =>
             w is Semantics &&
             w.properties.button == true &&
-            (w.properties.label ?? '').contains('tirage'),
+            (w.properties.label ?? '').contains('Carte du jour'),
       );
       expect(missionSemantics, findsOneWidget);
       final props = t.widget<Semantics>(missionSemantics).properties;
       expect(
         props.checked,
         isTrue,
-        reason: 'tirage fait aujourd\'hui -> coché',
+        reason: 'tirage fait aujourd\'hui (serveur) -> coché',
       );
     });
+
+    testWidgets(
+      'AUDIT — une mission validée ailleurs (même contrôleur partagé) met '
+      'à jour Accueil SANS fermer/rouvrir l\'app',
+      (t) async {
+        final rig = _wellbeingRig(doneToday: ['pensee', 'tirage', 'moment']);
+        await t.pumpWidget(_hostWithWellbeing(rig));
+        await t.pump(const Duration(seconds: 1));
+        await t.pump(const Duration(milliseconds: 50));
+        expect(find.text('3/4'), findsOneWidget);
+
+        // La consultation vient d'être détectée côté serveur (ex. depuis
+        // « Mon parcours bien-être » sur la MÊME instance partagée) :
+        // ici on simule directement le contrôleur qui vient d'être notifié.
+        await rig.wellbeing.recordMission('consultation');
+        await t.pump();
+
+        expect(find.text('4/4'), findsOneWidget);
+        expect(find.text('Journée Auryel complétée'), findsOneWidget);
+      },
+    );
   });
 
   group('DailyMissionTracker', () {

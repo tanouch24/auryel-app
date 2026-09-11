@@ -13,6 +13,7 @@ import '../screens/home_screen.dart';
 import '../screens/meditation_library_screen.dart';
 import '../screens/tirage_jeu_screen.dart';
 import '../state/auth_controller.dart';
+import '../state/wellbeing_controller.dart';
 import '../theme/auryel_theme.dart';
 import 'main_nav_scope.dart';
 
@@ -64,9 +65,20 @@ class _MainNavShellState extends State<MainNavShell> {
 
   void _goToTab(int i) {
     if (i < 0 || i >= _screens.length) return;
-    if (_index != i) setState(() => _index = i);
+    final changed = _index != i;
+    if (changed) setState(() => _index = i);
     // La mission « Moment » n'est PLUS cochée à l'ouverture de l'onglet : elle
     // l'est uniquement sur une écoute réellement aboutie (cf. MeditationScreen).
+    //
+    // AUDIT ACCUEIL/PARCOURS — les onglets restent tous montés (IndexedStack
+    // implicite via `_screens`) : revenir sur Accueil ne redéclenche PAS son
+    // `initState`. On resynchronise donc explicitement le parcours bien-être
+    // partagé au retour sur l'onglet Accueil, pour qu'une mission validée
+    // pendant un tirage/une consultation/une méditation se reflète sans
+    // jamais fermer/rouvrir l'app.
+    if (changed && i == kTabHome) {
+      WellbeingScope.maybeReadOf(context)?.refresh();
+    }
   }
 
   @override
@@ -170,6 +182,7 @@ class _AuryelTabBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return DecoratedBox(
+      key: const Key('auryel-bottom-tab-bar'),
       decoration: BoxDecoration(
         color: AuryelColors.surface,
         border: Border(

@@ -5,14 +5,16 @@ import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:phosphor_icons/phosphor_icons.dart';
 
+import '../api/wellbeing_api.dart' show kWellbeingMissions;
 import '../data/content_repository.dart';
 import '../data/daily_like_store.dart';
-import '../data/daily_mission_tracker.dart';
 import '../data/daily_share_tracker.dart';
 import '../data/daily_thought.dart';
 import '../screens/splash_screen.dart';
 import '../state/auryel_state.dart';
+import '../state/auth_controller.dart';
 import '../state/consultation_controller.dart';
+import '../state/wellbeing_controller.dart';
 import '../theme/auryel_theme.dart';
 import '../widgets/advisors_carousel.dart'
     show AdvisorInfo, advisorByName, advisorByGuideKey;
@@ -622,8 +624,13 @@ class _DailyLikeButtonState extends State<_DailyLikeButton> {
 // 2 — TES MISSIONS DU JOUR
 // ===========================================================================
 
-enum _Mission { tirage, consultation, partage, moment }
-
+/// AUDIT ACCUEIL/PARCOURS — les 4 missions quotidiennes RÉELLES, dans le même
+/// ordre et avec le MÊME identifiant que le serveur (`kWellbeingMissions` :
+/// pensee / tirage / consultation / moment). Accueil affiche EXACTEMENT ce
+/// que « Mon parcours bien-être » affiche : les deux lisent
+/// `WellbeingController.progress.today` sur la MÊME instance partagée
+/// (voir [WellbeingScope], `main.dart`). Il n'existe plus de tracker local
+/// séparé pour ce bloc — plus jamais deux vérités différentes.
 class _MissionsSection extends StatefulWidget {
   const _MissionsSection({this.repository});
 
@@ -637,20 +644,17 @@ class _MissionsSectionState extends State<_MissionsSection>
     with WidgetsBindingObserver {
   late final DailyThoughtRepository _repo =
       widget.repository ?? DailyThoughtRepository();
+  // Sert UNIQUEMENT au CTA « Pensée du jour » (ouvre la feuille, qui gère
+  // elle-même la récompense de partage 30 jours — un système SÉPARÉ, non
+  // lié à cette mission quotidienne). N'alimente plus aucun état « terminé ».
   final DailyShareTracker _shareTracker = DailyShareTracker();
-  final DailyMissionTracker _missions = DailyMissionTracker();
 
   ContentRepository? _content;
+  WellbeingController? _wellbeing;
+  bool _ownsWellbeing = false;
   bool _bootstrapped = false;
 
   DailyThought? _thought;
-  DateTime? _loadedDay;
-  final Map<_Mission, bool> _done = {for (final m in _Mission.values) m: false};
-
-  DateTime get _today {
-    final n = DateTime.now();
-    return DateTime(n.year, n.month, n.day);
-  }
 
   @override
   void initState() {
@@ -664,6 +668,26 @@ class _MissionsSectionState extends State<_MissionsSection>
     _content ??= ContentScope.maybeOf(context);
     if (!_bootstrapped) {
       _bootstrapped = true;
+      // AUDIT ACCUEIL/PARCOURS — priorité à l'instance PARTAGÉE (créée dans
+      // main(), écoutée aussi par « Mon parcours bien-être ») : Accueil et
+      // Parcours affichent alors TOUJOURS le même état. Repli sur un
+      // contrôleur local UNIQUEMENT si aucun scope n'est câblé (tests
+      // hérités qui ne montent que HomeScreen).
+      final shared = WellbeingScope.maybeOf(context);
+      if (shared != null) {
+        _wellbeing = shared;
+      } else {
+        final auth = AuthScope.maybeOf(context);
+        final api = auth?.wellbeingApi;
+        if (auth != null && api != null) {
+          _wellbeing = WellbeingController(
+            api: api,
+            tokenProvider: auth.currentToken,
+          );
+          _ownsWellbeing = true;
+        }
+      }
+      _wellbeing?.addListener(_onWellbeingChange);
       _refresh();
     }
   }
@@ -671,6 +695,8 @@ class _MissionsSectionState extends State<_MissionsSection>
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _wellbeing?.removeListener(_onWellbeingChange);
+    if (_ownsWellbeing) _wellbeing?.dispose();
     super.dispose();
   }
 
@@ -679,41 +705,23 @@ class _MissionsSectionState extends State<_MissionsSection>
     if (state == AppLifecycleState.resumed) _refresh();
   }
 
+  void _onWellbeingChange() {
+    if (mounted) setState(() {});
+  }
+
   Future<DailyThought> _loadThought() => _content != null
       ? _content!.thoughtFor(DateTime.now())
       : _repo.thoughtFor(DateTime.now());
 
   Future<void> _refresh() async {
-    // Consultation : une activité serveur RÉELLE (fenêtre de facturation en
-    // cours ou session active) vaut « consulté aujourd'hui » et est persistée
-    // localement pour la journée. Aucun crédit, aucune récompense.
-    final c = ConsultationScope.maybeReadOf(context);
-    if (c != null && (c.windowActive || c.hasActiveSession)) {
-      await _missions.markDone(DailyMissionTracker.consultation);
-    }
-
     try {
-      if (_thought == null || _loadedDay != _today) {
-        _thought = await _loadThought();
-      }
+      _thought ??= await _loadThought();
     } catch (_) {
-      /* la mission partage reste ouvrable via le CTA pensée */
+      /* le CTA « Pensée du jour » reste ouvrable dès que le contenu arrive */
     }
-
-    final results = await Future.wait([
-      _shareTracker.sharedToday(),
-      _missions.isDone(DailyMissionTracker.tirage),
-      _missions.isDone(DailyMissionTracker.consultation),
-      _missions.isDone(DailyMissionTracker.moment),
-    ]);
+    await _wellbeing?.refresh();
     if (!mounted) return;
-    setState(() {
-      _loadedDay = _today;
-      _done[_Mission.partage] = results[0];
-      _done[_Mission.tirage] = results[1];
-      _done[_Mission.consultation] = results[2];
-      _done[_Mission.moment] = results[3];
-    });
+    setState(() {});
   }
 
   void _goTab(int index, {VoidCallback? fallback}) {
@@ -725,23 +733,12 @@ class _MissionsSectionState extends State<_MissionsSection>
     }
   }
 
-  Future<void> _onMissionTap(_Mission m) async {
-    switch (m) {
-      case _Mission.tirage:
-        // Ouvre le hub « Tirage & Jeu » (onglet 1). La mission ne se coche
-        // pas ici : uniquement sur une sauvegarde de tirage réelle.
-        _goTab(
-          kTabTirage,
-          fallback: () => Navigator.of(context)
-              .push(MaterialPageRoute(builder: (_) => const TirageJeuScreen())),
-        );
-      case _Mission.consultation:
-        // Ouvre l'onglet central CONSULTATION -> LISTE des discussions.
-        // N'ouvre JAMAIS directement un ChatScreen basé sur `selectedAdvisor`
-        // (J6-F2 §12). Ne coche PAS la mission (elle se coche sur une activité
-        // de consultation réelle).
-        _goTab(kTabConsultation);
-      case _Mission.partage:
+  Future<void> _onMissionTap(String missionId) async {
+    switch (missionId) {
+      case 'pensee':
+        // Ouvre la feuille « Pensée du jour ». C'est CET appel qui enregistre
+        // la mission côté serveur (`showDailyThoughtSheet` -> POST
+        // /api/app/wellbeing/mission { pensee }), une fois consultée.
         final t = _thought;
         if (t == null) return;
         await showDailyThoughtSheet(
@@ -749,24 +746,46 @@ class _MissionsSectionState extends State<_MissionsSection>
           thought: t,
           tracker: _shareTracker,
         );
-      case _Mission.moment:
+      case 'tirage':
+        // Ouvre le hub « Tirage & Jeu » (onglet 1). La mission ne se coche
+        // pas ici : uniquement sur une sauvegarde de tirage réelle.
+        _goTab(
+          kTabTirage,
+          fallback: () => Navigator.of(context)
+              .push(MaterialPageRoute(builder: (_) => const TirageJeuScreen())),
+        );
+      case 'consultation':
+        // Ouvre l'onglet central CONSULTATION -> LISTE des discussions.
+        // N'ouvre JAMAIS directement un ChatScreen basé sur `selectedAdvisor`
+        // (J6-F2 §12). Ne coche PAS la mission (elle se coche côté serveur
+        // sur une activité de consultation réelle).
+        _goTab(kTabConsultation);
+      case 'moment':
         // Ouvre l'onglet Méditation. La mission ne se coche PAS ici :
-        // uniquement sur une séance réellement aboutie (cf. MeditationScreen).
+        // uniquement sur un démarrage vidéo RÉELLEMENT confirmé (cf.
+        // MeditationScreen / règle « Prends ton temps »).
         _goTab(kTabMeditation);
     }
     if (mounted) await _refresh();
   }
 
-  int get _completed => _done.values.where((v) => v).length;
+  static const Map<String, ({String label, IconData icon})> _labels = {
+    'pensee': (label: 'Pensée du jour', icon: PhosphorIconsRegular.sparkle),
+    'tirage': (label: 'Carte du jour', icon: PhosphorIconsRegular.cardsThree),
+    'consultation': (
+      label: 'Consultation',
+      icon: PhosphorIconsRegular.chatCircle,
+    ),
+    'moment': (label: 'Prends ton temps', icon: PhosphorIconsRegular.flowerLotus),
+  };
 
   @override
   Widget build(BuildContext context) {
-    if (_loadedDay != null && _loadedDay != _today) {
-      WidgetsBinding.instance.addPostFrameCallback((_) => _refresh());
-    }
-
-    final total = _Mission.values.length; // 4
-    final completed = _completed;
+    final wellbeing = _wellbeing;
+    final total = kWellbeingMissions.length; // 4
+    final completed = wellbeing == null
+        ? 0
+        : kWellbeingMissions.where(wellbeing.isMissionDone).length;
 
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -805,30 +824,13 @@ class _MissionsSectionState extends State<_MissionsSection>
           ),
         ),
         const SizedBox(height: 6),
-        _MissionRow(
-          label: 'Fais ton tirage',
-          icon: PhosphorIconsRegular.cardsThree,
-          done: _done[_Mission.tirage]!,
-          onTap: () => _onMissionTap(_Mission.tirage),
-        ),
-        _MissionRow(
-          label: 'Consulte ton conseiller',
-          icon: PhosphorIconsRegular.chatCircle,
-          done: _done[_Mission.consultation]!,
-          onTap: () => _onMissionTap(_Mission.consultation),
-        ),
-        _MissionRow(
-          label: 'Partage ta pensée',
-          icon: PhosphorIconsRegular.shareNetwork,
-          done: _done[_Mission.partage]!,
-          onTap: () => _onMissionTap(_Mission.partage),
-        ),
-        _MissionRow(
-          label: 'Prends ton temps',
-          icon: PhosphorIconsRegular.flowerLotus,
-          done: _done[_Mission.moment]!,
-          onTap: () => _onMissionTap(_Mission.moment),
-        ),
+        for (final id in kWellbeingMissions)
+          _MissionRow(
+            label: _labels[id]!.label,
+            icon: _labels[id]!.icon,
+            done: wellbeing?.isMissionDone(id) ?? false,
+            onTap: () => _onMissionTap(id),
+          ),
         if (completed == total) ...[
           const SizedBox(height: 6),
           Text(

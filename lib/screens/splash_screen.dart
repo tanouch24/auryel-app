@@ -9,6 +9,7 @@ import '../state/auth_controller.dart';
 import '../state/consultation_controller.dart';
 import '../state/profile_restore.dart';
 import '../state/session_profile_gate.dart';
+import '../state/wellbeing_controller.dart';
 import '../theme/auryel_theme.dart';
 import 'adult_gate.dart';
 import 'intro_video_screen.dart';
@@ -37,6 +38,7 @@ class _SplashScreenState extends State<SplashScreen> {
     // Restauration de session + durée mini de splash, en parallèle.
     final auth = AuthScope.of(context);
     final consultation = ConsultationScope.of(context);
+    final wellbeing = WellbeingScope.maybeOf(context);
     final introSeenFuture = IntroVideoStore().hasSeen();
     await Future.wait([
       auth.restore(),
@@ -65,6 +67,10 @@ class _SplashScreenState extends State<SplashScreen> {
     if (auth.isSignedIn) {
       // Portefeuille (`/state`) + liste des consultations (`/list`, J6-F2).
       unawaited(consultation.refreshAll());
+      // AUDIT ACCUEIL/PARCOURS — même logique non bloquante : Accueil et
+      // « Mon parcours bien-être » écoutent la MÊME instance partagée
+      // (WellbeingScope) et se reconstruisent dès que cette réponse arrive.
+      if (wellbeing != null) unawaited(wellbeing.refresh());
     }
     // MULTI-APPAREIL — au démarrage avec session valide, si le profil local est
     // absent / incomplet / rattaché à un autre compte, on récupère le profil

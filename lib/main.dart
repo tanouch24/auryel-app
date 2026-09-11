@@ -34,6 +34,7 @@ import 'state/auryel_state.dart';
 import 'state/auth_controller.dart';
 import 'state/consultation_controller.dart';
 import 'state/purchase_controller.dart';
+import 'state/wellbeing_controller.dart';
 import 'theme/auryel_theme.dart';
 
 void main() async {
@@ -59,6 +60,7 @@ void main() async {
   final billingApi = BillingApi(apiClient);
   final tirageApi = TirageApi(apiClient);
   final contentApi = ContentApi(apiClient);
+  final wellbeingApi = WellbeingApi(apiClient);
   final auth = AuthController(
     repository: AuthRepository(
       api: AuthApi(apiClient),
@@ -70,7 +72,7 @@ void main() async {
     aiReportApi: AiReportApi(apiClient),
     accountApi: AccountApi(apiClient),
     rewardsApi: RewardsApi(apiClient),
-    wellbeingApi: WellbeingApi(apiClient),
+    wellbeingApi: wellbeingApi,
     memoryApi: MemoryApi(apiClient),
     supportApi: SupportApi(apiClient),
     // Signal anti-abus « heure gratuite » (identifiant d'INSTALLATION, pas de
@@ -91,6 +93,15 @@ void main() async {
     api: consultationApi,
     auth: auth,
     metaEvents: metaEvents,
+  );
+  // AUDIT ACCUEIL/PARCOURS — instance UNIQUE et PARTAGÉE (cf. WellbeingScope) :
+  // Accueil (« TES MISSIONS DU JOUR ») et « Mon parcours bien-être » lisent et
+  // notifient désormais le MÊME contrôleur. Corrige l'incohérence où Accueil
+  // pouvait annoncer la journée terminée pendant que Parcours affichait 3/4
+  // (deux systèmes de suivi indépendants qui pouvaient diverger).
+  final wellbeing = WellbeingController(
+    api: wellbeingApi,
+    tokenProvider: auth.currentToken,
   );
   // Contenu distant (pensée du jour + méditations) : serveur -> cache local
   // -> pack embarqué. Ne bloque jamais le démarrage ; sans réseau / session,
@@ -138,6 +149,7 @@ void main() async {
       state: state,
       auth: auth,
       consultation: consultation,
+      wellbeing: wellbeing,
       purchase: purchase,
       notifications: notifications,
       metaEvents: metaEvents,
@@ -153,6 +165,7 @@ class AuryelApp extends StatefulWidget {
     required this.state,
     required this.auth,
     required this.consultation,
+    this.wellbeing,
     this.purchase,
     this.notifications,
     this.metaEvents,
@@ -163,6 +176,13 @@ class AuryelApp extends StatefulWidget {
   final AuryelState state;
   final AuthController auth;
   final ConsultationController consultation;
+
+  /// AUDIT ACCUEIL/PARCOURS — optionnel : quand fourni (cas réel de `main()`),
+  /// l'arbre est enveloppé d'un [WellbeingScope] PARTAGÉ par Accueil et
+  /// « Mon parcours bien-être ». Absent des tests hérités qui ne touchent pas
+  /// au parcours bien-être — ces écrans retombent alors sur leur ancien
+  /// comportement (contrôleur local / repli local).
+  final WellbeingController? wellbeing;
 
   /// Optionnel : contenu distant (pensée du jour + méditations). Quand fourni,
   /// l'arbre est enveloppé d'un [ContentScope]. Absent des tests hérités ->
@@ -224,6 +244,7 @@ class _AuryelAppState extends State<AuryelApp> with WidgetsBindingObserver {
     // pour que « Consultations en cours » reflète l'activité la plus récente.
     if (state == AppLifecycleState.resumed && widget.auth.isSignedIn) {
       widget.consultation.refreshAll();
+      widget.wellbeing?.refresh();
     }
   }
 
@@ -266,6 +287,10 @@ class _AuryelAppState extends State<AuryelApp> with WidgetsBindingObserver {
     final content = widget.content;
     if (content != null) {
       tree = ContentScope(repository: content, child: tree);
+    }
+    final wellbeing = widget.wellbeing;
+    if (wellbeing != null) {
+      tree = WellbeingScope(controller: wellbeing, child: tree);
     }
     return AuthScope(
       controller: widget.auth,

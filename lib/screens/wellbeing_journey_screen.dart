@@ -45,16 +45,27 @@ class _WellbeingJourneyScreenState extends State<WellbeingJourneyScreen>
     if (widget.controller != null) {
       _controller = widget.controller;
     } else {
-      final auth = AuthScope.maybeOf(context);
-      final api = auth?.wellbeingApi;
-      if (auth == null || api == null) {
-        return; // endpoint non câblé -> écran d'erreur contrôlé
+      // AUDIT ACCUEIL/PARCOURS — priorité à l'instance PARTAGÉE (créée dans
+      // main() et fournie via WellbeingScope) : c'est elle qu'Accueil écoute
+      // aussi, donc les deux affichent TOUJOURS le même état, sans jamais
+      // fermer/rouvrir l'app. Repli sur un contrôleur local UNIQUEMENT si
+      // aucun scope n'est présent (tests isolés / hôtes hérités qui ne
+      // câblent pas WellbeingScope).
+      final shared = WellbeingScope.maybeOf(context);
+      if (shared != null) {
+        _controller = shared;
+      } else {
+        final auth = AuthScope.maybeOf(context);
+        final api = auth?.wellbeingApi;
+        if (auth == null || api == null) {
+          return; // endpoint non câblé -> écran d'erreur contrôlé
+        }
+        _controller = WellbeingController(
+          api: api,
+          tokenProvider: auth.currentToken,
+        );
+        _ownsController = true;
       }
-      _controller = WellbeingController(
-        api: api,
-        tokenProvider: auth.currentToken,
-      );
-      _ownsController = true;
     }
     _controller!.addListener(_onControllerChange);
     _controller!.refresh();

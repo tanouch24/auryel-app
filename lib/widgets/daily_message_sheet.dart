@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
@@ -11,6 +12,7 @@ import '../data/daily_thought.dart';
 import '../data/share_reward_repository.dart';
 import '../state/auth_controller.dart';
 import '../state/consultation_controller.dart';
+import '../state/wellbeing_controller.dart';
 import '../theme/auryel_theme.dart';
 
 /// Signature du partage natif — injectable pour les tests (aucun canal
@@ -69,18 +71,29 @@ Future<void> showDailyThoughtSheet(
   // (1 fois / jour côté serveur, idempotent). Fire-and-forget, toutes erreurs
   // absorbées : aucun impact sur l'affichage ni le partage. AUCUN lien avec la
   // récompense de partage J5.
-  final wbApi = wellbeingApi ?? auth?.wellbeingApi;
-  if (wbApi != null && auth != null) {
-    () async {
-      try {
-        final token = await auth.currentToken();
-        if (token != null && token.isNotEmpty) {
-          await wbApi.recordMission(bearer: token, missionId: 'pensee');
+  //
+  // AUDIT ACCUEIL/PARCOURS — passe PAR l'instance PARTAGÉE de
+  // [WellbeingController] (`WellbeingScope`, câblée dans main()) quand elle
+  // est disponible : sa notification propage IMMÉDIATEMENT vers Accueil ET
+  // « Mon parcours bien-être ». Repli sur l'appel direct à [WellbeingApi]
+  // (comportement historique) si aucun scope n'est câblé.
+  final sharedWellbeing = WellbeingScope.maybeReadOf(context);
+  if (sharedWellbeing != null) {
+    unawaited(sharedWellbeing.recordMission('pensee'));
+  } else {
+    final wbApi = wellbeingApi ?? auth?.wellbeingApi;
+    if (wbApi != null && auth != null) {
+      () async {
+        try {
+          final token = await auth.currentToken();
+          if (token != null && token.isNotEmpty) {
+            await wbApi.recordMission(bearer: token, missionId: 'pensee');
+          }
+        } catch (_) {
+          /* progression serveur non bloquante */
         }
-      } catch (_) {
-        /* progression serveur non bloquante */
-      }
-    }();
+      }();
+    }
   }
   final reward =
       shareReward ??

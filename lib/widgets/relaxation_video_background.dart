@@ -151,10 +151,16 @@ class RelaxationVideoStage extends StatefulWidget {
     this.caption,
     this.onStarted,
     this.onFailed,
+    this.borderRadius = const BorderRadius.all(Radius.circular(22)),
   });
 
   final RelaxationVideo? video;
   final bool active;
+
+  /// Arrondi de la scène. `BorderRadius.zero` pour un rendu PLEIN ÉCRAN
+  /// bord-à-bord (lecteur immersif) ; la valeur par défaut couvre les
+  /// usages existants en scène « carte » (coins premium).
+  final BorderRadius borderRadius;
 
   /// Test uniquement : fabrique une [RelaxationVideoSurface] (aucun canal
   /// plateforme). `null` -> implémentation réelle `video_player`.
@@ -288,7 +294,7 @@ class _RelaxationVideoStageState extends State<RelaxationVideoStage>
     }
 
     return ClipRRect(
-      borderRadius: BorderRadius.circular(22),
+      borderRadius: widget.borderRadius,
       child: Stack(
         fit: StackFit.expand,
         children: [

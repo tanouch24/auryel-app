@@ -71,7 +71,14 @@ Widget _wrap() => AuthScope(
   ),
 );
 
-Finder _tab(String label) => find.widgetWithText(InkWell, label);
+// AUDIT ACCUEIL/PARCOURS — Accueil affiche désormais une mission « Consultation »
+// (même libellé que le parcours bien-être serveur) : on restreint la
+// recherche à la barre d'onglets elle-même (tous les onglets restent montés
+// simultanément, IndexedStack).
+Finder _tab(String label) => find.descendant(
+  of: find.byKey(const Key('auryel-bottom-tab-bar')),
+  matching: find.widgetWithText(InkWell, label),
+);
 
 void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));

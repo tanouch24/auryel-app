@@ -88,7 +88,14 @@ Widget _dashboard({bool showBackButton = true}) => AuthScope(
   ),
 );
 
-Finder _tab(String label) => find.widgetWithText(InkWell, label);
+// AUDIT ACCUEIL/PARCOURS — Accueil affiche désormais une mission « Consultation »
+// (même libellé que le parcours bien-être serveur) : on restreint la
+// recherche à la barre d'onglets elle-même (tous les onglets restent montés
+// simultanément, IndexedStack).
+Finder _tab(String label) => find.descendant(
+  of: find.byKey(const Key('auryel-bottom-tab-bar')),
+  matching: find.widgetWithText(InkWell, label),
+);
 
 Finder _backArrow() => find.byWidgetPredicate(
   (w) => w is PhosphorIcon && w.icon == PhosphorIconsRegular.arrowLeft,
@@ -284,12 +291,22 @@ void main() {
   // HOME — routage des missions (3 cas)
   // -------------------------------------------------------------------------
   group('Home → onglets', () {
+    // AUDIT ACCUEIL/PARCOURS — Accueil affiche désormais les 4 missions
+    // SERVEUR (mêmes libellés que le parcours bien-être, dont « Consultation »
+    // qui collide textuellement avec l'onglet de bottom nav du même nom). On
+    // scope donc la recherche aux descendants de HomeScreen (montage unique,
+    // IndexedStack) plutôt qu'au texte brut.
+    Finder homeMission(String label) => find.descendant(
+      of: find.byType(HomeScreen),
+      matching: find.text(label),
+    );
+
     testWidgets('H1 — mission Tirage renvoie vers l\'onglet 1 (hub), pas '
         'directement TirageScreen', (t) async {
       await t.pumpWidget(_shell());
       await t.pumpAndSettle();
 
-      await t.tap(find.text('Fais ton tirage'));
+      await t.tap(homeMission('Carte du jour'));
       await t.pumpAndSettle();
       expect(find.byType(TirageJeuScreen), findsOneWidget);
       expect(find.byType(TirageScreen), findsNothing);
@@ -301,7 +318,7 @@ void main() {
       await t.pumpWidget(_shell());
       await t.pumpAndSettle();
 
-      await t.tap(find.text('Consulte ton conseiller'));
+      await t.tap(homeMission('Consultation'));
       await t.pumpAndSettle();
       expect(find.byType(ConsultationScreen), findsOneWidget);
     });

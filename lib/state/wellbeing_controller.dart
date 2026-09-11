@@ -2,7 +2,7 @@
 // formal possible sans exposer `_api` / `_token` comme noms de paramètres.
 // ignore_for_file: prefer_initializing_formals
 
-import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../api/api_client.dart';
@@ -39,6 +39,15 @@ class WellbeingController extends ChangeNotifier {
   Set<int> _acked = <int>{};
 
   WellbeingProgress? get progress => _progress;
+
+  /// AUDIT ACCUEIL/PARCOURS — lecture UNIQUE de « la mission [id] est-elle
+  /// faite aujourd'hui ? ». Accueil ET l'écran Parcours appellent ce même
+  /// getter sur la MÊME instance partagée (voir [WellbeingScope]) : il ne
+  /// peut plus exister deux vérités différentes pour une même mission.
+  /// `false` tant que [progress] n'est pas encore chargé (jamais un faux
+  /// "terminé" par défaut).
+  bool isMissionDone(String id) =>
+      _progress?.today.mission(id)?.completed ?? false;
 
   /// Chargement initial (aucune donnée encore).
   bool get loading => _loading && _progress == null;
@@ -180,4 +189,32 @@ class WellbeingController extends ChangeNotifier {
     _disposed = true;
     super.dispose();
   }
+}
+
+/// AUDIT ACCUEIL/PARCOURS — fournit UNE instance PARTAGÉE de
+/// [WellbeingController] à tout l'arbre (créée une fois dans `main()`, comme
+/// [ConsultationScope] / [PurchaseScope]). C'est ce qui garantit qu'Accueil
+/// et « Mon parcours bien-être » ne peuvent plus diverger : les deux lisent
+/// et notifient la MÊME instance, jamais deux contrôleurs indépendants qui
+/// interrogeraient chacun le serveur de leur côté.
+class WellbeingScope extends InheritedNotifier<WellbeingController> {
+  const WellbeingScope({
+    super.key,
+    required WellbeingController controller,
+    required super.child,
+  }) : super(notifier: controller);
+
+  static WellbeingController of(BuildContext context) {
+    final scope = context.dependOnInheritedWidgetOfExactType<WellbeingScope>();
+    assert(scope != null, 'WellbeingScope introuvable dans l’arbre.');
+    return scope!.notifier!;
+  }
+
+  static WellbeingController? maybeOf(BuildContext context) =>
+      context.dependOnInheritedWidgetOfExactType<WellbeingScope>()?.notifier;
+
+  /// Sans dépendance de rebuild — l'appelant gère lui-même son abonnement
+  /// (ex. via un `ListenableBuilder` explicite).
+  static WellbeingController? maybeReadOf(BuildContext context) =>
+      context.getInheritedWidgetOfExactType<WellbeingScope>()?.notifier;
 }

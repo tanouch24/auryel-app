@@ -50,7 +50,15 @@ Widget _nav() => AuryelStateScope(
 
 Widget _boutique() => _wrapCart(const BoutiqueScreen());
 
-Finder _tab(String label) => find.widgetWithText(InkWell, label);
+// AUDIT ACCUEIL/PARCOURS — Accueil affiche désormais une mission « Consultation »
+// (même libellé que le parcours bien-être serveur) : le texte seul ne
+// distingue plus l'onglet de bottom nav de cette ligne de mission (les deux
+// écrans restent montés simultanément, IndexedStack). On restreint donc la
+// recherche à la barre d'onglets elle-même.
+Finder _tab(String label) => find.descendant(
+  of: find.byKey(const Key('auryel-bottom-tab-bar')),
+  matching: find.widgetWithText(InkWell, label),
+);
 
 void main() {
   setUp(() {

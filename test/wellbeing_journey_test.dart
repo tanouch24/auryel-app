@@ -567,6 +567,89 @@ void main() {
       },
     );
 
+    // -------------------------------------------------------------------
+    // AUDIT ACCUEIL/PARCOURS — LOT UX FINAL : preuve directe que Méditation
+    // et « Mon parcours bien-être » partagent la MÊME source de vérité. Les
+    // deux écrans sont montés SIMULTANÉMENT (aucune navigation, aucun
+    // fermer/rouvrir) sous le MÊME `WellbeingController` : un démarrage
+    // vidéo RÉELLEMENT confirmé dans Méditation doit se refléter
+    // IMMÉDIATEMENT dans Parcours.
+    // -------------------------------------------------------------------
+    testWidgets(
+      '20 — vidéo démarrée dans Méditation met à jour EN DIRECT « Mon '
+      'parcours bien-être » monté à côté, sans fermer/rouvrir l’app',
+      (t) async {
+        var doneToday = <String>[];
+        final client = ApiClient(
+          httpClient: MockClient((req) async {
+            if (req.method == 'POST' &&
+                req.url.path == '/api/app/wellbeing/mission') {
+              final body = jsonDecode(req.body) as Map<String, dynamic>;
+              final id = body['mission_id'] as String;
+              if (!doneToday.contains(id)) doneToday = [...doneToday, id];
+              return _json(_progress(doneToday: doneToday));
+            }
+            return _json(_progress(doneToday: doneToday));
+          }),
+          baseUrl: 'http://test.local',
+        );
+        final shared = WellbeingController(
+          api: WellbeingApi(client),
+          tokenProvider: () async => 'tok',
+        );
+        addTearDown(shared.dispose);
+        final audio = _FakeAudio();
+
+        await t.pumpWidget(
+          AuthScope(
+            controller: _authWithToken(client, 'tok'),
+            child: WellbeingScope(
+              controller: shared,
+              child: MaterialApp(
+                home: Scaffold(
+                  body: Column(
+                    children: [
+                      SizedBox(
+                        height: 400,
+                        child: ContentScope(
+                          repository: _repoWithOneVideo(),
+                          child: MeditationScreen(
+                            audioOverride: audio,
+                            now: DateTime(2026, 1, 1),
+                            videoSurfaceFactory: () => _FakeVideoSurface(),
+                          ),
+                        ),
+                      ),
+                      Expanded(
+                        child: WellbeingJourneyScreen(controller: shared),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+        await t.pumpAndSettle();
+
+        // Avant : Parcours affiche un CTA « Prendre un moment » (mission
+        // « moment » non faite) — les DEUX écrans lisent le même contrôleur.
+        expect(shared.isMissionDone('moment'), isFalse);
+        expect(find.text('Prendre un moment'), findsOneWidget);
+
+        await t.ensureVisible(find.bySemanticsLabel('Lancer le moment'));
+        await t.tap(find.bySemanticsLabel('Lancer le moment'));
+        await t.pumpAndSettle();
+
+        // La vidéo a RÉELLEMENT démarré -> mission validée côté serveur, et
+        // l'écran Parcours (jamais démonté, monté à côté) le reflète SANS
+        // qu'aucune navigation n'ait eu lieu : même contrôleur, même
+        // `notifyListeners()`.
+        expect(shared.isMissionDone('moment'), isTrue);
+        expect(find.text('Prendre un moment'), findsNothing);
+      },
+    );
+
     testWidgets('19 CONSULTER la Pensée du jour (ouvrir la feuille) -> '
         'POST /api/app/wellbeing/mission { pensee }, indépendant du partage', (
       t,

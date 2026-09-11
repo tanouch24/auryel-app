@@ -458,6 +458,13 @@ void main() {
       ),
     );
     await t.pumpAndSettle();
+    // AUDIT ACCUEIL/PARCOURS — Accueil affiche désormais une mission
+    // « Consultation » (même libellé que le parcours bien-être serveur) :
+    // on restreint la recherche à la barre d'onglets elle-même, tous les
+    // onglets restant montés simultanément (IndexedStack).
+    final tabBar = find.byKey(const Key('auryel-bottom-tab-bar'));
+    Finder tab(String label) =>
+        find.descendant(of: tabBar, matching: find.widgetWithText(InkWell, label));
     for (final label in [
       'Accueil',
       'Tirage & Jeu',
@@ -465,13 +472,13 @@ void main() {
       'Méditation',
       'Mon compte',
     ]) {
-      expect(find.widgetWithText(InkWell, label), findsOneWidget);
+      expect(tab(label), findsOneWidget);
     }
-    expect(find.widgetWithText(InkWell, 'Boutique'), findsNothing);
-    expect(find.widgetWithText(InkWell, 'Bibliothèque'), findsNothing);
+    expect(tab('Boutique'), findsNothing);
+    expect(tab('Bibliothèque'), findsNothing);
 
     // « Mon compte » = le Dashboard existant (une seule implémentation).
-    await t.tap(find.widgetWithText(InkWell, 'Mon compte'));
+    await t.tap(tab('Mon compte'));
     await t.pumpAndSettle();
     expect(find.byType(DashboardScreen), findsOneWidget);
   });
