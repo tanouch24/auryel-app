@@ -47,6 +47,14 @@ class _PremiumScreenState extends State<PremiumScreen> {
   Widget build(BuildContext context) {
     final subscriptionManager = widget.subscriptionManager;
     final controller = PurchaseScope.of(context);
+    // Lu SANS dépendance de rebuild ([maybeReadOf]) : c'est le
+    // `Listenable.merge` ci-dessous qui nous abonne explicitement à ses
+    // `notifyListeners()` — donc l'écran se reconstruit aussi bien sur un
+    // événement d'achat (`controller`) qu'sur un simple resync de fond
+    // (`ConsultationController.refresh()` / `refreshAll()`), sans lien avec
+    // un achat en cours. Corrige le bug audité : avant, seul `controller`
+    // était écouté, et un refresh silencieux de la consultation ne
+    // reconstruisait jamais cet écran.
     final consultation = ConsultationScope.maybeReadOf(context);
     return Scaffold(
       body: Container(
@@ -55,7 +63,7 @@ class _PremiumScreenState extends State<PremiumScreen> {
         ),
         child: SafeArea(
           child: ListenableBuilder(
-            listenable: controller,
+            listenable: Listenable.merge([controller, consultation]),
             builder: (context, _) => _Body(
               controller: controller,
               isPremium: consultation?.quota?.isPremium ?? false,

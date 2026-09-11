@@ -4,6 +4,7 @@ import 'package:phosphor_icons/phosphor_icons.dart';
 import '../data/birth_date_parser.dart';
 import '../state/auth_controller.dart';
 import '../state/auryel_state.dart';
+import '../state/consultation_controller.dart';
 import '../state/profile_restore.dart';
 import '../theme/auryel_theme.dart';
 import '../widgets/gold_button.dart';
@@ -129,6 +130,11 @@ class _AdultGateState extends State<AdultGate> {
   Future<void> _logout() async {
     final auth = AuthScope.of(context);
     await auth.logout();
+    if (!mounted) return;
+    // AUDIT ABONNEMENT — vide le statut Premium/quota connu AVANT de router
+    // vers la connexion : le prochain compte à se connecter sur cet appareil
+    // ne doit jamais voir, même un instant, le Premium de l'ancien compte.
+    ConsultationScope.maybeReadOf(context)?.reset();
     _toLogin();
   }
 

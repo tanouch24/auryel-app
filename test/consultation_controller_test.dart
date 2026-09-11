@@ -970,4 +970,80 @@ void main() {
       expect(rig.auth.status, AuthStatus.sessionExpired);
     });
   });
+
+  // =========================================================================
+  // AUDIT ABONNEMENT — reset() + resync sur changement de compte
+  //
+  // Un statut Premium d'un compte PRÉCÉDENT ne doit jamais fuiter vers le
+  // compte suivant qui se connecte sur le même appareil.
+  // =========================================================================
+  group('reset() — logout / changement de compte', () {
+    test('vide quota/active/time/consultations et notifie', () async {
+      final rig = _rig(
+        (req) async =>
+            _json(_activeState(monthlyLimit: 10, windowActive: false)),
+      );
+      await rig.controller.refresh();
+      expect(rig.controller.quota, isNotNull);
+      expect(rig.controller.active, isNotNull);
+
+      var notified = 0;
+      rig.controller.addListener(() => notified++);
+      rig.controller.reset();
+
+      expect(rig.controller.quota, isNull);
+      expect(rig.controller.active, isNull);
+      expect(rig.controller.time, isNull);
+      expect(rig.controller.consultations, isEmpty);
+      expect(notified, greaterThan(0));
+    });
+
+    test(
+      'reset() puis refresh() sur le MÊME contrôleur reflète le nouveau '
+      'compte, jamais l’ancien (logout compte A Premium -> login compte B)',
+      () async {
+        // Un seul contrôleur, comme en production (singleton créé dans
+        // main()) : seul le compte "logiquement connecté" change, simulé ici
+        // par la réponse que renvoie /state.
+        var currentAccount = 'A';
+        final rig = _rig((req) async {
+          if (req.url.path == '/api/consultation/state') {
+            return _json({
+              'consultation': null,
+              'time': _time(premium: currentAccount == 'A' ? 28800 : 0),
+              'quota': _quota(isPremium: currentAccount == 'A'),
+            });
+          }
+          return _json({}, 404);
+        });
+
+        // Compte A : Premium.
+        await rig.controller.refresh();
+        expect(rig.controller.quota?.isPremium, isTrue);
+
+        // Déconnexion : reset() AVANT tout nouveau login (comme
+        // `_logout()` dans dashboard_screen.dart / adult_gate.dart) — plus
+        // aucune trace du compte A tant que le compte B n'a pas répondu.
+        rig.controller.reset();
+        expect(rig.controller.quota, isNull);
+
+        // Login compte B (non-Premium) : le refresh qui suit un login réel
+        // (email_auth_screen.dart) reflète le NOUVEAU compte, jamais l'ancien.
+        currentAccount = 'B';
+        await rig.controller.refresh();
+        expect(
+          rig.controller.quota?.isPremium,
+          isFalse,
+          reason: 'le compte B ne doit jamais hériter du Premium du compte A',
+        );
+      },
+    );
+
+    test('reset() est un no-op silencieux après dispose (jamais d’exception)',
+        () async {
+      final rig = _rig((req) async => _json(_activeState()));
+      rig.controller.dispose();
+      expect(rig.controller.reset, returnsNormally);
+    });
+  });
 }

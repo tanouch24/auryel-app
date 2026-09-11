@@ -298,6 +298,26 @@ class ConsultationController extends ChangeNotifier {
   /// COMPAT — ancien point d'entrée `no_credit` (quota seul).
   void applyNoCredit(QuotaDto? quota) => applyExhausted(quota: quota);
 
+  /// AUDIT ABONNEMENT — à appeler explicitement sur DÉCONNEXION, AVANT toute
+  /// navigation vers l'écran de connexion. Vide tout état connu (session,
+  /// quota/Premium, temps, liste des fils) pour qu'un statut Premium de
+  /// l'ancien compte ne puisse jamais s'afficher — même un instant — pour le
+  /// compte suivant qui se connectera sur cet appareil. Le prochain
+  /// [refresh] / [refreshAll] (déclenché par le flux de connexion) repart
+  /// donc de zéro, jamais d'un résidu de l'ancienne session. N'appelle aucun
+  /// réseau, ne touche pas le jeton (déjà purgé par `AuthController.logout`).
+  void reset() {
+    if (_disposed) return;
+    _active = null;
+    _quota = null;
+    _time = null;
+    _refreshError = null;
+    _consultations = const [];
+    _consultationsError = null;
+    _syncTimer();
+    notifyListeners();
+  }
+
   void _syncTimer() {
     _ticker?.cancel();
     _ticker = null;

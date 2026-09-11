@@ -47,6 +47,21 @@ class _SplashScreenState extends State<SplashScreen> {
     // Resynchro de l'état consultation UNIQUEMENT une fois la session restaurée
     // et valide (le GET /state exige un Bearer). Lecture seule : aucun POST,
     // aucun crédit consommé.
+    //
+    // AUDIT ABONNEMENT (corrigé) : ce `refreshAll()` reste délibérément
+    // `unawaited` — l'attendre bloquerait le splash (et donc l'entrée dans
+    // l'app) sur un réseau lent ou absent, ce qui serait pire que la race
+    // qu'on évite ici. La stratégie retenue est plutôt l'option « garantir
+    // que tous les écrans consommateurs sont réactifs » : `HomeScreen`,
+    // `PremiumScreen` et `DashboardScreen` (les 3 écrans qui affichent
+    // `quota.isPremium`) écoutent tous activement
+    // `ConsultationController` (`ListenableBuilder` / `Listenable.merge`).
+    // Donc même si un écran s'ouvre AVANT que ce refresh ait résolu (et lit
+    // transitoirement `quota == null` -> `isPremium: false` via les replis
+    // `?? false`), il se reconstruit automatiquement dès que la réponse
+    // serveur arrive — « non Premium » n'y est jamais un état terminal, juste
+    // transitoire. Aucun cache Premium local n'est introduit : le backend
+    // reste l'unique source de vérité.
     if (auth.isSignedIn) {
       // Portefeuille (`/state`) + liste des consultations (`/list`, J6-F2).
       unawaited(consultation.refreshAll());

@@ -192,6 +192,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final auth = AuthScope.maybeOf(context);
     await auth?.logout();
     if (!mounted) return;
+    // AUDIT ABONNEMENT — vide le statut Premium/quota connu AVANT de router
+    // vers la connexion : le prochain compte à se connecter sur cet appareil
+    // ne doit jamais voir, même un instant, le Premium de l'ancien compte.
+    ConsultationScope.maybeReadOf(context)?.reset();
     Navigator.of(context).pushAndRemoveUntil(
       MaterialPageRoute(builder: (_) => const EmailAuthScreen()),
       (route) => false,
@@ -439,12 +443,31 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 ],
                 _TimeSection(consultation: consultation),
                 const SizedBox(height: 16),
-                _SubscriptionSection(
-                  consultation: consultation,
-                  purchase: purchase,
-                  subscriptionManager:
-                      widget.subscriptionManager ?? defaultSubscriptionManager,
-                ),
+                // Reconstruction CIBLÉE de la seule section abonnement quand
+                // `ConsultationController.notifyListeners()` se déclenche
+                // (ex. `refresh()`/`refreshAll()` en arrière-plan) — corrige
+                // le bug audité : `consultation` est lu ici via
+                // `maybeReadOf` (sans dépendance), donc sans ce
+                // `ListenableBuilder` explicite la section restait figée sur
+                // le premier statut lu, même après un resync réussi. Le
+                // reste de l'écran (Dashboard entier) n'est jamais
+                // reconstruit pour ça.
+                consultation == null
+                    ? _SubscriptionSection(
+                        consultation: consultation,
+                        purchase: purchase,
+                        subscriptionManager: widget.subscriptionManager ??
+                            defaultSubscriptionManager,
+                      )
+                    : ListenableBuilder(
+                        listenable: consultation,
+                        builder: (context, _) => _SubscriptionSection(
+                          consultation: consultation,
+                          purchase: purchase,
+                          subscriptionManager: widget.subscriptionManager ??
+                              defaultSubscriptionManager,
+                        ),
+                      ),
                 const SizedBox(height: 16),
                 _JourneySection(
                   likedMessages: _likedMessages,

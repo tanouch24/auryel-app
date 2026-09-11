@@ -1,8 +1,11 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../../api/api_client.dart';
 import '../../state/auryel_state.dart';
 import '../../state/auth_controller.dart';
+import '../../state/consultation_controller.dart';
 import '../../state/profile_restore.dart';
 import '../../state/session_profile_gate.dart';
 import '../../theme/auryel_theme.dart';
@@ -73,13 +76,26 @@ class _EmailAuthScreenState extends State<EmailAuthScreen> {
       // locale de l'utilisateur précédent (prénom / conseiller / DOB) — jamais
       // affichée au nouvel utilisateur. Même utilisateur -> on conserve.
       final newUserId = auth.account?.userId;
-      if (SessionProfileGate.mustForgetLocalIdentity(
+      final accountChanged = SessionProfileGate.mustForgetLocalIdentity(
         accountUserId: newUserId ?? '',
         localUserId: state.userId,
-      )) {
+      );
+      if (accountChanged) {
         await state.forgetLocalIdentity();
         if (!mounted) return;
       }
+
+      // AUDIT ABONNEMENT — un statut Premium/quota d'un compte PRÉCÉDENT ne
+      // doit jamais fuiter vers celui qui vient de se connecter. Un vrai
+      // changement de compte vide d'abord tout état connu (comme
+      // `forgetLocalIdentity` le fait déjà pour le profil) ; dans tous les
+      // cas, on relance un resync pour le compte qui vient de s'authentifier
+      // — même logique que `SplashScreen._boot` (lecture seule, non bloquant :
+      // ne retarde jamais l'entrée dans l'app, les écrans consommateurs sont
+      // tous réactifs à `ConsultationController`).
+      final consultation = ConsultationScope.maybeOf(context);
+      if (accountChanged) consultation?.reset();
+      unawaited(consultation?.refreshAll());
 
       // MULTI-APPAREIL — récupère le profil serveur réel (prénom / date de
       // naissance / conseiller). Sur 401 : session déjà purgée -> retour login.
