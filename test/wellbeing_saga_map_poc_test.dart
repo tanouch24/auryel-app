@@ -1,4 +1,3 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -13,15 +12,17 @@ import 'package:auryel/state/auryel_state.dart';
 import 'package:auryel/widgets/main_nav_scope.dart';
 
 // ===========================================================================
-// POC CARTE AVENTURE (saga_map) — prototype visuel isolé, DEV UNIQUEMENT.
+// POC CARTE D'AVENTURE ANIMÉE (saga_map) — prototype visuel isolé, TEST
+// SAMSUNG UNIQUEMENT (accès temporaire, voir kAuryelPocTempSamsungTestAccessEnabled).
 //
-// Ces tests couvrent : l'accès dev (appui long, kDebugMode) qui n'altère PAS
-// la navigation de production (tap normal), le rendu de la carte avec ses 7
-// nœuds et leurs 3 états, les interactions (terminé/actuel/verrouillé), et
-// l'absence d'overflow à 360x640 et 412x915.
+// 30 jours / 6 régions. Ces tests couvrent : les 30 étapes, l'étape actuelle,
+// les étapes terminées/futures/majeures, les 3 interactions par état, le HUD
+// jour/progression, l'absence d'overflow sur petits écrans, la possibilité de
+// déclencher l'animation de progression (bouton DEV) sans toucher à aucune
+// donnée métier réelle, et l'isolement de l'accès (tap normal inchangé).
 //
-// NOTE : l'écran POC porte des animations continues (halo de l'étape
-// actuelle, avatar joueur) qui `repeat(reverse: true)` indéfiniment — donc
+// NOTE : le fond de carte porte des animations continues (scintillement,
+// brume, halo de l'étape actuelle, avatar) qui `repeat()` indéfiniment — donc
 // `pumpAndSettle()` n'y termine jamais. On utilise à la place une poignée de
 // `pump()` bornés dès que le POC est monté.
 // ===========================================================================
@@ -68,12 +69,24 @@ Widget _home() => AuryelStateScope(
   ),
 );
 
+/// Le POC ne dépend d'AUCUN provider/état métier — juste un `MaterialApp`.
+/// C'est aussi la preuve que sa progression est un état 100% local : rien
+/// autour de lui ne pourrait persister quoi que ce soit même s'il le voulait.
 Widget _poc() => const MaterialApp(home: WellbeingSagaMapPocScreen());
+
+Future<void> _pumpTall(WidgetTester t, {Size size = const Size(400, 1400)}) async {
+  t.view.physicalSize = size;
+  t.view.devicePixelRatio = 1.0;
+  addTearDown(t.view.resetPhysicalSize);
+  addTearDown(t.view.resetDevicePixelRatio);
+  await t.pumpWidget(_poc());
+  await _settle(t);
+}
 
 void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
 
-  group('Accueil — accès dev au POC (ne casse pas la production)', () {
+  group('Accueil — accès POC isolé (test Samsung uniquement)', () {
     testWidgets('tap normal sur le CTA -> écran de PRODUCTION (inchangé)', (
       t,
     ) async {
@@ -89,8 +102,14 @@ void main() {
     });
 
     testWidgets(
-      'appui long (debug) sur le CTA -> ouvre le POC saga_map',
+      'appui long -> ouvre le POC saga_map (accès test, pas kDebugMode)',
       (t) async {
+        expect(
+          kAuryelPocTempSamsungTestAccessEnabled,
+          isTrue,
+          reason:
+              'Accès temporaire attendu actif pour CE build de test Samsung.',
+        );
         await t.pumpWidget(_home());
         await t.pumpAndSettle();
         final cta = find.text('Suivre mon parcours bien-être');
@@ -100,87 +119,121 @@ void main() {
         await _settle(t);
         expect(find.byType(WellbeingSagaMapPocScreen), findsOneWidget);
       },
-      skip: !kDebugMode,
     );
   });
 
-  group('POC — rendu de la carte', () {
-    testWidgets('affiche les 7 nœuds de progression', (t) async {
-      await t.pumpWidget(_poc());
-      await _settle(t);
-      for (var i = 0; i < 7; i++) {
-        expect(find.byKey(Key('poc-node-$i')), findsOneWidget);
+  group('POC — les 30 étapes', () {
+    testWidgets('les 30 nœuds de progression sont présents', (t) async {
+      await _pumpTall(t);
+      for (var i = 0; i < 30; i++) {
+        expect(
+          find.byKey(Key('poc-node-$i')),
+          findsOneWidget,
+          reason: 'nœud manquant pour id=$i (jour ${i + 1})',
+        );
       }
     });
 
-    testWidgets('affiche le bandeau de l’étape actuelle (Jour 4)', (
+    testWidgets('l’étape actuelle est le jour 12 (état de démo attendu)', (
       t,
     ) async {
-      await t.pumpWidget(_poc());
+      expect(kAuryelPocDemoCurrentDay1, 12);
+      await _pumpTall(t);
+      // Le tap sur le jour 12 (id 11) doit ouvrir la fiche "en cours".
+      await t.tap(find.byKey(const Key('poc-node-11')));
       await _settle(t);
-      expect(find.textContaining('Jour 4'), findsWidgets);
-      expect(find.text('Le passage'), findsWidgets);
+      expect(find.text('Continuer mon parcours'), findsOneWidget);
     });
 
+    testWidgets('les jours < 12 sont terminés (fiche "Revoir")', (t) async {
+      await _pumpTall(t);
+      // La caméra s'ouvre centrée sur le jour actuel (12) : le jour 1 est
+      // au-dessus du viewport. On fait défiler vers le haut du monde pour
+      // l'atteindre, comme le ferait une utilisatrice.
+      await t.drag(find.byKey(const Key('poc-map-viewer')), const Offset(0, 5000));
+      await _settle(t);
+      await t.tap(find.byKey(const Key('poc-node-0'))); // jour 1
+      await _settle(t);
+      expect(find.text('Revoir'), findsOneWidget);
+    });
+
+    testWidgets('les jours > 12 sont verrouillés/futurs (brume)', (t) async {
+      await _pumpTall(t);
+      await t.tap(find.byKey(const Key('poc-node-15'))); // jour 16
+      await _settle(t);
+      expect(find.text('Cette étape se révélera bientôt.'), findsOneWidget);
+      expect(find.byKey(const Key('poc-future-sheet')), findsOneWidget);
+    });
+
+    testWidgets('les étapes majeures (5/10/15/20/25/30) portent un nom', (
+      t,
+    ) async {
+      await _pumpTall(t, size: const Size(400, 4200));
+      await t.tap(find.byKey(const Key('poc-node-4'))); // jour 5, terminé
+      await _settle(t);
+      expect(find.text('La Clairière'), findsOneWidget);
+    });
+  });
+
+  group('POC — HUD jour/progression', () {
+    testWidgets('affiche « Jour 12 / 30 » et « 40 % »', (t) async {
+      await _pumpTall(t);
+      expect(find.byKey(const Key('poc-hud-day')), findsOneWidget);
+      expect(find.text('Jour 12 / 30'), findsOneWidget);
+      expect(find.byKey(const Key('poc-hud-percent')), findsOneWidget);
+      expect(find.text('40 %'), findsOneWidget);
+    });
+  });
+
+  group('POC — zoom/pan', () {
     testWidgets('la carte propose un viewer zoom/pan (InteractiveViewer)', (
       t,
     ) async {
-      await t.pumpWidget(_poc());
-      await _settle(t);
+      await _pumpTall(t);
       expect(find.byKey(const Key('poc-map-viewer')), findsOneWidget);
       expect(find.byType(InteractiveViewer), findsOneWidget);
     });
   });
 
-  group('POC — interactions par état', () {
-    // Fenêtre haute : la carte (7 nœuds + décor) dépasse la hauteur d'un
-    // écran de test par défaut (800x600). On agrandit la fenêtre plutôt que
-    // de piloter le pan de l'InteractiveViewer, pour garder ces tests
-    // concentrés sur l'interaction (tap -> bonne feuille/feedback), pas sur
-    // le geste de défilement lui-même.
-    Future<void> pumpTall(WidgetTester t) async {
-      t.view.physicalSize = const Size(400, 1400);
-      t.view.devicePixelRatio = 1.0;
-      addTearDown(t.view.resetPhysicalSize);
-      addTearDown(t.view.resetDevicePixelRatio);
-      await t.pumpWidget(_poc());
-      await _settle(t);
-    }
-
-    testWidgets('tap sur une étape TERMINÉE -> fiche info avec bouton Fermer', (
-      t,
-    ) async {
-      await pumpTall(t);
-      await t.tap(find.byKey(const Key('poc-node-0')));
-      await _settle(t);
-      expect(find.text('Première lumière'), findsOneWidget);
-      expect(find.text('Fermer'), findsOneWidget);
-    });
-
+  group('POC — animation de progression déclenchable (DEV)', () {
     testWidgets(
-      'tap sur l’étape ACTUELLE -> CTA « Continuer mon parcours »',
+      'le bouton DEV avance le jour actuel sans toucher à aucune donnée métier',
       (t) async {
-        await pumpTall(t);
-        await t.tap(find.byKey(const Key('poc-node-3')));
+        await _pumpTall(t, size: const Size(400, 4200));
+        // Avant : jour 12 en cours.
+        await t.tap(find.byKey(const Key('poc-node-11')));
         await _settle(t);
         expect(find.text('Continuer mon parcours'), findsOneWidget);
-      },
-    );
+        // Referme la fiche (son propre bouton se contente de la fermer).
+        await t.tap(find.text('Continuer mon parcours'));
+        await _settle(t);
 
-    testWidgets(
-      'tap sur une étape VERROUILLÉE -> feedback discret « Disponible prochainement »',
-      (t) async {
-        await pumpTall(t);
-        await t.tap(find.byKey(const Key('poc-node-4')));
-        await t.pump();
-        expect(find.text('Disponible prochainement'), findsOneWidget);
-        expect(find.byKey(const Key('poc-locked-snackbar')), findsOneWidget);
+        expect(find.byKey(const Key('poc-dev-play-progress')), findsOneWidget);
+        await t.tap(find.byKey(const Key('poc-dev-play-progress')));
+        // Avance au-delà de la durée de l'animation (~1.8s) par petits pas
+        // bornés — jamais pumpAndSettle (animations d'ambiance infinies).
+        for (var i = 0; i < 12; i++) {
+          await t.pump(const Duration(milliseconds: 200));
+        }
+        await _settle(t);
+
+        expect(find.text('Jour 13 / 30'), findsOneWidget);
+
+        // Le jour 13 (id 12) est maintenant l'étape actuelle.
+        await t.tap(find.byKey(const Key('poc-node-12')));
+        await _settle(t);
+        expect(find.text('Continuer mon parcours'), findsOneWidget);
       },
     );
   });
 
   group('POC — petits écrans, aucun overflow', () {
-    for (final size in const [Size(360, 640), Size(412, 915)]) {
+    for (final size in const [
+      Size(320, 480),
+      Size(320, 520),
+      Size(360, 640),
+      Size(412, 915),
+    ]) {
       testWidgets(
         'aucun overflow à ${size.width.toInt()}×${size.height.toInt()}',
         (t) async {
@@ -191,7 +244,7 @@ void main() {
           await t.pumpWidget(_poc());
           await _settle(t);
           expect(t.takeException(), isNull);
-          expect(find.byKey(const Key('poc-node-3')), findsOneWidget);
+          expect(find.byKey(const Key('poc-hud-day')), findsOneWidget);
         },
       );
     }

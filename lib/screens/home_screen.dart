@@ -266,10 +266,14 @@ class _WellbeingJourneyCta extends StatelessWidget {
           onTap: () => Navigator.of(context).push(
             MaterialPageRoute(builder: (_) => const WellbeingJourneyScreen()),
           ),
-          // DEV UNIQUEMENT — appui long, visible seulement en `kDebugMode` :
-          // ouvre le POC carte d'aventure `saga_map`, isolé de la navigation
-          // de production (le tap normal ci-dessus reste inchangé).
-          onLongPress: kDebugMode
+          // ACCÈS TEMPORAIRE — CE BUILD DE TEST SAMSUNG UNIQUEMENT.
+          // Appui long : ouvre le POC carte d'aventure `saga_map`, isolé de
+          // la navigation de production (le tap normal ci-dessus reste
+          // inchangé). Gardé par `kAuryelPocTempSamsungTestAccessEnabled`
+          // (voir wellbeing_saga_map_poc.dart) plutôt que par `kDebugMode`
+          // pour rester ouvrable dans CE build release de test — à repasser
+          // à `false`/`kDebugMode` avant toute release de production réelle.
+          onLongPress: kAuryelPocTempSamsungTestAccessEnabled
               ? () => Navigator.of(context).push(
                     MaterialPageRoute(
                       builder: (_) => const WellbeingSagaMapPocScreen(),
