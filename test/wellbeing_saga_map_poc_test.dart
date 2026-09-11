@@ -92,7 +92,7 @@ void main() {
     ) async {
       await t.pumpWidget(_home());
       await t.pumpAndSettle();
-      final cta = find.text('Suivre mon parcours bien-être');
+      final cta = find.text('Suis ton parcours pendant 30 jours');
       await t.ensureVisible(cta);
       await t.pumpAndSettle();
       await t.tap(cta);
@@ -112,7 +112,7 @@ void main() {
         );
         await t.pumpWidget(_home());
         await t.pumpAndSettle();
-        final cta = find.text('Suivre mon parcours bien-être');
+        final cta = find.text('Suis ton parcours pendant 30 jours');
         await t.ensureVisible(cta);
         await t.pumpAndSettle();
         await t.longPress(cta);

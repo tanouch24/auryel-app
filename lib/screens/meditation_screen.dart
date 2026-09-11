@@ -20,11 +20,19 @@ import '../widgets/relaxation_visual_picker.dart';
 /// Lecteur d'une séance « Ton Moment ». Ouvert depuis la bibliothèque
 /// ([MeditationLibraryScreen]) avec une séance précise ([item]), ou sans
 /// [item] -> rotation calendaire « Ton Moment du jour » (comportement
-/// historique). Lecteur complet (lecture / pause / reprise / progression),
-/// mission « Moment » validée UNIQUEMENT sur une écoute réellement aboutie
-/// (fin naturelle ou ≥ 90 %). Un visuel d'ambiance MUET est choisi
-/// automatiquement au lancement ; « Choisir le visuel » permet d'en
-/// sélectionner un autre SANS jamais toucher à l'audio.
+/// historique). Lecteur complet (lecture / pause / reprise / progression /
+/// précédent / suivant).
+///
+/// MISSION « Prends ton temps » — règle produit définitive : validée DÈS
+/// QU'UNE VIDÉO DE RELAXATION COMMENCE RÉELLEMENT À ÊTRE LUE (confirmation
+/// effective du démarrage, jamais au simple tap). Si aucune vidéo n'est
+/// disponible pour cette séance (catalogue vide, hors ligne, chargement en
+/// échec), on retombe sur le démarrage RÉEL de l'audio — jamais bloquant,
+/// jamais en attente de la fin. Un seul marquage par jour (idempotent).
+///
+/// Un visuel d'ambiance MUET est choisi automatiquement au lancement ;
+/// « Choisir le visuel » permet d'en sélectionner un autre SANS jamais
+/// toucher à l'audio.
 ///
 /// Aucune promesse médicale. Aucune récompense en temps de consultation.
 ///
@@ -113,10 +121,23 @@ class _MeditationScreenState extends State<MeditationScreen>
   bool _onThisTab = true;
   bool _momentMarked = false;
 
+  /// `true` dès qu'on sait que la vidéo ne jouera PAS pour cette séance
+  /// (catalogue vide, ou chargement en échec) — déclenche alors le repli sur
+  /// le démarrage réel de l'audio pour la mission « Prends ton temps ».
+  bool _videoUnavailableForSession = false;
+
+  /// Catalogue ordonné pour précédent/suivant : liste distante résolue
+  /// (même source que [MeditationLibraryScreen]) si disponible, sinon
+  /// [MeditationCatalog.all] embarqué. Toujours utilisable, même hors ligne.
+  List<MeditationItem> _catalogItems = const [];
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    // Repli embarqué immédiat -> précédent/suivant fonctionnent dès l'ouverture,
+    // même hors ligne ; remplacé une fois si un catalogue distant résout.
+    _catalogItems = widget.catalog.all;
     _subs.add(_audio.onPosition.listen(_onPosition));
     _subs.add(
       _audio.onDuration.listen((d) {
@@ -163,6 +184,7 @@ class _MeditationScreenState extends State<MeditationScreen>
                 if (mounted) _resolveAmbianceVideo(content);
               });
         }
+        _resolveCatalog(content);
       }
     }
 
@@ -185,13 +207,6 @@ class _MeditationScreenState extends State<MeditationScreen>
   void _onPosition(Duration p) {
     if (!mounted) return;
     setState(() => _elapsed = p);
-    // Complétion « significative » : ≥ 90 % de la durée connue.
-    final total = _total.inMilliseconds > 0
-        ? _total.inMilliseconds
-        : _item.duration.inMilliseconds;
-    if (total > 0 && p.inMilliseconds >= total * 0.9) {
-      _markMomentDone();
-    }
   }
 
   void _onComplete() {
@@ -200,7 +215,17 @@ class _MeditationScreenState extends State<MeditationScreen>
       _status = _PlayStatus.done;
       if (_total > Duration.zero) _elapsed = _total;
     });
-    _markMomentDone();
+  }
+
+  /// La vidéo vient RÉELLEMENT de démarrer sa lecture -> valide la mission.
+  void _onVideoStarted() => _markMomentDone();
+
+  /// La vidéo a définitivement échoué à charger : ne bloque jamais la mission
+  /// derrière un média qui ne jouera pas. Si l'audio joue déjà, on valide tout
+  /// de suite ; sinon le prochain démarrage audio validera (cf. [_start]).
+  void _onVideoFailed() {
+    _videoUnavailableForSession = true;
+    if (_status == _PlayStatus.playing) _markMomentDone();
   }
 
   /// Idempotent : le tracker est déjà « une fois par jour », et [_momentMarked]
@@ -286,6 +311,66 @@ class _MeditationScreenState extends State<MeditationScreen>
     }
   }
 
+  /// Résout le catalogue distant (même source que [MeditationLibraryScreen])
+  /// pour précédent/suivant. Non bloquant : le repli embarqué déjà posé dans
+  /// [initState] reste utilisable tant que/si cette résolution échoue.
+  Future<void> _resolveCatalog(ContentRepository content) async {
+    try {
+      final list = await content.meditations();
+      if (!mounted || list.isEmpty) return;
+      setState(() => _catalogItems = _dedupMeditations(list));
+    } catch (_) {
+      /* le repli embarqué reste utilisable */
+    }
+  }
+
+  /// 1 AUDIO = 1 FICHE : même règle de déduplication que la bibliothèque
+  /// (par `id`, puis titre), pour que précédent/suivant parcourent EXACTEMENT
+  /// la même liste que ce que la bibliothèque a affiché.
+  static List<MeditationItem> _dedupMeditations(List<MeditationItem> src) {
+    final seen = <String>{};
+    final out = <MeditationItem>[];
+    for (final m in src) {
+      final key = m.id.isNotEmpty ? m.id : m.title;
+      if (seen.add(key)) out.add(m);
+    }
+    return out;
+  }
+
+  int get _currentIndex =>
+      _catalogItems.indexWhere((m) => m.id == _item.id);
+
+  bool get _canGoPrevious => _currentIndex > 0;
+
+  bool get _canGoNext =>
+      _currentIndex >= 0 && _currentIndex < _catalogItems.length - 1;
+
+  /// Change de séance SANS jamais toucher au visuel choisi (sauf nécessité
+  /// technique réelle : aucune ici). Réinitialise strictement l'AUDIO
+  /// (nouvelle piste = nouvelle position à zéro) et l'état de lecture ; ne
+  /// relance jamais automatiquement (cohérent avec « jamais d'autoplay »
+  /// partout ailleurs dans cet écran).
+  Future<void> _loadCatalogItem(MeditationItem item) async {
+    await _audio.stop();
+    if (!mounted) return;
+    setState(() {
+      _item = item;
+      _status = _PlayStatus.idle;
+      _elapsed = Duration.zero;
+      _total = Duration.zero;
+    });
+  }
+
+  Future<void> _goPrevious() async {
+    if (!_canGoPrevious) return;
+    await _loadCatalogItem(_catalogItems[_currentIndex - 1]);
+  }
+
+  Future<void> _goNext() async {
+    if (!_canGoNext) return;
+    await _loadCatalogItem(_catalogItems[_currentIndex + 1]);
+  }
+
   Future<void> _onPrimaryTap() async {
     switch (_status) {
       case _PlayStatus.idle:
@@ -310,6 +395,12 @@ class _MeditationScreenState extends State<MeditationScreen>
     setState(
       () => _status = ok ? _PlayStatus.playing : _PlayStatus.unavailable,
     );
+    // Repli mission : aucune vidéo pour cette séance -> le démarrage RÉEL de
+    // l'audio valide « Prends ton temps ». Si une vidéo est en cours de
+    // résolution/chargement, on attend sa confirmation (_onVideoStarted).
+    if (ok && (_video == null || _videoUnavailableForSession)) {
+      _markMomentDone();
+    }
   }
 
   Future<void> _pause() async {
@@ -353,38 +444,32 @@ class _MeditationScreenState extends State<MeditationScreen>
         : 0.0;
     final playing = _status == _PlayStatus.playing;
 
-    // Hauteur de la SCÈNE VIDÉO : élément principal de l'écran, dimensionné
-    // pour être immédiatement identifiable comme le média.
-    final screenH = MediaQuery.sizeOf(context).height;
-    final stageH = (screenH * 0.46).clamp(180.0, 440.0);
-
     final placeholder = _StagePlaceholder(
       category: _item.category,
       playing: playing,
     );
 
-    final stage = SizedBox(
+    // SCÈNE VIDÉO — élément PRINCIPAL de l'écran, façon lecteur média : quasi
+    // toute la largeur, ratio 16:9 propre, fond noir, très peu de bordure
+    // (juste une ombre légère pour la détacher du fond). Plus de gros
+    // encadrement doré autour du média : l'épure est le point de ce lot.
+    final stage = AspectRatio(
       key: const Key('meditation-video-stage'),
-      height: stageH,
-      width: double.infinity,
+      aspectRatio: 16 / 9,
       child: DecoratedBox(
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(22),
-          color: AuryelColors.surface,
-          border: Border.all(
-            color: AuryelColors.goldLight.withValues(alpha: 0.4),
-            width: 1.2,
-          ),
+          borderRadius: BorderRadius.circular(14),
+          color: Colors.black,
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.35),
-              blurRadius: 18,
-              offset: const Offset(0, 8),
+              color: Colors.black.withValues(alpha: 0.45),
+              blurRadius: 16,
+              offset: const Offset(0, 6),
             ),
           ],
         ),
         child: ClipRRect(
-          borderRadius: BorderRadius.circular(22),
+          borderRadius: BorderRadius.circular(14),
           child: _video != null
               ? RelaxationVideoStage(
                   video: _video,
@@ -392,6 +477,8 @@ class _MeditationScreenState extends State<MeditationScreen>
                   surfaceFactory: widget.videoSurfaceFactory,
                   caption: _item.title,
                   fallback: placeholder,
+                  onStarted: _onVideoStarted,
+                  onFailed: _onVideoFailed,
                 )
               : placeholder,
         ),
@@ -482,7 +569,27 @@ class _MeditationScreenState extends State<MeditationScreen>
             ],
           ),
           const SizedBox(height: 16),
-          _PlayButton(playing: playing, onTap: _onPrimaryTap),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              _SkipButton(
+                key: const Key('meditation-previous-button'),
+                icon: Icons.skip_previous_rounded,
+                tooltip: 'Méditation précédente',
+                onTap: _canGoPrevious ? _goPrevious : null,
+              ),
+              const SizedBox(width: 22),
+              _PlayButton(playing: playing, onTap: _onPrimaryTap),
+              const SizedBox(width: 22),
+              _SkipButton(
+                key: const Key('meditation-next-button'),
+                icon: Icons.skip_next_rounded,
+                tooltip: 'Méditation suivante',
+                onTap: _canGoNext ? _goNext : null,
+              ),
+            ],
+          ),
           const SizedBox(height: 10),
           Text(
             _statusText,
@@ -564,7 +671,7 @@ class _MeditationScreenState extends State<MeditationScreen>
               ],
             ),
             Padding(
-              padding: const EdgeInsets.fromLTRB(16, 6, 16, 4),
+              padding: const EdgeInsets.fromLTRB(10, 6, 10, 4),
               child: stage,
             ),
             Expanded(child: controls),
@@ -684,6 +791,55 @@ class _PlayButton extends StatelessWidget {
               playing ? Icons.pause_rounded : Icons.play_arrow_rounded,
               size: 40,
               color: AuryelColors.backgroundDeep,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Bouton latéral précédent/suivant — plus petit que le bouton central,
+/// design sobre (pas de gros encadrement doré), désactivé proprement aux
+/// extrémités du catalogue (jamais de crash, jamais d'action fantôme).
+class _SkipButton extends StatelessWidget {
+  const _SkipButton({
+    super.key,
+    required this.icon,
+    required this.tooltip,
+    required this.onTap,
+  });
+
+  final IconData icon;
+  final String tooltip;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final enabled = onTap != null;
+    return Semantics(
+      button: true,
+      enabled: enabled,
+      label: tooltip,
+      child: Material(
+        color: Colors.transparent,
+        shape: const CircleBorder(),
+        child: InkWell(
+          customBorder: const CircleBorder(),
+          onTap: onTap,
+          child: Ink(
+            width: 48,
+            height: 48,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: AuryelColors.surfaceLight.withValues(alpha: enabled ? 0.7 : 0.3),
+            ),
+            child: Icon(
+              icon,
+              size: 26,
+              color: enabled
+                  ? AuryelColors.goldLight
+                  : AuryelColors.textMuted.withValues(alpha: 0.5),
             ),
           ),
         ),

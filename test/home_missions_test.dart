@@ -102,7 +102,7 @@ void main() {
       expect(find.text('Fais ton tirage'), findsOneWidget);
       expect(find.text('Consulte ton conseiller'), findsOneWidget);
       expect(find.text('Partage ta pensée'), findsOneWidget);
-      expect(find.text('Prends ton Moment'), findsOneWidget);
+      expect(find.text('Prends ton temps'), findsOneWidget);
       expect(find.text('0/4'), findsOneWidget);
       expect(find.text('Journée Auryel complétée'), findsNothing);
       // aucune coche
@@ -177,7 +177,7 @@ void main() {
       );
     });
 
-    testWidgets('tap « Prends ton Moment » -> onglet Méditation, mission NON '
+    testWidgets('tap « Prends ton temps » -> onglet Méditation, mission NON '
         'marquée à l\'ouverture (uniquement sur une séance aboutie)', (
       t,
     ) async {
@@ -185,7 +185,7 @@ void main() {
       await t.pumpWidget(_host(tabTaps: taps));
       await t.pump(const Duration(seconds: 1));
 
-      await t.tap(find.text('Prends ton Moment'));
+      await t.tap(find.text('Prends ton temps'));
       await t.pump();
       await t.pump(const Duration(milliseconds: 50));
 

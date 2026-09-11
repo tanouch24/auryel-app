@@ -17,7 +17,11 @@ abstract class RelaxationVideoSurface {
   /// exception. NE TOUCHE JAMAIS le lecteur audio.
   Future<bool> load(String url);
 
-  Future<void> play();
+  /// Démarre la lecture. Renvoie `true` quand la lecture a RÉELLEMENT
+  /// commencé (confirmation effective), `false` sinon (pas de contrôleur
+  /// prêt, échec plateforme). Sert de signal pour la mission « Prends ton
+  /// temps » (voir [RelaxationVideoStage.onStarted]) — jamais pour l'audio.
+  Future<bool> play();
   Future<void> pause();
 
   /// Widget de rendu de la frame courante (déjà en `cover`). `null` tant que la
@@ -67,11 +71,14 @@ class VideoPlayerRelaxationSurface implements RelaxationVideoSurface {
   }
 
   @override
-  Future<void> play() async {
+  Future<bool> play() async {
+    final c = _c;
+    if (c == null || !_ready) return false;
     try {
-      await _c?.play();
+      await c.play();
+      return true;
     } catch (_) {
-      /* non bloquant */
+      return false;
     }
   }
 
@@ -142,6 +149,8 @@ class RelaxationVideoStage extends StatefulWidget {
     this.surfaceFactory,
     this.fallback,
     this.caption,
+    this.onStarted,
+    this.onFailed,
   });
 
   final RelaxationVideo? video;
@@ -158,6 +167,17 @@ class RelaxationVideoStage extends StatefulWidget {
   /// Légende posée en bas de la scène (titre de la méditation), sur un léger
   /// dégradé — présentation « lecteur média ».
   final String? caption;
+
+  /// Appelé quand la vidéo vient RÉELLEMENT de démarrer sa lecture
+  /// (confirmation effective, pas un simple tap). Sert de signal pour la
+  /// mission « Prends ton temps » — ce widget n'a et n'aura jamais de
+  /// référence à l'audio, il expose seulement le fait.
+  final VoidCallback? onStarted;
+
+  /// Appelé quand la vidéo choisie a définitivement échoué à charger (URL
+  /// invalide, réseau, format). Permet à l'hôte de ne pas bloquer sur une
+  /// vidéo qui ne jouera jamais.
+  final VoidCallback? onFailed;
 
   @override
   State<RelaxationVideoStage> createState() => _RelaxationVideoStageState();
@@ -215,16 +235,33 @@ class _RelaxationVideoStageState extends State<RelaxationVideoStage>
       return;
     }
     setState(() => _failed = !ok);
-    if (ok) _applyActive();
+    if (ok) {
+      _applyActive();
+    } else {
+      widget.onFailed?.call();
+    }
   }
 
   void _applyActive() {
     final s = _surface;
     if (s == null || !s.isReady) return;
     if (widget.active) {
-      unawaited(s.play());
+      unawaited(_playAndNotify(s));
     } else {
       unawaited(s.pause());
+    }
+  }
+
+  Future<void> _playAndNotify(RelaxationVideoSurface s) async {
+    final started = await s.play();
+    if (!mounted) return;
+    if (started) {
+      widget.onStarted?.call();
+    } else {
+      // Chargée mais `play()` a échoué à démarrer réellement : même
+      // traitement qu'un échec de chargement, pour ne jamais bloquer l'hôte
+      // derrière une vidéo qui ne jouera pas.
+      widget.onFailed?.call();
     }
   }
 

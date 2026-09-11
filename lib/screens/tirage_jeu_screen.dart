@@ -7,7 +7,7 @@ import 'tirage_screen.dart';
 
 /// Hub du 2ᵉ onglet « Tirage & Jeu » — CONSACRÉ au tirage / aux expériences de
 /// jeu. Le parcours bien-être n'est PLUS présenté ici : il a son CTA dédié sur
-/// l'Accueil (« Suivre mon parcours bien-être »).
+/// l'Accueil (« Suis ton parcours pendant 30 jours »).
 /// Ne duplique AUCUNE logique de tirage : l'entrée Tirage ouvre le vrai
 /// [TirageScreen].
 class TirageJeuScreen extends StatelessWidget {

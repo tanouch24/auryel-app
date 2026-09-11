@@ -312,7 +312,7 @@ void main() {
       await t.pumpWidget(_shell());
       await t.pumpAndSettle();
 
-      await t.tap(find.text('Prends ton Moment'));
+      await t.tap(find.text('Prends ton temps'));
       await t.pumpAndSettle();
       expect(find.byType(MeditationLibraryScreen), findsOneWidget);
       expect(find.text('Bibliothèque'), findsOneWidget);

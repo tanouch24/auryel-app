@@ -111,6 +111,7 @@ void main() {
     await t.pumpWidget(_host(a));
     await t.pumpAndSettle();
 
+    await t.ensureVisible(find.bySemanticsLabel('Lancer le moment'));
     await t.tap(find.bySemanticsLabel('Lancer le moment'));
     await t.pump();
     expect(
@@ -130,10 +131,12 @@ void main() {
     await t.pumpWidget(_host(a));
     await t.pumpAndSettle();
 
+    await t.ensureVisible(find.bySemanticsLabel('Lancer le moment'));
     await t.tap(find.bySemanticsLabel('Lancer le moment'));
     await t.pump();
     expect(find.bySemanticsLabel('Mettre en pause'), findsOneWidget);
 
+    await t.ensureVisible(find.bySemanticsLabel('Mettre en pause'));
     await t.tap(find.bySemanticsLabel('Mettre en pause'));
     await t.pump();
     expect(a.calls, contains('pause'));
@@ -144,6 +147,7 @@ void main() {
     final a = _FakeMeditationAudio();
     await t.pumpWidget(_host(a));
     await t.pumpAndSettle();
+    await t.ensureVisible(find.bySemanticsLabel('Lancer le moment'));
     await t.tap(find.bySemanticsLabel('Lancer le moment'));
     await t.pump();
 
@@ -157,6 +161,7 @@ void main() {
     final a = _FakeMeditationAudio();
     await t.pumpWidget(_host(a));
     await t.pumpAndSettle();
+    await t.ensureVisible(find.bySemanticsLabel('Lancer le moment'));
     await t.tap(find.bySemanticsLabel('Lancer le moment'));
     await t.pump();
 
@@ -171,6 +176,7 @@ void main() {
     final a = _FakeMeditationAudio();
     await t.pumpWidget(_host(a));
     await t.pumpAndSettle();
+    await t.ensureVisible(find.bySemanticsLabel('Lancer le moment'));
     await t.tap(find.bySemanticsLabel('Lancer le moment'));
     await t.pump();
 
@@ -194,32 +200,77 @@ void main() {
     );
   });
 
-  testWidgets('10 — écoute insuffisante (< 90 %) ne coche pas la mission', (
+  // RÈGLE PRODUIT DÉFINITIVE (ce lot) : « Prends ton temps » se coche dès
+  // qu'une vidéo de relaxation commence RÉELLEMENT à être lue. Cet écran
+  // (`_host`) n'a aucun `ContentScope` -> aucune vidéo n'est jamais
+  // disponible -> on est dans le cas de REPLI documenté : le démarrage RÉEL
+  // de l'audio coche alors la mission (jamais bloquant sans média visuel).
+  // Les scénarios AVEC vidéo (tap seul insuffisant, démarrage confirmé
+  // requis) sont couverts dans meditation_video_test.dart.
+  testWidgets(
+    '10 — sans vidéo disponible : le démarrage RÉEL de l\'audio coche '
+    'immédiatement la mission (repli)',
+    (t) async {
+      final a = _FakeMeditationAudio();
+      await t.pumpWidget(_host(a));
+      await t.pumpAndSettle();
+      expect(
+        await DailyMissionTracker().isDone(DailyMissionTracker.moment),
+        isFalse,
+        reason: 'pas encore de tap -> pas de démarrage réel',
+      );
+
+      await t.ensureVisible(find.bySemanticsLabel('Lancer le moment'));
+      await t.tap(find.bySemanticsLabel('Lancer le moment'));
+      await t.pump();
+      expect(
+        await DailyMissionTracker().isDone(DailyMissionTracker.moment),
+        isTrue,
+        reason: 'audio réellement démarré (play() a renvoyé true)',
+      );
+
+      // Une écoute partielle ensuite ne change rien : déjà coché, jamais
+      // décoché, et on n'attend plus la fin.
+      a.emitDuration(const Duration(minutes: 10));
+      a.emitPosition(const Duration(minutes: 1)); // 10 %
+      await t.pump();
+      expect(
+        await DailyMissionTracker().isDone(DailyMissionTracker.moment),
+        isTrue,
+      );
+    },
+  );
+
+  testWidgets(
+    '10 bis — tap qui ÉCHOUE à démarrer réellement ne coche pas la mission',
+    (t) async {
+      final a = _FakeMeditationAudio()..available = false;
+      await t.pumpWidget(_host(a));
+      await t.pumpAndSettle();
+      await t.ensureVisible(find.bySemanticsLabel('Lancer le moment'));
+      await t.tap(find.bySemanticsLabel('Lancer le moment'));
+      await t.pump();
+      expect(
+        await DailyMissionTracker().isDone(DailyMissionTracker.moment),
+        isFalse,
+        reason: 'play() a renvoyé false : pas de démarrage réel',
+      );
+    },
+  );
+
+  testWidgets('11 — la mission reste cochée jusqu\'à la fin naturelle', (
     t,
   ) async {
     final a = _FakeMeditationAudio();
     await t.pumpWidget(_host(a));
     await t.pumpAndSettle();
+    await t.ensureVisible(find.bySemanticsLabel('Lancer le moment'));
     await t.tap(find.bySemanticsLabel('Lancer le moment'));
-    await t.pump();
-
-    a.emitDuration(const Duration(minutes: 10));
-    a.emitPosition(const Duration(minutes: 4)); // 40 %
     await t.pump();
     expect(
       await DailyMissionTracker().isDone(DailyMissionTracker.moment),
-      isFalse,
+      isTrue,
     );
-  });
-
-  testWidgets('11 — complétion réelle (fin naturelle) coche la mission', (
-    t,
-  ) async {
-    final a = _FakeMeditationAudio();
-    await t.pumpWidget(_host(a));
-    await t.pumpAndSettle();
-    await t.tap(find.bySemanticsLabel('Lancer le moment'));
-    await t.pump();
 
     a.emitDuration(const Duration(minutes: 5));
     a.emitComplete();
@@ -229,22 +280,6 @@ void main() {
       isTrue,
     );
     expect(find.textContaining('Moment terminé'), findsOneWidget);
-  });
-
-  testWidgets('11 bis — ≥ 90 % écouté coche aussi la mission', (t) async {
-    final a = _FakeMeditationAudio();
-    await t.pumpWidget(_host(a));
-    await t.pumpAndSettle();
-    await t.tap(find.bySemanticsLabel('Lancer le moment'));
-    await t.pump();
-
-    a.emitDuration(const Duration(seconds: 100));
-    a.emitPosition(const Duration(seconds: 95)); // 95 %
-    await t.pump();
-    expect(
-      await DailyMissionTracker().isDone(DailyMissionTracker.moment),
-      isTrue,
-    );
   });
 
   testWidgets('12 — la mission ne se marque qu\'une fois par jour', (t) async {
@@ -267,6 +302,7 @@ void main() {
       ),
     );
     await t.pumpAndSettle();
+    await t.ensureVisible(find.bySemanticsLabel('Lancer le moment'));
     await t.tap(find.bySemanticsLabel('Lancer le moment'));
     await t.pump();
 
@@ -286,6 +322,7 @@ void main() {
     await t.pumpWidget(_host(a));
     await t.pumpAndSettle();
 
+    await t.ensureVisible(find.bySemanticsLabel('Lancer le moment'));
     await t.tap(find.bySemanticsLabel('Lancer le moment'));
     await t.pump();
     expect(t.takeException(), isNull);

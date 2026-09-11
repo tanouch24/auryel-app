@@ -11,6 +11,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:auryel/api/api_client.dart';
 import 'package:auryel/api/content_api.dart';
 import 'package:auryel/data/content_repository.dart';
+import 'package:auryel/data/daily_mission_tracker.dart';
 import 'package:auryel/data/daily_thought.dart';
 import 'package:auryel/data/meditation_audio.dart';
 import 'package:auryel/data/meditation_catalog.dart';
@@ -30,9 +31,18 @@ const _kVideoViewKey = Key('fake-relax-video-view');
 const _kStageKey = Key('meditation-video-stage');
 
 class _FakeSurface implements RelaxationVideoSurface {
-  _FakeSurface({this.loadResult = true});
+  _FakeSurface({this.loadResult = true, this.playResult = true, this.loadGate});
 
   final bool loadResult;
+
+  /// Contrôle si `play()` simule un démarrage RÉEL (true) ou un échec (false)
+  /// — pour tester le signal `onStarted` de [RelaxationVideoStage].
+  final bool playResult;
+
+  /// Si fourni, `load()` attend sa complétion avant de résoudre — simule une
+  /// vidéo « en cours de chargement », pour distinguer un simple tap sur play
+  /// d'un démarrage vidéo RÉELLEMENT confirmé.
+  final Completer<void>? loadGate;
   final List<String> calls = [];
   bool _ready = false;
   bool disposed = false;
@@ -43,12 +53,16 @@ class _FakeSurface implements RelaxationVideoSurface {
   @override
   Future<bool> load(String url) async {
     calls.add('load:$url');
+    if (loadGate != null) await loadGate!.future;
     _ready = loadResult;
     return loadResult;
   }
 
   @override
-  Future<void> play() async => calls.add('play');
+  Future<bool> play() async {
+    calls.add('play');
+    return playResult;
+  }
 
   @override
   Future<void> pause() async => calls.add('pause');
@@ -152,6 +166,60 @@ Map<String, dynamic> _v(String slug) => {
   'is_generic': true,
 };
 
+Map<String, dynamic> _m(String id, String title) => {
+  'id': id,
+  'title': title,
+  'description': '',
+  'duration_minutes': 4,
+  'category': 'detente',
+  'audio_url': 'https://cdn.auryel.app/$id.mp3',
+};
+
+/// Catalogue distant des MÉDITATIONS (pour précédent/suivant), avec en option
+/// un catalogue vidéo (vide par défaut -> pas de scène vidéo, non pertinent
+/// pour ces tests de navigation).
+ContentRepository _repoWithMeditations(
+  List<Map<String, dynamic>> meditations, {
+  List<Map<String, dynamic>> videos = const [],
+}) {
+  final client = ApiClient(
+    httpClient: MockClient((req) async {
+      if (req.url.path.contains('relaxation-videos')) {
+        return http.Response(
+          jsonEncode({'catalog_version': 'v1', 'videos': videos}),
+          200,
+          headers: {'content-type': 'application/json', 'etag': '"v1"'},
+        );
+      }
+      if (req.url.path.contains('meditations')) {
+        return http.Response(
+          jsonEncode({'catalog_version': 'v1', 'meditations': meditations}),
+          200,
+          headers: {'content-type': 'application/json', 'etag': '"v1"'},
+        );
+      }
+      return http.Response(jsonEncode({}), 500);
+    }),
+    baseUrl: 'http://test.local',
+  );
+  return ContentRepository(
+    api: ContentApi(client),
+    tokenProvider: () async => 'tok',
+    embeddedThoughts: DailyThoughtRepository(
+      seed: [
+        DailyThought(
+          id: 1,
+          publishDate: DateTime(2026, 1, 1),
+          phrase: 'x',
+          interpretation: 'y',
+          imageAsset: 'assets/pensees/x.webp',
+        ),
+      ],
+    ),
+    embeddedMeditations: const MeditationCatalog(),
+  );
+}
+
 MeditationItem _libItem() => const MeditationItem(
   id: 'quand-tu-attends-un-message',
   title: 'Quand tu attends un message',
@@ -232,6 +300,7 @@ void main() {
     expect(find.byType(RelaxationVideoStage), findsNothing);
     expect(find.byKey(_kStageKey), findsOneWidget); // la zone reste (placeholder)
 
+    await t.ensureVisible(find.bySemanticsLabel('Lancer le moment'));
     await t.tap(find.bySemanticsLabel('Lancer le moment'));
     await t.pump();
     expect(a.calls.any((c) => c.startsWith('play:')), true);
@@ -257,6 +326,7 @@ void main() {
     await t.pumpAndSettle();
 
     // audio lancé, puis position à 01:30
+    await t.ensureVisible(find.bySemanticsLabel('Lancer le moment'));
     await t.tap(find.bySemanticsLabel('Lancer le moment'));
     await t.pumpAndSettle();
     a.emitDuration(const Duration(minutes: 4));
@@ -298,6 +368,7 @@ void main() {
       ),
     );
     await t.pumpAndSettle();
+    await t.ensureVisible(find.bySemanticsLabel('Lancer le moment'));
     await t.tap(find.bySemanticsLabel('Lancer le moment'));
     await t.pumpAndSettle();
     a.emitDuration(const Duration(minutes: 4));
@@ -310,6 +381,7 @@ void main() {
     final autoSlug = _currentSlug(surfaces);
     final target = ['a', 'b', 'c'].firstWhere((s) => s != autoSlug);
 
+    await t.ensureVisible(find.text('Choisir le visuel'));
     await t.tap(find.text('Choisir le visuel'));
     await t.pumpAndSettle();
     await t.tap(find.text('T $target'));
@@ -350,6 +422,7 @@ void main() {
       ),
     );
     await t.pumpAndSettle();
+    await t.ensureVisible(find.bySemanticsLabel('Lancer le moment'));
     await t.tap(find.bySemanticsLabel('Lancer le moment'));
     await t.pumpAndSettle();
     a.emitDuration(const Duration(minutes: 4));
@@ -357,6 +430,7 @@ void main() {
     await t.pumpAndSettle();
     final audioBefore = [...a.calls];
 
+    await t.ensureVisible(find.text('Choisir le visuel'));
     await t.tap(find.text('Choisir le visuel'));
     await t.pumpAndSettle();
     await t.tap(find.text('Aléatoire'));
@@ -386,6 +460,7 @@ void main() {
       ),
     );
     await t.pumpAndSettle();
+    await t.ensureVisible(find.bySemanticsLabel('Lancer le moment'));
     await t.tap(find.bySemanticsLabel('Lancer le moment'));
     await t.pumpAndSettle();
     a.emitDuration(const Duration(minutes: 4));
@@ -396,6 +471,7 @@ void main() {
 
     final autoSlug = _currentSlug(surfaces);
     final target = ['a', 'b', 'c'].firstWhere((s) => s != autoSlug);
+    await t.ensureVisible(find.text('Choisir le visuel'));
     await t.tap(find.text('Choisir le visuel'));
     await t.pumpAndSettle();
     await t.tap(find.text('T $target'));
@@ -421,6 +497,7 @@ void main() {
       ),
     );
     await t.pumpAndSettle();
+    await t.ensureVisible(find.bySemanticsLabel('Lancer le moment'));
     await t.tap(find.bySemanticsLabel('Lancer le moment'));
     await t.pumpAndSettle();
 
@@ -448,10 +525,12 @@ void main() {
       ),
     );
     await t.pumpAndSettle();
+    await t.ensureVisible(find.bySemanticsLabel('Lancer le moment'));
     await t.tap(find.bySemanticsLabel('Lancer le moment'));
     await t.pumpAndSettle();
     surface.calls.clear();
 
+    await t.ensureVisible(find.bySemanticsLabel('Mettre en pause'));
     await t.tap(find.bySemanticsLabel('Mettre en pause'));
     await t.pumpAndSettle();
     expect(surface.calls, contains('pause'));
@@ -471,6 +550,7 @@ void main() {
       ),
     );
     await t.pumpAndSettle();
+    await t.ensureVisible(find.bySemanticsLabel('Lancer le moment'));
     await t.tap(find.bySemanticsLabel('Lancer le moment'));
     await t.pumpAndSettle();
     surface.calls.clear();
@@ -493,6 +573,7 @@ void main() {
       ),
     );
     await t.pumpAndSettle();
+    await t.ensureVisible(find.bySemanticsLabel('Lancer le moment'));
     await t.tap(find.bySemanticsLabel('Lancer le moment'));
     await t.pumpAndSettle();
     expect(surface.disposed, isFalse);
@@ -529,6 +610,7 @@ void main() {
     );
     await t.pumpAndSettle();
     expect(find.text('Choisir le visuel'), findsNothing);
+    await t.ensureVisible(find.bySemanticsLabel('Lancer le moment'));
     await t.tap(find.bySemanticsLabel('Lancer le moment'));
     await t.pump();
     expect(a.isPlaying, isTrue);
@@ -554,6 +636,7 @@ void main() {
     await t.pumpAndSettle();
     expect(surfaces, hasLength(1)); // 1 seule vidéo (la scène)
 
+    await t.ensureVisible(find.text('Choisir le visuel'));
     await t.tap(find.text('Choisir le visuel'));
     await t.pumpAndSettle();
     expect(find.text('Aléatoire'), findsOneWidget);
@@ -603,4 +686,456 @@ void main() {
       },
     );
   }
+
+  // =========================================================================
+  // Mission « Prends ton temps » — validée au démarrage RÉEL de la vidéo
+  // =========================================================================
+
+  group('Mission « Prends ton temps »', () {
+    testWidgets(
+      'non cochée avant que la vidéo ait réellement démarré (chargement en '
+      'cours)',
+      (t) async {
+        final a = _FakeAudio();
+        final gate = Completer<void>();
+        await t.pumpWidget(
+          _host(
+            a,
+            item: _libItem(),
+            content: _repoWithVideos([_v('ocean-1')]),
+            surfaceFactory: () => _FakeSurface(loadGate: gate),
+          ),
+        );
+        await t.pumpAndSettle();
+
+        // Tap sur play : l'audio démarre, la vidéo est encore en cours de
+        // chargement (gate non complété) -> pas de démarrage vidéo confirmé.
+        await t.ensureVisible(find.bySemanticsLabel('Lancer le moment'));
+        await t.tap(find.bySemanticsLabel('Lancer le moment'));
+        await t.pump();
+        expect(a.isPlaying, isTrue, reason: 'l’audio, lui, a bien démarré');
+        expect(
+          await DailyMissionTracker().isDone(DailyMissionTracker.moment),
+          isFalse,
+          reason: 'simple tap : la vidéo n’a pas encore réellement démarré',
+        );
+
+        // La vidéo termine de charger et démarre réellement -> mission validée.
+        gate.complete();
+        await t.pumpAndSettle();
+        expect(
+          await DailyMissionTracker().isDone(DailyMissionTracker.moment),
+          isTrue,
+          reason: 'confirmation effective du démarrage vidéo',
+        );
+      },
+    );
+
+    testWidgets('vidéo réellement démarrée -> mission cochée immédiatement '
+        '(pas besoin d’attendre la fin)', (t) async {
+      final a = _FakeAudio();
+      await t.pumpWidget(
+        _host(
+          a,
+          item: _libItem(),
+          content: _repoWithVideos([_v('ocean-1')]),
+          surfaceFactory: () => _FakeSurface(),
+        ),
+      );
+      await t.pumpAndSettle();
+      expect(
+        await DailyMissionTracker().isDone(DailyMissionTracker.moment),
+        isFalse,
+      );
+
+      await t.ensureVisible(find.bySemanticsLabel('Lancer le moment'));
+      await t.tap(find.bySemanticsLabel('Lancer le moment'));
+      await t.pumpAndSettle();
+      expect(
+        await DailyMissionTracker().isDone(DailyMissionTracker.moment),
+        isTrue,
+      );
+    });
+
+    testWidgets(
+      'vidéo qui échoue à charger -> repli sur l’audio déjà en lecture, '
+      'mission quand même validée (jamais bloquant)',
+      (t) async {
+        final a = _FakeAudio();
+        await t.pumpWidget(
+          _host(
+            a,
+            item: _libItem(),
+            content: _repoWithVideos([_v('broken')]),
+            surfaceFactory: () => _FakeSurface(loadResult: false),
+          ),
+        );
+        await t.pumpAndSettle();
+        await t.ensureVisible(find.bySemanticsLabel('Lancer le moment'));
+        await t.tap(find.bySemanticsLabel('Lancer le moment'));
+        await t.pumpAndSettle();
+        expect(find.byKey(_kVideoViewKey), findsNothing); // placeholder
+        expect(
+          await DailyMissionTracker().isDone(DailyMissionTracker.moment),
+          isTrue,
+          reason: 'échec vidéo confirmé -> repli audio, jamais bloquant',
+        );
+      },
+    );
+
+    testWidgets(
+      'vidéo chargée mais qui échoue à RÉELLEMENT démarrer (play() renvoie '
+      'false) -> repli sur l’audio déjà en lecture (jamais bloquant)',
+      (t) async {
+        final a = _FakeAudio();
+        await t.pumpWidget(
+          _host(
+            a,
+            item: _libItem(),
+            content: _repoWithVideos([_v('ocean-1')]),
+            surfaceFactory: () => _FakeSurface(playResult: false),
+          ),
+        );
+        await t.pumpAndSettle();
+        await t.ensureVisible(find.bySemanticsLabel('Lancer le moment'));
+        await t.tap(find.bySemanticsLabel('Lancer le moment'));
+        await t.pumpAndSettle();
+        expect(a.isPlaying, isTrue, reason: 'l’audio, lui, joue bien');
+        expect(
+          await DailyMissionTracker().isDone(DailyMissionTracker.moment),
+          isTrue,
+          reason: 'la vidéo n’a jamais confirmé son démarrage -> repli sur '
+              'l’audio déjà en lecture, jamais bloquant',
+        );
+      },
+    );
+
+    testWidgets(
+      'validation idempotente : un seul markDone malgré plusieurs signaux '
+      '(tap, démarrage vidéo, changement de visuel)',
+      (t) async {
+        var markCalls = 0;
+        final tracker = _CountingMissionTracker(() => markCalls++);
+        final a = _FakeAudio();
+        final surfaces = <_FakeSurface>[];
+        await t.pumpWidget(
+          MaterialApp(
+            home: MainNavScope(
+              goToTab: (_) {},
+              currentIndex: kTabMeditation,
+              child: Scaffold(
+                body: ContentScope(
+                  repository: _repoWithVideos([_v('a'), _v('b')]),
+                  child: MeditationScreen(
+                    item: _libItem(),
+                    audioOverride: a,
+                    now: DateTime(2026, 1, 1),
+                    missionTracker: tracker,
+                    videoSelector: RelaxationVideoSelector(random: Random(0)),
+                    videoSurfaceFactory: () {
+                      final s = _FakeSurface();
+                      surfaces.add(s);
+                      return s;
+                    },
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+        await t.pumpAndSettle();
+        await t.ensureVisible(find.bySemanticsLabel('Lancer le moment'));
+        await t.tap(find.bySemanticsLabel('Lancer le moment'));
+        await t.pumpAndSettle();
+
+        // Un changement de visuel relance une nouvelle vidéo -> re-déclenche
+        // le signal `onStarted`, mais ne doit PAS re-marquer la mission.
+        final autoSlug = _currentSlug(surfaces);
+        final target = ['a', 'b'].firstWhere((s) => s != autoSlug);
+        await t.ensureVisible(find.text('Choisir le visuel'));
+        await t.tap(find.text('Choisir le visuel'));
+        await t.pumpAndSettle();
+        await t.tap(find.text('T $target'));
+        await t.pumpAndSettle();
+
+        expect(markCalls, 1, reason: 'un seul markDone malgré plusieurs '
+            'démarrages vidéo');
+      },
+    );
+
+    testWidgets(
+      'état persistant : la mission reste cochée après un rebuild complet '
+      'de l’écran (nouvelle navigation)',
+      (t) async {
+        SharedPreferences.setMockInitialValues({});
+        final a = _FakeAudio();
+        await t.pumpWidget(
+          _host(
+            a,
+            item: _libItem(),
+            content: _repoWithVideos([_v('ocean-1')]),
+            surfaceFactory: () => _FakeSurface(),
+          ),
+        );
+        await t.pumpAndSettle();
+        await t.ensureVisible(find.bySemanticsLabel('Lancer le moment'));
+        await t.tap(find.bySemanticsLabel('Lancer le moment'));
+        await t.pumpAndSettle();
+        expect(
+          await DailyMissionTracker().isDone(DailyMissionTracker.moment),
+          isTrue,
+        );
+
+        // Écran totalement démonté puis remonté (navigation aller-retour) :
+        // la coche vient de SharedPreferences, pas de l'état du widget.
+        await t.pumpWidget(const SizedBox());
+        await t.pumpAndSettle();
+        await t.pumpWidget(
+          _host(
+            _FakeAudio(),
+            item: _libItem(),
+            content: _repoWithVideos([_v('ocean-1')]),
+            surfaceFactory: () => _FakeSurface(),
+          ),
+        );
+        await t.pumpAndSettle();
+        expect(
+          await DailyMissionTracker().isDone(DailyMissionTracker.moment),
+          isTrue,
+          reason: 'la coche survit à un démontage/remontage complet',
+        );
+      },
+    );
+  });
+
+  // =========================================================================
+  // Refonte épurée — plus de gros encadrement doré autour de la vidéo
+  // =========================================================================
+
+  testWidgets(
+    'la scène vidéo n’a plus de bordure dorée décorative (design épuré)',
+    (t) async {
+      final a = _FakeAudio();
+      await t.pumpWidget(
+        _host(
+          a,
+          item: _libItem(),
+          content: _repoWithVideos([_v('ocean-1')]),
+          surfaceFactory: () => _FakeSurface(),
+        ),
+      );
+      await t.pumpAndSettle();
+
+      final decoratedBox = t.widget<DecoratedBox>(
+        find
+            .descendant(
+              of: find.byKey(_kStageKey),
+              matching: find.byType(DecoratedBox),
+            )
+            .first,
+      );
+      final decoration = decoratedBox.decoration as BoxDecoration;
+      expect(
+        decoration.border,
+        isNull,
+        reason: 'plus de gros encadrement doré autour du média',
+      );
+    },
+  );
+
+  // =========================================================================
+  // Contrôles précédent / play / suivant
+  // =========================================================================
+
+  group('Contrôles précédent / play / suivant', () {
+    const kPrevBtn = Key('meditation-previous-button');
+    const kNextBtn = Key('meditation-next-button');
+
+    testWidgets('les 3 contrôles sont présents (précédent, play, suivant)', (
+      t,
+    ) async {
+      final a = _FakeAudio();
+      await t.pumpWidget(_host(a, item: _libItem()));
+      await t.pumpAndSettle();
+      expect(find.byKey(kPrevBtn), findsOneWidget);
+      expect(find.bySemanticsLabel('Lancer le moment'), findsOneWidget);
+      expect(find.byKey(kNextBtn), findsOneWidget);
+    });
+
+    testWidgets(
+      'sur le PREMIER élément du catalogue : tap sur précédent ne fait rien '
+      '(pas de crash, pas de changement)',
+      (t) async {
+        final a = _FakeAudio();
+        await t.pumpWidget(
+          _host(
+            a,
+            item: _libItem(),
+            content: _repoWithMeditations([
+              _m('quand-tu-attends-un-message', 'Quand tu attends un message'),
+              _m('deuxieme', 'Deuxième séance'),
+            ]),
+          ),
+        );
+        await t.pumpAndSettle();
+        await t.ensureVisible(find.byKey(kPrevBtn));
+        await t.tap(find.byKey(kPrevBtn));
+        await t.pumpAndSettle();
+        expect(find.text('Quand tu attends un message'), findsOneWidget);
+        expect(t.takeException(), isNull);
+      },
+    );
+
+    testWidgets('suivant charge la méditation suivante du catalogue', (
+      t,
+    ) async {
+      final a = _FakeAudio();
+      await t.pumpWidget(
+        _host(
+          a,
+          item: _libItem(),
+          content: _repoWithMeditations([
+            _m('quand-tu-attends-un-message', 'Quand tu attends un message'),
+            _m('deuxieme', 'Deuxième séance'),
+          ]),
+        ),
+      );
+      await t.pumpAndSettle();
+      expect(find.text('Quand tu attends un message'), findsOneWidget);
+
+      await t.ensureVisible(find.byKey(kNextBtn));
+      await t.tap(find.byKey(kNextBtn));
+      await t.pumpAndSettle();
+      expect(find.text('Deuxième séance'), findsOneWidget);
+      expect(t.takeException(), isNull);
+    });
+
+    testWidgets(
+      'précédent charge la méditation précédente ; sur le DERNIER élément, '
+      'suivant est désactivé',
+      (t) async {
+        final a = _FakeAudio();
+        await t.pumpWidget(
+          _host(
+            a,
+            item: _libItem(),
+            content: _repoWithMeditations([
+              _m('quand-tu-attends-un-message', 'Quand tu attends un message'),
+              _m('deuxieme', 'Deuxième séance'),
+            ]),
+          ),
+        );
+        await t.pumpAndSettle();
+        await t.ensureVisible(find.byKey(kNextBtn));
+        await t.tap(find.byKey(kNextBtn));
+        await t.pumpAndSettle();
+        expect(find.text('Deuxième séance'), findsOneWidget);
+
+        // Dernier élément : suivant ne doit plus rien faire.
+        await t.ensureVisible(find.byKey(kNextBtn));
+        await t.tap(find.byKey(kNextBtn));
+        await t.pumpAndSettle();
+        expect(find.text('Deuxième séance'), findsOneWidget);
+        expect(t.takeException(), isNull);
+
+        // Précédent revient au premier élément.
+        await t.ensureVisible(find.byKey(kPrevBtn));
+        await t.tap(find.byKey(kPrevBtn));
+        await t.pumpAndSettle();
+        expect(find.text('Quand tu attends un message'), findsOneWidget);
+      },
+    );
+
+    testWidgets(
+      'changer de méditation ne touche pas au visuel choisi (sauf nécessité '
+      'technique réelle)',
+      (t) async {
+        final a = _FakeAudio();
+        final surfaces = <_FakeSurface>[];
+        await t.pumpWidget(
+          _host(
+            a,
+            item: _libItem(),
+            content: _repoWithMeditations(
+              [
+                _m('quand-tu-attends-un-message', 'Quand tu attends un message'),
+                _m('deuxieme', 'Deuxième séance'),
+              ],
+              videos: [_v('ocean-1')],
+            ),
+            surfaceFactory: () {
+              final s = _FakeSurface();
+              surfaces.add(s);
+              return s;
+            },
+          ),
+        );
+        await t.pumpAndSettle();
+        expect(surfaces, hasLength(1), reason: 'une seule vidéo initialisée');
+
+        await t.ensureVisible(find.byKey(kNextBtn));
+        await t.tap(find.byKey(kNextBtn));
+        await t.pumpAndSettle();
+        // Deux occurrences attendues : le titre des contrôles + la légende
+        // posée sur la vidéo (le visuel, lui, n'a pas changé).
+        expect(find.text('Deuxième séance'), findsWidgets);
+        expect(
+          surfaces,
+          hasLength(1),
+          reason: 'le changement de méditation n’a pas recréé de vidéo',
+        );
+        expect(t.takeException(), isNull);
+      },
+    );
+
+    testWidgets(
+      'changer de méditation réinitialise la position audio à zéro '
+      '(nouvelle piste = nouvelle position, pas un bug de l’indépendance '
+      'audio/vidéo)',
+      (t) async {
+        final a = _FakeAudio();
+        await t.pumpWidget(
+          _host(
+            a,
+            item: _libItem(),
+            content: _repoWithMeditations([
+              _m('quand-tu-attends-un-message', 'Quand tu attends un message'),
+              _m('deuxieme', 'Deuxième séance'),
+            ]),
+          ),
+        );
+        await t.pumpAndSettle();
+        await t.ensureVisible(find.bySemanticsLabel('Lancer le moment'));
+        await t.tap(find.bySemanticsLabel('Lancer le moment'));
+        await t.pumpAndSettle();
+        a.emitDuration(const Duration(minutes: 4));
+        a.emitPosition(const Duration(seconds: 90));
+        await t.pumpAndSettle();
+        expect(find.text('01:30'), findsOneWidget);
+
+        await t.ensureVisible(find.byKey(kNextBtn));
+        await t.tap(find.byKey(kNextBtn));
+        await t.pumpAndSettle();
+        expect(find.text('00:00'), findsOneWidget);
+        expect(a.calls, contains('stop'));
+      },
+    );
+  });
+}
+
+/// Tracker qui compte les `markDone` sans jamais persister.
+class _CountingMissionTracker extends DailyMissionTracker {
+  _CountingMissionTracker(this.onMark);
+  final void Function() onMark;
+  final Set<String> _done = {};
+
+  @override
+  Future<void> markDone(String mission, {DateTime? now}) async {
+    onMark();
+    _done.add(mission);
+  }
+
+  @override
+  Future<bool> isDone(String mission, {DateTime? now}) async =>
+      _done.contains(mission);
 }

@@ -250,6 +250,14 @@ class _Divider extends StatelessWidget {
 }
 
 /// CTA bien visible vers la carte de progression « Mon parcours bien-être ».
+///
+/// Le sous-texte annonce la récompense de fin de cycle (+15 min de
+/// consultation). C'est une promesse RÉELLE, déjà créditée côté serveur —
+/// `WellbeingProgress.rewardEarnedForCurrentCycle` / `.rewardCreditedSeconds`
+/// (voir `api/wellbeing_api.dart`), déjà affichée dans le parcours lui-même
+/// (`widgets/wellbeing_journey_map.dart` > `_RewardLine`). Cette carte ne fait
+/// qu'annoncer un mécanisme qui existe déjà : aucune attribution locale
+/// n'est créée ici, et il n'y a rien à brancher côté backend pour ce lot.
 class _WellbeingJourneyCta extends StatelessWidget {
   const _WellbeingJourneyCta();
 
@@ -257,7 +265,7 @@ class _WellbeingJourneyCta extends StatelessWidget {
   Widget build(BuildContext context) {
     return Semantics(
       button: true,
-      label: 'Suivre mon parcours bien-être',
+      label: 'Suis ton parcours pendant 30 jours',
       child: Material(
         color: Colors.transparent,
         borderRadius: BorderRadius.circular(18),
@@ -316,7 +324,7 @@ class _WellbeingJourneyCta extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'Suivre mon parcours bien-être',
+                        'Suis ton parcours pendant 30 jours',
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                         style: AuryelText.display(
@@ -325,13 +333,16 @@ class _WellbeingJourneyCta extends StatelessWidget {
                           color: AuryelColors.textCream,
                         ),
                       ),
-                      const SizedBox(height: 2),
+                      const SizedBox(height: 3),
                       Text(
-                        'Ta carte de progression, jour après jour.',
-                        maxLines: 1,
+                        'Avance chaque jour dans ton parcours bien-être et '
+                        'gagne 15 min de consultation offertes à la fin des '
+                        '30 jours.',
+                        maxLines: 3,
                         overflow: TextOverflow.ellipsis,
                         style: AuryelText.body(
                           fontSize: 11.5,
+                          height: 1.3,
                           color: AuryelColors.textMuted,
                         ),
                       ),
@@ -813,7 +824,7 @@ class _MissionsSectionState extends State<_MissionsSection>
           onTap: () => _onMissionTap(_Mission.partage),
         ),
         _MissionRow(
-          label: 'Prends ton Moment',
+          label: 'Prends ton temps',
           icon: PhosphorIconsRegular.flowerLotus,
           done: _done[_Mission.moment]!,
           onTap: () => _onMissionTap(_Mission.moment),

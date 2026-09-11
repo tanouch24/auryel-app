@@ -13,7 +13,7 @@ import 'package:auryel/state/auryel_state.dart';
 import 'package:auryel/widgets/main_nav_scope.dart';
 
 // ===========================================================================
-// CORRECTIF UX SAMSUNG — CTA Accueil « Suivre mon parcours bien-être »,
+// CORRECTIF UX SAMSUNG — CTA Accueil « Suis ton parcours pendant 30 jours »,
 // et fade de continuation sur le sélecteur de conseillers.
 // ===========================================================================
 
@@ -66,18 +66,33 @@ void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
 
   group('Accueil — CTA parcours bien-être', () {
-    testWidgets('le CTA « Suivre mon parcours bien-être » est visible', (
+    testWidgets('le CTA « Suis ton parcours pendant 30 jours » est visible', (
       t,
     ) async {
       await t.pumpWidget(_home());
       await t.pumpAndSettle();
-      expect(find.text('Suivre mon parcours bien-être'), findsOneWidget);
+      expect(find.text('Suis ton parcours pendant 30 jours'), findsOneWidget);
     });
+
+    testWidgets(
+      'le sous-texte annonce la récompense de 15 min à 30 jours',
+      (t) async {
+        await t.pumpWidget(_home());
+        await t.pumpAndSettle();
+        expect(
+          find.text(
+            'Avance chaque jour dans ton parcours bien-être et gagne 15 min '
+            'de consultation offertes à la fin des 30 jours.',
+          ),
+          findsOneWidget,
+        );
+      },
+    );
 
     testWidgets('tap sur le CTA -> ouvre l\'écran parcours (carte)', (t) async {
       await t.pumpWidget(_home());
       await t.pumpAndSettle();
-      final cta = find.text('Suivre mon parcours bien-être');
+      final cta = find.text('Suis ton parcours pendant 30 jours');
       await t.ensureVisible(cta);
       await t.pumpAndSettle();
       await t.tap(cta);
@@ -94,7 +109,7 @@ void main() {
       await t.pumpWidget(_home());
       await t.pumpAndSettle();
       expect(t.takeException(), isNull);
-      expect(find.text('Suivre mon parcours bien-être'), findsOneWidget);
+      expect(find.text('Suis ton parcours pendant 30 jours'), findsOneWidget);
     });
   });
 

@@ -447,7 +447,8 @@ void main() {
   // -------------------------------------------------------------------------
   group('MeditationScreen -> mission moment', () {
     testWidgets(
-      '17 séance aboutie -> POST /api/app/wellbeing/mission { moment }',
+      '17 démarrage réel (repli sans vidéo) -> POST /api/app/wellbeing/'
+      'mission { moment }',
       (t) async {
         final hits = <String>[];
         final bodies = <Map<String, dynamic>>[];
@@ -478,7 +479,11 @@ void main() {
         );
         await t.pumpAndSettle();
 
-        audio.emitComplete(); // séance réellement aboutie
+        // Règle définitive : sans vidéo disponible (aucun ContentScope ici),
+        // le démarrage RÉEL de l'audio valide la mission — plus besoin
+        // d'attendre la fin.
+        await t.ensureVisible(find.bySemanticsLabel('Lancer le moment'));
+        await t.tap(find.bySemanticsLabel('Lancer le moment'));
         await t.pump();
         await t.pump();
 
