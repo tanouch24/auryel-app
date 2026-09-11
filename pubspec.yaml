@@ -67,6 +67,7 @@ dependencies:
   # consentement explicite. Aucune donnée personnelle transmise. Enveloppé par
   # la façade lib/analytics/meta_events.dart : aucun écran n'appelle ce package.
   facebook_app_events: ^0.20.1
+  saga_map: ^2.0.0
 
 dev_dependencies:
   flutter_test:

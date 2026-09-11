@@ -161,6 +161,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "0.7.15"
+  equatable:
+    dependency: transitive
+    description:
+      name: equatable
+      sha256: "3bce007a596ff8b3119c45d68aaef631272537c03d30e5d4534dd24bf4c5eaa2"
+      url: "https://pub.dev"
+    source: hosted
+    version: "2.1.0"
   facebook_app_events:
     dependency: "direct main"
     description:
@@ -177,6 +185,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "1.3.3"
+  fast_noise:
+    dependency: transitive
+    description:
+      name: fast_noise
+      sha256: "2aa7bbde5599d2b6769750ee23536ec8a0096606fc9d10d29a3855e80715e1c6"
+      url: "https://pub.dev"
+    source: hosted
+    version: "2.0.0"
   ffi:
     dependency: transitive
     description:
@@ -728,6 +744,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "0.6.0"
+  saga_map:
+    dependency: "direct main"
+    description:
+      name: saga_map
+      sha256: df69fd7ecc2450d4e582a20c071c93265f6e6ecae4740b4ebf223827d399c261
+      url: "https://pub.dev"
+    source: hosted
+    version: "2.0.0"
   share_plus:
     dependency: "direct main"
     description:

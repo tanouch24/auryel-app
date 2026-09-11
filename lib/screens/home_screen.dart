@@ -22,6 +22,7 @@ import '../widgets/daily_message_sheet.dart';
 import '../widgets/gold_button.dart';
 import '../widgets/main_nav_scope.dart';
 import 'dashboard_screen.dart';
+import 'dev/wellbeing_saga_map_poc.dart';
 import 'premium_screen.dart';
 import 'wellbeing_journey_screen.dart';
 import 'tirage_jeu_screen.dart';
@@ -265,6 +266,16 @@ class _WellbeingJourneyCta extends StatelessWidget {
           onTap: () => Navigator.of(context).push(
             MaterialPageRoute(builder: (_) => const WellbeingJourneyScreen()),
           ),
+          // DEV UNIQUEMENT — appui long, visible seulement en `kDebugMode` :
+          // ouvre le POC carte d'aventure `saga_map`, isolé de la navigation
+          // de production (le tap normal ci-dessus reste inchangé).
+          onLongPress: kDebugMode
+              ? () => Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => const WellbeingSagaMapPocScreen(),
+                    ),
+                  )
+              : null,
           child: Container(
             padding: const EdgeInsets.fromLTRB(16, 14, 14, 14),
             decoration: BoxDecoration(
