@@ -27,16 +27,119 @@ final RegExp _technicalTitle = RegExp(
   caseSensitive: false,
 );
 
-/// Libellé utilisateur d'un visuel : le `title` s'il est propre, sinon un
-/// libellé neutre « Visuel N » (jamais un nom de fichier).
+/// Mots-clés THÉMATIQUES connus (anglais, tels qu'ils apparaissent dans la
+/// `category`/les `tags` backend ou un nom de fichier R2) -> nom humain FR.
+/// N'est JAMAIS deviné à partir de rien : sert uniquement à TRADUIRE un
+/// signal déjà présent dans les métadonnées ou le nom d'objet — jamais à
+/// inventer un thème qui ne serait pas réellement dans la donnée.
+const Map<String, String> _themeKeywords = {
+  'ocean': 'Océan',
+  'sea': 'Océan',
+  'mer': 'Océan',
+  'wave': 'Océan',
+  'waves': 'Océan',
+  'beach': 'Plage',
+  'plage': 'Plage',
+  'rain': 'Pluie douce',
+  'pluie': 'Pluie douce',
+  'storm': 'Orage doux',
+  'orage': 'Orage doux',
+  'forest': 'Forêt',
+  'foret': 'Forêt',
+  'tree': 'Forêt',
+  'trees': 'Forêt',
+  'night': 'Ciel étoilé',
+  'nuit': 'Ciel étoilé',
+  'star': 'Ciel étoilé',
+  'stars': 'Ciel étoilé',
+  'starry': 'Ciel étoilé',
+  'etoile': 'Ciel étoilé',
+  'etoiles': 'Ciel étoilé',
+  'galaxy': 'Galaxie',
+  'galaxie': 'Galaxie',
+  'space': 'Galaxie',
+  'espace': 'Galaxie',
+  'cosmos': 'Galaxie',
+  'nebula': 'Galaxie',
+  'fire': 'Feu de cheminée',
+  'feu': 'Feu de cheminée',
+  'fireplace': 'Feu de cheminée',
+  'cheminee': 'Feu de cheminée',
+  'river': 'Rivière',
+  'riviere': 'Rivière',
+  'stream': 'Rivière',
+  'cloud': 'Nuages',
+  'clouds': 'Nuages',
+  'nuage': 'Nuages',
+  'nuages': 'Nuages',
+  'sky': 'Ciel',
+  'ciel': 'Ciel',
+  'snow': 'Neige',
+  'neige': 'Neige',
+  'lake': 'Lac',
+  'lac': 'Lac',
+  'mountain': 'Montagne',
+  'mountains': 'Montagne',
+  'montagne': 'Montagne',
+  'sunset': 'Coucher de soleil',
+  'coucher': 'Coucher de soleil',
+  'sunrise': 'Lever de soleil',
+  'lever': 'Lever de soleil',
+  'candle': 'Bougie',
+  'bougie': 'Bougie',
+  'garden': 'Jardin',
+  'jardin': 'Jardin',
+  'waterfall': 'Cascade',
+  'cascade': 'Cascade',
+};
+
+/// Découpe une chaîne (catégorie, tag, slug/nom de fichier) en jetons
+/// alphabétiques — sépare sur tout caractère non alphabétique (`-`, `_`,
+/// chiffres, espaces). Comparaison PAR JETON ENTIER (jamais une simple
+/// sous-chaîne) pour éviter un faux positif du type "season" ⊃ "sea".
+List<String> _tokenize(String s) => s
+    .toLowerCase()
+    .split(RegExp(r'[^a-zàâäéèêëïîôöùûüç]+'))
+    .where((t) => t.isNotEmpty)
+    .toList(growable: false);
+
+/// Cherche un thème connu dans une chaîne de métadonnée (jamais un devinage :
+/// uniquement une correspondance exacte de jeton avec [_themeKeywords]).
+String? _themeFrom(String source) {
+  for (final token in _tokenize(source)) {
+    final match = _themeKeywords[token];
+    if (match != null) return match;
+  }
+  return null;
+}
+
+/// Thème humain déduit des MÉTADONNÉES RÉELLES du visuel — jamais inventé :
+/// 1. `category` backend (signal le plus fiable, explicite) ;
+/// 2. `tags` backend (mots-clés d'ambiance) ;
+/// 3. `slug`/nom de fichier R2, si un mot-clé thématique y est reconnaissable.
+/// `null` si aucun signal exploitable (ex. catégorie générique « calm »).
+String? _deriveThemeName(RelaxationVideo v) {
+  final fromCategory = _themeFrom(v.category);
+  if (fromCategory != null) return fromCategory;
+  for (final tag in v.tags) {
+    final fromTag = _themeFrom(tag);
+    if (fromTag != null) return fromTag;
+  }
+  return _themeFrom(v.slug);
+}
+
+/// Libellé utilisateur d'un visuel : le `title` s'il est propre, sinon un nom
+/// humain déduit des métadonnées réelles (catégorie/tags/nom de fichier), et
+/// seulement en dernier recours un libellé neutre « Visuel N » — jamais un
+/// nom de fichier, jamais un thème inventé sans signal.
 String relaxationVisualLabel(RelaxationVideo v, int indexZeroBased) {
   final t = v.title.trim();
-  if (t.isEmpty ||
-      t.toLowerCase() == v.slug.toLowerCase() ||
-      _technicalTitle.hasMatch(t)) {
-    return 'Visuel ${indexZeroBased + 1}';
-  }
-  return t;
+  final cleanTitle =
+      t.isNotEmpty &&
+      t.toLowerCase() != v.slug.toLowerCase() &&
+      !_technicalTitle.hasMatch(t);
+  if (cleanTitle) return t;
+  return _deriveThemeName(v) ?? 'Visuel ${indexZeroBased + 1}';
 }
 
 /// Ouvre la bottom sheet « Choisir le visuel ». Ne construit AUCUN
@@ -73,6 +176,15 @@ class _VisualPickerSheet extends StatelessWidget {
         ? -1
         : videos.indexWhere((v) => v.slug == currentSlug);
     final current = currentIndex >= 0 ? videos[currentIndex] : null;
+    // Index ORIGINAUX des « autres » visuels (le visuel actuel, lui, n'est
+    // affiché qu'une fois, en tête). `ListView.builder` ci-dessous ne
+    // construit QUE les lignes visibles -> les requêtes `Image.network` des
+    // miniatures serveur ne partent QUE pour ce qui est réellement à
+    // l'écran, jamais tout le catalogue d'un coup.
+    final otherIndexes = [
+      for (var i = 0; i < videos.length; i++)
+        if (i != currentIndex) i,
+    ];
 
     return SafeArea(
       top: false,
@@ -129,26 +241,30 @@ class _VisualPickerSheet extends StatelessWidget {
               ),
             ),
             // C — les autres visuels disponibles, pour en choisir un autre.
+            // `.builder` : seules les lignes visibles sont construites (donc
+            // seules leurs miniatures locales éventuelles sont générées).
             Flexible(
-              child: ListView(
+              child: ListView.builder(
                 shrinkWrap: true,
                 padding: const EdgeInsets.fromLTRB(12, 6, 12, 12),
-                children: [
-                  _RandomTile(
+                itemCount: 1 + otherIndexes.length,
+                itemBuilder: (context, row) {
+                  if (row == 0) {
+                    return _RandomTile(
+                      onTap: () =>
+                          Navigator.of(context)
+                              .pop(RelaxationVisualChoice.random()),
+                    );
+                  }
+                  final i = otherIndexes[row - 1];
+                  return _VisualTile(
+                    label: relaxationVisualLabel(videos[i], i),
+                    video: videos[i],
                     onTap: () =>
                         Navigator.of(context)
-                            .pop(RelaxationVisualChoice.random()),
-                  ),
-                  for (var i = 0; i < videos.length; i++)
-                    if (i != currentIndex)
-                      _VisualTile(
-                        label: relaxationVisualLabel(videos[i], i),
-                        video: videos[i],
-                        onTap: () =>
-                            Navigator.of(context)
-                                .pop(RelaxationVisualChoice.video(videos[i])),
-                      ),
-                ],
+                            .pop(RelaxationVisualChoice.video(videos[i])),
+                  );
+                },
               ),
             ),
           ],
@@ -181,7 +297,7 @@ class _FeaturedTile extends StatelessWidget {
       ),
       child: Row(
         children: [
-          _Thumb(url: video.thumbnailUrl, size: 64),
+          _Thumb(thumbnailUrl: video.thumbnailUrl, size: 64),
           const SizedBox(width: 14),
           Expanded(
             child: Column(
@@ -313,7 +429,7 @@ class _VisualTile extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
           child: Row(
             children: [
-              _Thumb(url: video.thumbnailUrl),
+              _Thumb(thumbnailUrl: video.thumbnailUrl),
               const SizedBox(width: 12),
               Expanded(
                 child: Column(
@@ -350,11 +466,20 @@ class _VisualTile extends StatelessWidget {
   }
 }
 
-/// Vignette légère : `thumbnail_url` si disponible (image réseau, échec ->
-/// repli), sinon un placeholder propre — on n'invente JAMAIS d'image.
+/// Vignette légère : `thumbnail_url` serveur si disponible (image réseau,
+/// échec -> repli), sinon un placeholder propre. On n'invente JAMAIS d'image.
+///
+/// NOTE — génération locale de miniature étudiée (extraire une frame de la
+/// vidéo côté app) et volontairement ABANDONNÉE : le seul plugin Flutter
+/// disponible pour ça (`video_thumbnail`) embarque un `build.gradle` Android
+/// obsolète (dépôt `jcenter()` supprimé, aucune version maintenue) — il fait
+/// échouer purement et simplement le build release. Le CHOIX FIABLE reste le
+/// `thumbnail_url` déjà exposé par le modèle/l'API quand il est fourni ;
+/// sinon repli propre, jamais un `VideoPlayerController` supplémentaire par
+/// miniature (aurait dégradé les performances avec un grand catalogue).
 class _Thumb extends StatelessWidget {
-  const _Thumb({required this.url, this.size = 46});
-  final String? url;
+  const _Thumb({required this.thumbnailUrl, this.size = 46});
+  final String? thumbnailUrl;
   final double size;
 
   @override
@@ -376,7 +501,7 @@ class _Thumb extends StatelessWidget {
         color: AuryelColors.textMuted,
       ),
     );
-    final u = url;
+    final u = thumbnailUrl;
     if (u == null || u.isEmpty) return placeholder;
     return ClipRRect(
       borderRadius: BorderRadius.circular(10),

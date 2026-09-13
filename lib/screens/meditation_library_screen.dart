@@ -104,8 +104,14 @@ class _MeditationLibraryScreenState extends State<MeditationLibraryScreen> {
   }
 
   void _open(MeditationItem item) {
-    Navigator.of(context)
-        .push(MaterialPageRoute(builder: (_) => MeditationScreen(item: item)));
+    // CORRECTIF UX FINAL — réaction immédiate au tap : le player s'ouvre et
+    // lance l'audio tout de suite (voir `MeditationScreen.autoplayOnOpen`),
+    // sans que l'utilisateur ait besoin d'un 2e tap sur Play.
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => MeditationScreen(item: item, autoplayOnOpen: true),
+      ),
+    );
   }
 
   @override

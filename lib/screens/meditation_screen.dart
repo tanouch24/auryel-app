@@ -41,8 +41,16 @@ import '../widgets/relaxation_visual_picker.dart';
 /// Cycle de vie audio (une seule source audible dans Auryel) :
 ///  - on quitte l'onglet  -> pause ;
 ///  - app en arrière-plan  -> pause ;
-///  - retour au premier plan -> AUCUNE reprise automatique ;
-///  - jamais d'autoplay à l'ouverture.
+///  - retour au premier plan -> AUCUNE reprise automatique.
+///
+/// CORRECTIF UX FINAL — délai perçu au tap dans la bibliothèque : un tap sur
+/// une fiche de [MeditationLibraryScreen] ouvre désormais l'écran avec
+/// [autoplayOnOpen] à `true`, ce qui lance l'audio IMMÉDIATEMENT (dès
+/// [State.initState], sans attendre le chargement complet du fichier —
+/// `audioplayers` diffuse en flux). C'est l'UNIQUE façon d'obtenir un
+/// autoplay à l'ouverture ; partout ailleurs (dont la rotation calendaire
+/// « Ton Moment du jour »), le comportement historique « jamais d'autoplay »
+/// reste strictement inchangé.
 class MeditationScreen extends StatefulWidget {
   const MeditationScreen({
     super.key,
@@ -54,12 +62,22 @@ class MeditationScreen extends StatefulWidget {
     this.wellbeingApi,
     this.videoSelector,
     this.videoSurfaceFactory,
+    this.autoplayOnOpen = false,
   });
 
   /// Séance à jouer, choisie dans la bibliothèque. `null` -> l'écran retombe
   /// sur « Ton Moment du jour » (rotation calendaire, serveur -> cache ->
   /// embarqué), comportement historique inchangé.
   final MeditationItem? item;
+
+  /// CORRECTIF UX FINAL — `true` UNIQUEMENT depuis un tap explicite sur une
+  /// fiche de [MeditationLibraryScreen] : lance l'audio IMMÉDIATEMENT à
+  /// l'ouverture (dès [State.initState], sans attendre un premier tap sur
+  /// Play), pour supprimer le temps mort perçu au tap dans la bibliothèque.
+  /// `false` par défaut PARTOUT ailleurs (dont la rotation calendaire « Ton
+  /// Moment du jour ») : comportement historique « jamais d'autoplay à
+  /// l'ouverture » strictement inchangé pour ces cas.
+  final bool autoplayOnOpen;
 
   /// Test uniquement : lecteur injecté (aucun canal plateforme en test).
   final MeditationAudio? audioOverride;
@@ -172,6 +190,13 @@ class _MeditationScreenState extends State<MeditationScreen>
     // Contrôles visibles à l'ouverture -> le délai d'auto-hide démarre tout
     // de suite, comme sur un vrai lecteur vidéo.
     _scheduleAutoHide();
+    // CORRECTIF UX FINAL — lecture lancée IMMÉDIATEMENT quand demandé
+    // explicitement ([autoplayOnOpen]), sans attendre le premier tap ni le
+    // chargement complet du fichier (`audioplayers` diffuse en flux, aucun
+    // téléchargement bloquant). Aucun `await` avant : cet appel ne retarde
+    // jamais la navigation ni le premier rendu de l'écran, déjà terminés à ce
+    // stade.
+    if (widget.autoplayOnOpen) unawaited(_start());
   }
 
   @override

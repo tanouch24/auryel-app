@@ -134,20 +134,29 @@ void main() {
         await t.pumpAndSettle();
 
         expect(fade(), findsOneWidget);
-        expect(find.text('Découvrir les autres conseillers'), findsOneWidget);
+        expect(
+          find.text('Fais défiler pour découvrir les autres conseillers'),
+          findsOneWidget,
+        );
 
         // 1er défilement -> 2e fiche : PREMIÈRE apparition pour elle aussi,
         // fade + indice doivent s'afficher (pas uniquement sur Luna/1re carte).
         await t.fling(find.byType(PageView), const Offset(0, -400), 1200);
         await t.pumpAndSettle();
         expect(fade(), findsOneWidget);
-        expect(find.text('Découvrir les autres conseillers'), findsOneWidget);
+        expect(
+          find.text('Fais défiler pour découvrir les autres conseillers'),
+          findsOneWidget,
+        );
 
         // On revient sur la 1re fiche, déjà quittée une fois : plus d'indice.
         await t.fling(find.byType(PageView), const Offset(0, 400), 1200);
         await t.pumpAndSettle();
         expect(fade(), findsNothing);
-        expect(find.text('Découvrir les autres conseillers'), findsNothing);
+        expect(
+          find.text('Fais défiler pour découvrir les autres conseillers'),
+          findsNothing,
+        );
       },
     );
 

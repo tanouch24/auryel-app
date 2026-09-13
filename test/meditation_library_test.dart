@@ -184,6 +184,21 @@ void main() {
   });
 
   testWidgets(
+    'CORRECTIF UX FINAL — tap sur une fiche -> le lecteur s\'ouvre avec '
+    'autoplayOnOpen (plus de temps mort perçu)',
+    (t) async {
+      await t.pumpWidget(_host(_repo(meditations: 3, videos: 12)));
+      await t.pumpAndSettle();
+
+      await t.tap(_card().first);
+      await t.pumpAndSettle();
+
+      final screen = t.widget<MeditationScreen>(find.byType(MeditationScreen));
+      expect(screen.autoplayOnOpen, isTrue);
+    },
+  );
+
+  testWidgets(
     'petit écran Android 320x480 : liste scrollable, pas d\'overflow',
     (t) async {
       t.view.physicalSize = const Size(320, 480);

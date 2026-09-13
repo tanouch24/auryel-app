@@ -482,22 +482,24 @@ class _AdvisorPage extends StatelessWidget {
                 ),
             ],
           ),
-          // Indice « d'autres conseillers plus bas » : discret, entre les tags
-          // et le CTA (ne masque jamais le portrait, ne concurrence jamais le
-          // CTA). `SizedBox.shrink()` quand masqué -> aucun impact de mise en
-          // page. Disparaît définitivement au 1er défilement.
-          _ScrollCue(visible: showScrollCue, reduceMotion: reduceMotion),
           const SizedBox(height: 12),
+          // CORRECTIF UX FINAL — le CTA « Parler avec… » reste l'action
+          // PRINCIPALE, visuellement en premier. L'indice de défilement
+          // passe EN DESSOUS de lui (secondaire, mais bien visible).
+          _MainGoldButton(
+            label: '$primaryLabel avec ${advisor.name}',
+            onTap: onPrimary,
+          ),
+          const SizedBox(height: 10),
+          // Indice « d'autres conseillers plus bas » : sous le CTA, jamais en
+          // concurrence avec lui. `SizedBox.shrink()` quand masqué -> aucun
+          // impact de mise en page. Disparaît après un vrai défilement DEPUIS
+          // cette fiche précise (voir `_cueDismissedFor`).
+          _ScrollCue(visible: showScrollCue, reduceMotion: reduceMotion),
           // Le CTA n'est jamais masqué par la barre système Android : la
           // SafeArea racine ne réserve pas le bas (feed vertical) -> on ajoute
-          // ici l'inset système + une marge minimale.
-          Padding(
-            padding: EdgeInsets.only(bottom: bottomInset + 6),
-            child: _MainGoldButton(
-              label: '$primaryLabel avec ${advisor.name}',
-              onTap: onPrimary,
-            ),
-          ),
+          // ici l'inset système + une marge minimale, après l'indice.
+          SizedBox(height: bottomInset + 6),
         ],
       ),
     );
@@ -612,7 +614,7 @@ class _ScrollCueState extends State<_ScrollCue>
                     ),
                   ),
                   child: Text(
-                    'Découvrir les autres conseillers',
+                    'Fais défiler pour découvrir les autres conseillers',
                     maxLines: 1,
                     style: AuryelText.body(
                       fontSize: 11,

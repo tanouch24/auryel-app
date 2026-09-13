@@ -31,7 +31,8 @@ Widget _host(AdvisorAudio audio) => MaterialApp(
   ),
 );
 
-Finder _cueLabel() => find.text('Découvrir les autres conseillers');
+Finder _cueLabel() =>
+    find.text('Fais défiler pour découvrir les autres conseillers');
 Finder _cueChevron() => find.byIcon(PhosphorIconsBold.arrowDown);
 
 void main() {
@@ -45,6 +46,24 @@ void main() {
     expect(_cueChevron(), findsOneWidget);
     // le CTA principal reste présent et n'est pas gêné
     expect(find.textContaining('avec '), findsWidgets); // « Parler avec … »
+  });
+
+  testWidgets('CORRECTIF UX FINAL — le CTA « Parler avec… » reste l\'action '
+      'principale, AU-DESSUS de l\'indice de défilement (ordre inversé)', (
+    t,
+  ) async {
+    await t.pumpWidget(_host(_FakeAudio()));
+    await t.pumpAndSettle();
+
+    final ctaY = t.getTopLeft(find.textContaining('avec ')).dy;
+    final cueY = t.getTopLeft(_cueLabel()).dy;
+    expect(
+      ctaY,
+      lessThan(cueY),
+      reason:
+          'le bouton « Parler avec… » doit apparaître AVANT (plus haut '
+          'que) l’indice de défilement',
+    );
   });
 
   testWidgets(

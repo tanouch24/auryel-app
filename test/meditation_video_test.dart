@@ -236,6 +236,7 @@ Widget _host(
   ContentRepository? content,
   RelaxationVideoSurface Function()? surfaceFactory,
   MeditationItem? item,
+  bool autoplayOnOpen = false,
 }) {
   final screen = MeditationScreen(
     item: item,
@@ -243,6 +244,7 @@ Widget _host(
     now: DateTime(2026, 1, 1),
     videoSelector: RelaxationVideoSelector(random: Random(0)),
     videoSurfaceFactory: surfaceFactory,
+    autoplayOnOpen: autoplayOnOpen,
   );
   return MaterialApp(
     home: MainNavScope(
@@ -1411,6 +1413,85 @@ void main() {
       expect(find.text('00:00'), findsOneWidget);
       expect(a.calls, contains('stop'));
     });
+  });
+
+  // =========================================================================
+  // CORRECTIF UX FINAL — `autoplayOnOpen` : supprime le temps mort perçu au
+  // tap dans la bibliothèque. Opt-in explicite (défaut `false`) : AUCUN
+  // impact sur tous les autres appelants/tests de ce fichier.
+  // =========================================================================
+
+  group('autoplayOnOpen', () {
+    testWidgets('true -> l\'audio démarre IMMÉDIATEMENT, sans aucun tap', (
+      t,
+    ) async {
+      final a = _FakeAudio();
+      await t.pumpWidget(_host(a, item: _libItem(), autoplayOnOpen: true));
+      await t.pumpAndSettle();
+
+      expect(a.isPlaying, isTrue);
+      expect(
+        a.calls.any((c) => c.startsWith('play:')),
+        isTrue,
+        reason: 'aucun tap requis : la lecture a démarré dès l’ouverture',
+      );
+      expect(find.bySemanticsLabel('Mettre en pause'), findsOneWidget);
+    });
+
+    testWidgets(
+      'false (défaut) -> AUCUN autoplay, comportement historique inchangé',
+      (t) async {
+        final a = _FakeAudio();
+        await t.pumpWidget(_host(a, item: _libItem()));
+        await t.pumpAndSettle();
+
+        expect(a.calls, isEmpty);
+        expect(a.isPlaying, isFalse);
+        expect(find.bySemanticsLabel('Lancer le moment'), findsOneWidget);
+      },
+    );
+
+    testWidgets(
+      'true + un visuel disponible -> le visuel démarre aussi, la mission '
+      '« Prends ton temps » se coche sur le VRAI démarrage vidéo',
+      (t) async {
+        final a = _FakeAudio();
+        await t.pumpWidget(
+          _host(
+            a,
+            item: _libItem(),
+            content: _repoWithVideos([_v('ocean-1')]),
+            surfaceFactory: () => _FakeSurface(),
+            autoplayOnOpen: true,
+          ),
+        );
+        await t.pumpAndSettle();
+
+        expect(a.isPlaying, isTrue);
+        expect(find.byKey(_kVideoViewKey), findsOneWidget);
+        expect(
+          await DailyMissionTracker().isDone(DailyMissionTracker.moment),
+          isTrue,
+        );
+      },
+    );
+
+    testWidgets(
+      'true SANS aucune vidéo disponible -> l\'audio joue quand même, mais '
+      'AUCUN repli : la mission reste NON cochée',
+      (t) async {
+        final a = _FakeAudio();
+        await t.pumpWidget(_host(a, item: _libItem(), autoplayOnOpen: true));
+        await t.pumpAndSettle();
+
+        expect(a.isPlaying, isTrue, reason: 'l’audio, lui, démarre bien');
+        expect(
+          await DailyMissionTracker().isDone(DailyMissionTracker.moment),
+          isFalse,
+          reason: 'démarrage automatique de l’audio -> aucun repli mission',
+        );
+      },
+    );
   });
 
   // =========================================================================

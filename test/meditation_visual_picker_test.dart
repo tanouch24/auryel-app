@@ -15,6 +15,7 @@ RelaxationVideo _v(
   String? title,
   String category = 'calm',
   String? thumb,
+  List<String> tags = const [],
 }) => RelaxationVideo(
   id: 'id-$slug',
   slug: slug,
@@ -22,6 +23,7 @@ RelaxationVideo _v(
   videoUrl: 'https://cdn.auryel.app/$slug.mp4',
   thumbnailUrl: thumb,
   category: category,
+  tags: tags,
 );
 
 void main() {
@@ -61,6 +63,78 @@ void main() {
       );
     });
   });
+
+  group(
+    'relaxationVisualLabel — nom déduit des MÉTADONNÉES (jamais inventé)',
+    () {
+      test('catégorie backend "ocean" -> "Océan" (titre technique)', () {
+        expect(
+          relaxationVisualLabel(
+            _v('relax-7', title: 'relax-7', category: 'ocean'),
+            6,
+          ),
+          'Océan',
+        );
+      });
+
+      test('catégorie backend "forest" -> "Forêt"', () {
+        expect(
+          relaxationVisualLabel(_v('v-2', title: 'v-2', category: 'forest'), 1),
+          'Forêt',
+        );
+      });
+
+      test(
+        'pas de thème dans la catégorie, mais un tag "rain" -> "Pluie douce"',
+        () {
+          expect(
+            relaxationVisualLabel(
+              _v('11210466', title: '11210466', tags: ['ambient', 'rain']),
+              0,
+            ),
+            'Pluie douce',
+          );
+        },
+      );
+
+      test('ni catégorie ni tag exploitables, mais le SLUG contient "galaxy" '
+          '-> "Galaxie"', () {
+        expect(
+          relaxationVisualLabel(_v('galaxy-01-hd', title: ''), 0),
+          'Galaxie',
+        );
+      });
+
+      test('AUCUN faux positif par sous-chaîne : "season" ne doit PAS matcher '
+          '"sea" -> Océan', () {
+        expect(
+          relaxationVisualLabel(_v('season-clip-04', title: ''), 3),
+          'Visuel 4',
+        );
+      });
+
+      test('catégorie générique "calm" + slug technique -> "Visuel N" (aucun '
+          'thème inventé sans signal réel)', () {
+        expect(
+          relaxationVisualLabel(
+            _v('11210466-hd_1080_1920_30fps', title: ''),
+            2,
+          ),
+          'Visuel 3',
+        );
+      });
+
+      test('un titre propre reste TOUJOURS prioritaire sur la déduction', () {
+        expect(
+          relaxationVisualLabel(
+            _v('ocean-1', title: 'Vagues du soir', category: 'ocean'),
+            0,
+          ),
+          'Vagues du soir',
+        );
+      });
+    },
+  );
 
   Future<RelaxationVisualChoice?> openPicker(
     WidgetTester t, {
