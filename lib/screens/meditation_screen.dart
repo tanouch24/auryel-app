@@ -115,6 +115,14 @@ class _MeditationScreenState extends State<MeditationScreen>
   /// statique. N'influe JAMAIS sur l'audio.
   RelaxationVideo? _video;
 
+  /// Visuels ayant RÉELLEMENT échoué à charger/démarrer cette session — évite
+  /// de retenter indéfiniment le même fichier cassé. Voir [_onVideoFailed] :
+  /// un catalogue non vide ne doit JAMAIS laisser l'écran bloqué sur le repli
+  /// statique si un AUTRE visuel du catalogue peut, lui, être lu.
+  final Set<String> _failedVideoSlugs = {};
+  int _videoRetryCount = 0;
+  static const _maxVideoRetries = 2;
+
   final List<StreamSubscription<dynamic>> _subs = [];
 
   _PlayStatus _status = _PlayStatus.idle;
@@ -274,6 +282,30 @@ class _MeditationScreenState extends State<MeditationScreen>
   /// mission — si aucune vidéo ne peut démarrer (catalogue vide, hors ligne,
   /// échec de chargement ou de lecture), la mission reste NON cochée.
   void _onVideoStarted() => _markMomentDone();
+
+  /// Le visuel choisi a échoué (chargement OU tentative de lecture) : on ne
+  /// laisse JAMAIS l'écran bloqué sur le repli statique si le catalogue
+  /// distant contient un AUTRE visuel valide — on retente automatiquement,
+  /// dans la limite de [_maxVideoRetries] (jamais de boucle infinie si
+  /// plusieurs fichiers sont cassés). Aucun impact sur le MP3 ; la mission
+  /// « Prends ton temps » n'est de toute façon jamais déclenchée ici — seul
+  /// un futur [_onVideoStarted] RÉEL sur le visuel de secours la validerait.
+  void _onVideoFailed() {
+    final failedSlug = _video?.slug;
+    if (failedSlug != null) _failedVideoSlugs.add(failedSlug);
+    if (!mounted || _videoRetryCount >= _maxVideoRetries) return;
+    final candidates = _availableVideos
+        .where((v) => !_failedVideoSlugs.contains(v.slug))
+        .toList(growable: false);
+    if (candidates.isEmpty) return;
+    final next = _videoSelector.choose(
+      candidates,
+      meditationCategory: _item.category.name,
+    );
+    if (next == null) return;
+    _videoRetryCount++;
+    setState(() => _video = next);
+  }
 
   /// Idempotent : le tracker est déjà « une fois par jour », et [_momentMarked]
   /// évite de le ré-appeler à chaque tick au-delà de 90 %.
@@ -561,6 +593,7 @@ class _MeditationScreenState extends State<MeditationScreen>
                 surfaceFactory: widget.videoSurfaceFactory,
                 fallback: placeholder,
                 onStarted: _onVideoStarted,
+                onFailed: _onVideoFailed,
                 borderRadius: BorderRadius.zero,
               )
             : placeholder,

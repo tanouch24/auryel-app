@@ -418,37 +418,51 @@ void main() {
     });
 
     testWidgets(
-      'FINITIONS UX — bloc récompense (30 jours -> 15 min) affiché EN HAUT, '
-      'avant la carte/chemin, jamais dupliqué',
+      'CORRECTIF UX FINAL — ordre exact : récompense, PUIS étape du jour, '
+      'PUIS SEULEMENT ENSUITE la carte/chemin des 30 jours (rien dupliqué)',
       (t) async {
         final rig = _rig(
-          handler: (_) async =>
-              _json(_progress(total: 3, cycleDays: 3, current: 'Ancrage')),
+          handler: (_) async => _json(
+            _progress(
+              total: 3,
+              cycleDays: 3,
+              current: 'Ancrage',
+              doneToday: ['pensee'],
+            ),
+          ),
         );
         await t.pumpWidget(_host(rig.controller));
         await t.pumpAndSettle();
 
-        // Un seul exemplaire du texte (pas de duplication).
+        // Un seul exemplaire de chaque bloc (pas de duplication).
         expect(
           find.textContaining('15 minutes de consultation offertes'),
           findsOneWidget,
         );
+        expect(find.textContaining('ÉTAPE DU JOUR'), findsOneWidget);
 
-        // Comprendre le principe/la récompense AVANT la carte/chemin des 30
-        // jours : le bloc récompense apparaît plus haut à l'écran que
-        // l'en-tête de la carte de progression.
+        // Comprendre le principe/la récompense, PUIS l'étape du jour,
+        // AVANT la carte/chemin des 30 jours (en-tête stats + chemin peint).
         final rewardY = t
             .getTopLeft(
               find.textContaining('15 minutes de consultation offertes'),
             )
             .dy;
+        final todayStepY = t
+            .getTopLeft(find.textContaining('ÉTAPE DU JOUR'))
+            .dy;
         final cycleHeaderY = t.getTopLeft(find.text('CYCLE 1')).dy;
         expect(
           rewardY,
+          lessThan(todayStepY),
+          reason: 'le texte explicatif/récompense précède l’étape du jour',
+        );
+        expect(
+          todayStepY,
           lessThan(cycleHeaderY),
           reason:
-              'le principe/la récompense du parcours doit se comprendre '
-              'immédiatement, avant la carte/chemin des 30 jours',
+              'l’étape du jour (4 actions) doit apparaître AVANT la carte/le '
+              'chemin des 30 jours, pas après',
         );
       },
     );

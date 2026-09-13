@@ -55,7 +55,10 @@ Widget _home() => AuryelStateScope(
 
 class _FakeAudio implements AdvisorAudio {
   @override
-  Future<void> play(String assetPath, {Duration fadeIn = Duration.zero}) async {}
+  Future<void> play(
+    String assetPath, {
+    Duration fadeIn = Duration.zero,
+  }) async {}
   @override
   Future<void> stop() async {}
   @override
@@ -74,20 +77,19 @@ void main() {
       expect(find.text('Suis ton parcours pendant 30 jours'), findsOneWidget);
     });
 
-    testWidgets(
-      'le sous-texte annonce la récompense de 15 min à 30 jours',
-      (t) async {
-        await t.pumpWidget(_home());
-        await t.pumpAndSettle();
-        expect(
-          find.text(
-            'Avance chaque jour dans ton parcours bien-être et gagne 15 min '
-            'de consultation offertes à la fin des 30 jours.',
-          ),
-          findsOneWidget,
-        );
-      },
-    );
+    testWidgets('le sous-texte annonce la récompense de 15 min à 30 jours', (
+      t,
+    ) async {
+      await t.pumpWidget(_home());
+      await t.pumpAndSettle();
+      expect(
+        find.text(
+          'Avance chaque jour dans ton parcours bien-être et gagne 15 min '
+          'de consultation offertes à la fin des 30 jours.',
+        ),
+        findsOneWidget,
+      );
+    });
 
     testWidgets('tap sur le CTA -> ouvre l\'écran parcours (carte)', (t) async {
       await t.pumpWidget(_home());
@@ -123,20 +125,31 @@ void main() {
       ),
     );
 
-    testWidgets('fade + indice visibles au départ, disparaissent après le '
-        '1er défilement', (t) async {
-      await t.pumpWidget(host());
-      await t.pumpAndSettle();
+    testWidgets(
+      'fade + indice visibles au départ ; CORRECTIF UX FINAL — réapparaissent '
+      'AUSSI sur la fiche suivante (chaque fiche a droit à son indice une '
+      'fois), puis disparaissent pour une fiche déjà quittée',
+      (t) async {
+        await t.pumpWidget(host());
+        await t.pumpAndSettle();
 
-      expect(fade(), findsOneWidget);
-      expect(find.text('Découvrir les autres conseillers'), findsOneWidget);
+        expect(fade(), findsOneWidget);
+        expect(find.text('Découvrir les autres conseillers'), findsOneWidget);
 
-      await t.fling(find.byType(PageView), const Offset(0, -400), 1200);
-      await t.pumpAndSettle();
+        // 1er défilement -> 2e fiche : PREMIÈRE apparition pour elle aussi,
+        // fade + indice doivent s'afficher (pas uniquement sur Luna/1re carte).
+        await t.fling(find.byType(PageView), const Offset(0, -400), 1200);
+        await t.pumpAndSettle();
+        expect(fade(), findsOneWidget);
+        expect(find.text('Découvrir les autres conseillers'), findsOneWidget);
 
-      expect(fade(), findsNothing);
-      expect(find.text('Découvrir les autres conseillers'), findsNothing);
-    });
+        // On revient sur la 1re fiche, déjà quittée une fois : plus d'indice.
+        await t.fling(find.byType(PageView), const Offset(0, 400), 1200);
+        await t.pumpAndSettle();
+        expect(fade(), findsNothing);
+        expect(find.text('Découvrir les autres conseillers'), findsNothing);
+      },
+    );
 
     for (final size in const [
       Size(320, 480),
@@ -144,20 +157,17 @@ void main() {
       Size(360, 640),
       Size(412, 915),
     ]) {
-      testWidgets(
-        'aucun overflow (fade + indice) à ${size.width.toInt()}×'
-        '${size.height.toInt()}',
-        (t) async {
-          t.view.physicalSize = size;
-          t.view.devicePixelRatio = 1.0;
-          addTearDown(t.view.resetPhysicalSize);
-          addTearDown(t.view.resetDevicePixelRatio);
-          await t.pumpWidget(host());
-          await t.pumpAndSettle();
-          expect(t.takeException(), isNull);
-          expect(fade(), findsOneWidget);
-        },
-      );
+      testWidgets('aucun overflow (fade + indice) à ${size.width.toInt()}×'
+          '${size.height.toInt()}', (t) async {
+        t.view.physicalSize = size;
+        t.view.devicePixelRatio = 1.0;
+        addTearDown(t.view.resetPhysicalSize);
+        addTearDown(t.view.resetDevicePixelRatio);
+        await t.pumpWidget(host());
+        await t.pumpAndSettle();
+        expect(t.takeException(), isNull);
+        expect(fade(), findsOneWidget);
+      });
     }
   });
 }

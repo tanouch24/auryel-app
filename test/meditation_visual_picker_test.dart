@@ -28,21 +28,24 @@ void main() {
   group('relaxationVisualLabel — jamais de nom de fichier', () {
     test('titre technique "relaxation-11210466" -> "Visuel N"', () {
       expect(
-        relaxationVisualLabel(_v('relaxation-11210466', title: 'relaxation-11210466'), 0),
+        relaxationVisualLabel(
+          _v('relaxation-11210466', title: 'relaxation-11210466'),
+          0,
+        ),
         'Visuel 1',
       );
     });
     test('titre technique "11210466-hd_1080_1920_30fps" -> "Visuel N"', () {
       expect(
-        relaxationVisualLabel(
-          _v('x', title: '11210466-hd_1080_1920_30fps'),
-          4,
-        ),
+        relaxationVisualLabel(_v('x', title: '11210466-hd_1080_1920_30fps'), 4),
         'Visuel 5',
       );
     });
     test('titre == slug brut -> "Visuel N"', () {
-      expect(relaxationVisualLabel(_v('relax-abc', title: 'relax-abc'), 2), 'Visuel 3');
+      expect(
+        relaxationVisualLabel(_v('relax-abc', title: 'relax-abc'), 2),
+        'Visuel 3',
+      );
     });
     test('titre vide -> "Visuel N"', () {
       expect(relaxationVisualLabel(_v('s', title: ''), 6), 'Visuel 7');
@@ -95,13 +98,57 @@ void main() {
     final videos = [for (var i = 0; i < 12; i++) _v('relax-$i')];
     await openPicker(t, videos: videos);
 
-    expect(find.text('Choisir le visuel'), findsOneWidget);
+    expect(find.text('Choisis ton visuel relaxant'), findsOneWidget);
+    expect(
+      find.text('Le visuel reste muet pendant ta méditation.'),
+      findsOneWidget,
+    );
     expect(find.text('Aléatoire'), findsOneWidget);
-    expect(find.text('Visuel 1'), findsNothing); // titres propres -> pas "Visuel N"
+    expect(
+      find.text('Visuel 1'),
+      findsNothing,
+    ); // titres propres -> pas "Visuel N"
     expect(find.textContaining('Ambiance apaisante'), findsWidgets);
     // PERFORMANCE : la sheet n'initialise aucune vidéo réelle.
     expect(find.byType(VideoPlayer), findsNothing);
   });
+
+  testWidgets(
+    'CORRECTIF UX FINAL — le visuel actuel est mis en avant immédiatement '
+    '(badge ACTUEL), et n\'apparaît plus une 2e fois dans la liste',
+    (t) async {
+      final videos = [
+        _v('relax-0', title: 'Ambiance apaisante 01'),
+        _v('relax-1', title: 'Ambiance apaisante 02'),
+        _v('relax-2', title: 'Ambiance apaisante 03'),
+      ];
+      await openPicker(t, videos: videos, current: 'relax-1');
+
+      expect(find.text('ACTUEL'), findsOneWidget);
+      // Le visuel actuel (02) : un seul exemplaire (la vignette mise en
+      // avant), pas de doublon dans la liste des « autres ».
+      expect(find.text('Ambiance apaisante 02'), findsOneWidget);
+      // Les deux autres restent proposés pour un changement.
+      expect(find.text('Ambiance apaisante 01'), findsOneWidget);
+      expect(find.text('Ambiance apaisante 03'), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    'sans currentSlug connu (aucune préférence) : pas de vignette ACTUEL, '
+    'mais tous les visuels du catalogue restent proposés',
+    (t) async {
+      final videos = [
+        _v('relax-0', title: 'Ambiance apaisante 01'),
+        _v('relax-1', title: 'Ambiance apaisante 02'),
+      ];
+      await openPicker(t, videos: videos);
+
+      expect(find.text('ACTUEL'), findsNothing);
+      expect(find.text('Ambiance apaisante 01'), findsOneWidget);
+      expect(find.text('Ambiance apaisante 02'), findsOneWidget);
+    },
+  );
 
   testWidgets('« Aléatoire » -> RelaxationVisualChoice.random()', (t) async {
     final videos = [_v('relax-0'), _v('relax-1')];
@@ -112,10 +159,8 @@ void main() {
           body: Builder(
             builder: (ctx) => Center(
               child: ElevatedButton(
-                onPressed: () async => res = await showRelaxationVisualPicker(
-                  ctx,
-                  videos: videos,
-                ),
+                onPressed: () async =>
+                    res = await showRelaxationVisualPicker(ctx, videos: videos),
                 child: const Text('open'),
               ),
             ),

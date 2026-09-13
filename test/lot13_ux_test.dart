@@ -14,7 +14,10 @@ import 'package:auryel/screens/advisor_selector_screen.dart';
 
 class _FakeAudio implements AdvisorAudio {
   @override
-  Future<void> play(String assetPath, {Duration fadeIn = Duration.zero}) async {}
+  Future<void> play(
+    String assetPath, {
+    Duration fadeIn = Duration.zero,
+  }) async {}
   @override
   Future<void> stop() async {}
   @override
@@ -29,7 +32,7 @@ Widget _host(AdvisorAudio audio) => MaterialApp(
 );
 
 Finder _cueLabel() => find.text('Découvrir les autres conseillers');
-Finder _cueChevron() => find.byIcon(PhosphorIconsRegular.caretDown);
+Finder _cueChevron() => find.byIcon(PhosphorIconsBold.arrowDown);
 
 void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
@@ -44,23 +47,67 @@ void main() {
     expect(find.textContaining('avec '), findsWidgets); // « Parler avec … »
   });
 
-  testWidgets('l\'indice DISPARAÎT après le 1er défilement et ne revient pas', (
-    t,
-  ) async {
-    await t.pumpWidget(_host(_FakeAudio()));
-    await t.pumpAndSettle();
-    expect(_cueLabel(), findsOneWidget);
+  testWidgets(
+    'l\'indice d\'UNE fiche déjà quittée ne revient pas (mais la fiche '
+    'suivante affiche le sien, CORRECTIF UX FINAL)',
+    (t) async {
+      await t.pumpWidget(_host(_FakeAudio()));
+      await t.pumpAndSettle();
+      expect(_cueLabel(), findsOneWidget); // 1re fiche
 
-    // défilement vers le conseiller suivant
-    await t.fling(find.byType(PageView), const Offset(0, -400), 1200);
-    await t.pumpAndSettle();
-    expect(_cueLabel(), findsNothing);
+      // défilement vers le conseiller suivant : la 1re fiche est quittée,
+      // la 2e (nouvelle) affiche SON PROPRE indice pour la 1re fois.
+      await t.fling(find.byType(PageView), const Offset(0, -400), 1200);
+      await t.pumpAndSettle();
+      expect(_cueLabel(), findsOneWidget);
 
-    // retour à la 1re carte : l'indice ne réapparaît pas (l'utilisateur a compris)
-    await t.fling(find.byType(PageView), const Offset(0, 400), 1200);
-    await t.pumpAndSettle();
-    expect(_cueLabel(), findsNothing);
-  });
+      // retour à la 1re carte, déjà quittée une fois : l'indice ne réapparaît
+      // plus pour ELLE (l'utilisateur a prouvé qu'il sait défiler depuis).
+      await t.fling(find.byType(PageView), const Offset(0, 400), 1200);
+      await t.pumpAndSettle();
+      expect(_cueLabel(), findsNothing);
+    },
+  );
+
+  testWidgets(
+    'CORRECTIF UX FINAL — l\'indice apparaît AUSSI sur la 2e fiche à sa '
+    'première apparition, pas uniquement sur la 1re/Luna',
+    (t) async {
+      await t.pumpWidget(_host(_FakeAudio()));
+      await t.pumpAndSettle();
+      expect(_cueLabel(), findsOneWidget); // 1re fiche
+
+      await t.fling(find.byType(PageView), const Offset(0, -400), 1200);
+      await t.pumpAndSettle();
+      // 2e fiche : nouvelle apparition -> l'indice doit AUSSI s'afficher ici.
+      expect(_cueLabel(), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    'CORRECTIF UX FINAL — l\'indice d\'une fiche disparaît après un vrai '
+    'défilement DEPUIS elle, mais pas avant',
+    (t) async {
+      await t.pumpWidget(_host(_FakeAudio()));
+      await t.pumpAndSettle();
+      await t.fling(find.byType(PageView), const Offset(0, -400), 1200); // 2e
+      await t.pumpAndSettle();
+      expect(_cueLabel(), findsOneWidget);
+
+      await t.fling(find.byType(PageView), const Offset(0, -400), 1200); // 3e
+      await t.pumpAndSettle();
+      expect(
+        _cueLabel(),
+        findsOneWidget,
+        reason: 'nouvelle fiche, nouvel indice',
+      );
+
+      // Retour sur la 2e fiche, déjà quittée une fois : plus d'indice.
+      await t.fling(find.byType(PageView), const Offset(0, 400), 1200);
+      await t.pumpAndSettle();
+      expect(_cueLabel(), findsNothing);
+    },
+  );
 
   testWidgets('l\'indice n\'intercepte aucun tap (IgnorePointer)', (t) async {
     await t.pumpWidget(_host(_FakeAudio()));

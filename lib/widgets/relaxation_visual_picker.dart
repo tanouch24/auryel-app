@@ -55,7 +55,8 @@ Future<RelaxationVisualChoice?> showRelaxationVisualPicker(
     shape: const RoundedRectangleBorder(
       borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
     ),
-    builder: (ctx) => _VisualPickerSheet(videos: videos, currentSlug: currentSlug),
+    builder: (ctx) =>
+        _VisualPickerSheet(videos: videos, currentSlug: currentSlug),
   );
 }
 
@@ -67,7 +68,12 @@ class _VisualPickerSheet extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final maxH = MediaQuery.of(context).size.height * 0.7;
+    final maxH = MediaQuery.of(context).size.height * 0.78;
+    final currentIndex = currentSlug == null
+        ? -1
+        : videos.indexWhere((v) => v.slug == currentSlug);
+    final current = currentIndex >= 0 ? videos[currentIndex] : null;
+
     return SafeArea(
       top: false,
       child: ConstrainedBox(
@@ -84,57 +90,138 @@ class _VisualPickerSheet extends StatelessWidget {
                 borderRadius: BorderRadius.circular(2),
               ),
             ),
+            // A — le visuel ACTUELLEMENT retenu, mis en avant immédiatement
+            // (jamais un écran vide : le catalogue distant a toujours un
+            // visuel par défaut dès qu'il n'est pas vide).
+            if (current != null)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 14, 16, 0),
+                child: _FeaturedTile(
+                  label: relaxationVisualLabel(current, currentIndex),
+                  video: current,
+                ),
+              ),
+            // B — titre + phrase courte, sous le visuel actuel.
             Padding(
               padding: const EdgeInsets.fromLTRB(20, 14, 20, 4),
-              child: Row(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Flexible(
-                    child: Text(
-                      'Choisir le visuel',
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: AuryelText.display(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                        color: AuryelColors.textCream,
-                      ),
+                  Text(
+                    'Choisis ton visuel relaxant',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: AuryelText.display(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      color: AuryelColors.textCream,
                     ),
                   ),
-                  const SizedBox(width: 8),
+                  const SizedBox(height: 3),
                   Text(
-                    'sans son',
+                    'Le visuel reste muet pendant ta méditation.',
                     style: AuryelText.body(
-                      fontSize: 11,
+                      fontSize: 11.5,
                       color: AuryelColors.textMuted,
                     ),
                   ),
                 ],
               ),
             ),
+            // C — les autres visuels disponibles, pour en choisir un autre.
             Flexible(
               child: ListView(
                 shrinkWrap: true,
                 padding: const EdgeInsets.fromLTRB(12, 6, 12, 12),
                 children: [
                   _RandomTile(
-                    onTap: () => Navigator.of(
-                      context,
-                    ).pop(RelaxationVisualChoice.random()),
+                    onTap: () =>
+                        Navigator.of(context)
+                            .pop(RelaxationVisualChoice.random()),
                   ),
                   for (var i = 0; i < videos.length; i++)
-                    _VisualTile(
-                      label: relaxationVisualLabel(videos[i], i),
-                      video: videos[i],
-                      selected: videos[i].slug == currentSlug,
-                      onTap: () => Navigator.of(
-                        context,
-                      ).pop(RelaxationVisualChoice.video(videos[i])),
-                    ),
+                    if (i != currentIndex)
+                      _VisualTile(
+                        label: relaxationVisualLabel(videos[i], i),
+                        video: videos[i],
+                        onTap: () =>
+                            Navigator.of(context)
+                                .pop(RelaxationVisualChoice.video(videos[i])),
+                      ),
                 ],
               ),
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// D — visuel actuellement retenu, mis en avant en tête de la feuille (plus
+/// grand, badge « ACTUEL »). Toujours une image légère (`thumbnail_url` ou
+/// repli propre) — JAMAIS de `VideoPlayerController` supplémentaire ici : la
+/// vidéo réellement affichée reste l'unique instance du lecteur principal.
+class _FeaturedTile extends StatelessWidget {
+  const _FeaturedTile({required this.label, required this.video});
+
+  final String label;
+  final RelaxationVideo video;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(16),
+        color: AuryelColors.surfaceLight.withValues(alpha: 0.6),
+        border: Border.all(
+          color: AuryelColors.goldLight.withValues(alpha: 0.5),
+        ),
+      ),
+      child: Row(
+        children: [
+          _Thumb(url: video.thumbnailUrl, size: 64),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 2.5,
+                  ),
+                  decoration: BoxDecoration(
+                    gradient: AuryelColors.goldGradient,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: Text(
+                    'ACTUEL',
+                    style: AuryelText.body(
+                      fontSize: 8.5,
+                      fontWeight: FontWeight.w700,
+                      color: AuryelColors.backgroundDeep,
+                      letterSpacing: 0.6,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 5),
+                Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: AuryelText.body(
+                    fontSize: 14.5,
+                    fontWeight: FontWeight.w600,
+                    color: AuryelColors.textCream,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -205,13 +292,11 @@ class _VisualTile extends StatelessWidget {
   const _VisualTile({
     required this.label,
     required this.video,
-    required this.selected,
     required this.onTap,
   });
 
   final String label;
   final RelaxationVideo video;
-  final bool selected;
   final VoidCallback onTap;
 
   @override
@@ -257,12 +342,6 @@ class _VisualTile extends StatelessWidget {
                   ],
                 ),
               ),
-              if (selected)
-                const Icon(
-                  Icons.check_rounded,
-                  size: 20,
-                  color: AuryelColors.goldLight,
-                ),
             ],
           ),
         ),
@@ -274,14 +353,15 @@ class _VisualTile extends StatelessWidget {
 /// Vignette légère : `thumbnail_url` si disponible (image réseau, échec ->
 /// repli), sinon un placeholder propre — on n'invente JAMAIS d'image.
 class _Thumb extends StatelessWidget {
-  const _Thumb({this.url});
+  const _Thumb({required this.url, this.size = 46});
   final String? url;
+  final double size;
 
   @override
   Widget build(BuildContext context) {
     final placeholder = Container(
-      width: 46,
-      height: 46,
+      width: size,
+      height: size,
       decoration: BoxDecoration(
         color: AuryelColors.surfaceLight,
         borderRadius: BorderRadius.circular(10),
@@ -290,9 +370,9 @@ class _Thumb extends StatelessWidget {
           width: 0.8,
         ),
       ),
-      child: const Icon(
+      child: Icon(
         PhosphorIconsRegular.image,
-        size: 18,
+        size: size * 0.4,
         color: AuryelColors.textMuted,
       ),
     );
@@ -302,8 +382,8 @@ class _Thumb extends StatelessWidget {
       borderRadius: BorderRadius.circular(10),
       child: Image.network(
         u,
-        width: 46,
-        height: 46,
+        width: size,
+        height: size,
         fit: BoxFit.cover,
         errorBuilder: (_, _, _) => placeholder,
         loadingBuilder: (_, child, progress) =>

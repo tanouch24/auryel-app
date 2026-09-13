@@ -84,14 +84,21 @@ class _WellbeingJourneyMapState extends State<WellbeingJourneyMap> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                // FINITIONS UX — le principe + la récompense du parcours
-                // (30 journées -> 15 min de consultation offertes) doivent se
-                // comprendre IMMÉDIATEMENT, avant même la carte/chemin des 30
-                // jours. Bloc déplacé ici (texte inchangé, pas de duplication) ;
-                // il restait auparavant tout en bas, après le chemin ET
-                // l'étape du jour.
+                // CORRECTIF UX FINAL — ordre attendu, confirmé par capture
+                // Samsung : titre (dans l'écran) -> texte explicatif + récompense
+                // -> ÉTAPE DU JOUR (4 actions) -> SEULEMENT ENSUITE la carte
+                // interactive des 30 jours (en-tête stats + chemin peint). Les
+                // deux blocs (récompense, étape du jour) sont DÉPLACÉS ici — texte
+                // et widgets inchangés, aucune duplication — ils restaient
+                // auparavant tout en bas, après la carte/le chemin.
                 _RewardLine(progress: p),
-                const SizedBox(height: 16),
+                const SizedBox(height: 14),
+                _TodayStep(
+                  progress: p,
+                  busy: widget.busy,
+                  onCta: widget.onMissionCta,
+                ),
+                const SizedBox(height: 18),
                 _Header(progress: p),
                 const SizedBox(height: 16),
                 LayoutBuilder(
@@ -129,12 +136,6 @@ class _WellbeingJourneyMapState extends State<WellbeingJourneyMap> {
                       ),
                     );
                   },
-                ),
-                const SizedBox(height: 18),
-                _TodayStep(
-                  progress: p,
-                  busy: widget.busy,
-                  onCta: widget.onMissionCta,
                 ),
               ],
             ),

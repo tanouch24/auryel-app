@@ -71,6 +71,11 @@ class AuryelText {
     FontStyle fontStyle = FontStyle.normal,
     double? letterSpacing,
     double? height,
+    // CORRECTIF UX FINAL — garantie EXPLICITE, au niveau du style partagé :
+    // aucun texte Auryel n'est souligné par défaut (le rendu était déjà
+    // identique avec `decoration` implicitement `null`, mais l'expliciter ici
+    // élimine toute ambiguïté et toute régression future, app entière).
+    TextDecoration decoration = TextDecoration.none,
   }) {
     return TextStyle(
       fontFamily: fontFamily,
@@ -81,6 +86,7 @@ class AuryelText {
       color: color,
       letterSpacing: letterSpacing,
       height: height,
+      decoration: decoration,
     );
   }
 
@@ -133,35 +139,65 @@ class AuryelText {
 
   /// Grand titre d'écran — 28 / 700.
   static TextStyle screenTitle({Color color = AuryelColors.textCream}) =>
-      _inter(fontSize: 28, fontWeight: FontWeight.w700, color: color, height: 1.15);
+      _inter(
+        fontSize: 28,
+        fontWeight: FontWeight.w700,
+        color: color,
+        height: 1.15,
+      );
 
   /// Titre de section — 21 / 600.
   static TextStyle sectionTitle({Color color = AuryelColors.textCream}) =>
-      _inter(fontSize: 21, fontWeight: FontWeight.w600, color: color, height: 1.2);
+      _inter(
+        fontSize: 21,
+        fontWeight: FontWeight.w600,
+        color: color,
+        height: 1.2,
+      );
 
   /// Titre de carte / bloc — 17 / 600.
-  static TextStyle cardTitle({Color color = AuryelColors.textCream}) =>
-      _inter(fontSize: 17, fontWeight: FontWeight.w600, color: color, height: 1.25);
+  static TextStyle cardTitle({Color color = AuryelColors.textCream}) => _inter(
+    fontSize: 17,
+    fontWeight: FontWeight.w600,
+    color: color,
+    height: 1.25,
+  );
 
   /// Texte principal — 15.5 / 400.
   static TextStyle bodyText({Color color = AuryelColors.textSecondary}) =>
-      _inter(fontSize: 15.5, fontWeight: FontWeight.w400, color: color, height: 1.5);
+      _inter(
+        fontSize: 15.5,
+        fontWeight: FontWeight.w400,
+        color: color,
+        height: 1.5,
+      );
 
   /// Texte secondaire — 13.5 / 400.
   static TextStyle bodySecondary({Color color = AuryelColors.textMuted}) =>
-      _inter(fontSize: 13.5, fontWeight: FontWeight.w400, color: color, height: 1.45);
+      _inter(
+        fontSize: 13.5,
+        fontWeight: FontWeight.w400,
+        color: color,
+        height: 1.45,
+      );
 
   /// Libellé de bouton — 15.5 / 600.
   static TextStyle button({Color color = AuryelColors.backgroundDeep}) =>
-      _inter(fontSize: 15.5, fontWeight: FontWeight.w600, color: color, letterSpacing: 0.2);
+      _inter(
+        fontSize: 15.5,
+        fontWeight: FontWeight.w600,
+        color: color,
+        letterSpacing: 0.2,
+      );
 
   /// Libellé de navigation basse — 11.5 / 600.
-  static TextStyle navLabel({required Color color, bool active = false}) => _inter(
-    fontSize: 11.5,
-    fontWeight: active ? FontWeight.w600 : FontWeight.w500,
-    color: color,
-    letterSpacing: 0.2,
-  );
+  static TextStyle navLabel({required Color color, bool active = false}) =>
+      _inter(
+        fontSize: 11.5,
+        fontWeight: active ? FontWeight.w600 : FontWeight.w500,
+        color: color,
+        letterSpacing: 0.2,
+      );
 
   /// Sur-titre / étiquette capitale (« PRÉSENTATION VOCALE ») — 11 / 600 espacé.
   static TextStyle overline({Color color = AuryelColors.textMuted}) => _inter(

@@ -50,10 +50,13 @@ class _AdvisorSelectorScreenState extends State<AdvisorSelectorScreen>
   bool _muted = false;
   bool _reduceMotion = false;
 
-  /// Indice « il y a d'autres conseillers plus bas » : visible tant que
-  /// l'utilisateur n'a pas encore fait défiler. Une fois qu'il a changé de
-  /// page au moins une fois, il a compris — l'indice ne revient jamais.
-  bool _scrollCueSeen = false;
+  /// Indice « il y a d'autres conseillers plus bas » — PAR FICHE : chaque
+  /// conseiller (pas seulement le premier) doit montrer l'indice à sa
+  /// PREMIÈRE apparition. Il ne disparaît, POUR CETTE fiche, qu'une fois que
+  /// l'utilisateur a réellement défilé DEPUIS elle (page suivante/
+  /// précédente atteinte). Revenir sur une fiche déjà quittée une fois ne
+  /// réaffiche pas l'indice (l'utilisateur a déjà prouvé qu'il sait défiler).
+  final Set<int> _cueDismissedFor = {};
 
   @override
   void initState() {
@@ -124,9 +127,13 @@ class _AdvisorSelectorScreenState extends State<AdvisorSelectorScreen>
 
   Future<void> _onPageChanged(int i) async {
     if (i == _page) return;
+    final left = _page;
     setState(() {
       _page = i;
-      _scrollCueSeen = true; // l'utilisateur a compris qu'on peut défiler
+      // L'utilisateur vient de défiler RÉELLEMENT DEPUIS `left` : son indice
+      // ne lui sert plus, pour CETTE fiche précise. La fiche `i` qu'il vient
+      // d'atteindre, elle, montrera le sien si c'est sa toute première fois.
+      _cueDismissedFor.add(left);
     });
     await _stopAudio();
     await _maybePlayCurrent();
@@ -196,17 +203,22 @@ class _AdvisorSelectorScreenState extends State<AdvisorSelectorScreen>
                           alreadyConsulted: known,
                           primaryLabel: known ? 'Reprendre' : 'Parler',
                           onPrimary: () => _pick(advisor),
-                          // Indice de défilement : seulement sur la 1re carte,
-                          // et seulement tant que l'utilisateur n'a pas défilé.
-                          showScrollCue: i == 0 &&
-                              !_scrollCueSeen &&
-                              kAdvisors.length > 1,
+                          // CORRECTIF UX FINAL — l'indice apparaît pour CHAQUE
+                          // fiche (pas uniquement la 1re/Luna) à sa première
+                          // apparition, et seulement s'il reste un conseiller
+                          // en dessous. Il s'efface, PAR FICHE, dès que
+                          // l'utilisateur a réellement défilé depuis elle.
+                          showScrollCue:
+                              i < kAdvisors.length - 1 &&
+                              !_cueDismissedFor.contains(i),
                         );
                       },
                     ),
                     // Fade de CONTINUATION en bas — suggère qu'il y a une suite.
-                    // Disparaît dès le 1er défilement. Ne capte aucun tap.
-                    if (!_scrollCueSeen && kAdvisors.length > 1)
+                    // Même règle par fiche que l'indice ci-dessus. Ne capte
+                    // aucun tap.
+                    if (_page < kAdvisors.length - 1 &&
+                        !_cueDismissedFor.contains(_page))
                       const Positioned(
                         key: Key('advisor-scroll-fade'),
                         left: 0,
@@ -219,10 +231,7 @@ class _AdvisorSelectorScreenState extends State<AdvisorSelectorScreen>
                               gradient: LinearGradient(
                                 begin: Alignment.topCenter,
                                 end: Alignment.bottomCenter,
-                                colors: [
-                                  Color(0x00120E17),
-                                  Color(0xC8120E17),
-                                ],
+                                colors: [Color(0x00120E17), Color(0xC8120E17)],
                               ),
                             ),
                           ),
@@ -556,28 +565,17 @@ class _ScrollCueState extends State<_ScrollCue>
   @override
   Widget build(BuildContext context) {
     if (!widget.visible) return const SizedBox.shrink();
-    Widget chevrons = const Column(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        PhosphorIcon(
-          PhosphorIconsFill.caretDown,
-          size: 16,
-          color: AuryelColors.goldLight,
-        ),
-        Padding(
-          padding: EdgeInsets.only(top: 1),
-          child: PhosphorIcon(
-            PhosphorIconsRegular.caretDown,
-            size: 13,
-            color: AuryelColors.goldLight,
-          ),
-        ),
-      ],
+    // Flèche unique, nettement plus visible qu'un double chevron discret —
+    // « suffisamment grande » sans devenir un gros effet décoratif.
+    Widget arrow = const PhosphorIcon(
+      PhosphorIconsBold.arrowDown,
+      size: 24,
+      color: AuryelColors.goldLight,
     );
     if (!widget.reduceMotion) {
-      chevrons = AnimatedBuilder(
+      arrow = AnimatedBuilder(
         animation: _bob,
-        child: chevrons,
+        child: arrow,
         builder: (_, child) => Transform.translate(
           offset: Offset(0, (_bob.value * 6) - 1),
           child: child,
@@ -592,6 +590,8 @@ class _ScrollCueState extends State<_ScrollCue>
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
+              arrow,
+              const SizedBox(height: 4),
               FittedBox(
                 fit: BoxFit.scaleDown,
                 child: Container(
@@ -623,8 +623,6 @@ class _ScrollCueState extends State<_ScrollCue>
                   ),
                 ),
               ),
-              const SizedBox(height: 3),
-              chevrons,
             ],
           ),
         ),

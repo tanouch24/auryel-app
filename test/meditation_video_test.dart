@@ -619,6 +619,74 @@ void main() {
   });
 
   // =========================================================================
+  // CORRECTIF UX FINAL — un catalogue non vide ne doit JAMAIS laisser l'écran
+  // bloqué sur le repli statique (pictogramme feuille) si un AUTRE visuel du
+  // catalogue peut, lui, être lu.
+  // =========================================================================
+
+  testWidgets(
+    'échec du visuel auto-sélectionné -> retente automatiquement un AUTRE '
+    'visuel du catalogue (jamais bloqué sur le repli statique)',
+    (t) async {
+      final a = _FakeAudio();
+      final surfaces = <_FakeSurface>[];
+      var n = 0;
+      await t.pumpWidget(
+        _host(
+          a,
+          item: _libItem(),
+          content: _repoWithVideos([_v('a'), _v('b'), _v('c')]),
+          surfaceFactory: () {
+            // Le tout premier visuel tenté échoue ; les suivants réussissent.
+            final s = _FakeSurface(loadResult: n > 0);
+            n++;
+            surfaces.add(s);
+            return s;
+          },
+        ),
+      );
+      await t.pumpAndSettle();
+
+      expect(t.takeException(), isNull);
+      // Le repli automatique a fonctionné : une frame vidéo est bien rendue,
+      // pas le pictogramme statique.
+      expect(find.byKey(_kVideoViewKey), findsOneWidget);
+      expect(
+        surfaces.length,
+        greaterThanOrEqualTo(2),
+        reason: 'un 2e visuel a été tenté après l’échec du 1er',
+      );
+    },
+  );
+
+  testWidgets(
+    'si TOUS les visuels échouent, on abandonne proprement après un nombre '
+    'BORNÉ de tentatives (jamais de boucle infinie)',
+    (t) async {
+      final a = _FakeAudio();
+      final surfaces = <_FakeSurface>[];
+      await t.pumpWidget(
+        _host(
+          a,
+          item: _libItem(),
+          content: _repoWithVideos([_v('a'), _v('b'), _v('c')]),
+          surfaceFactory: () {
+            final s = _FakeSurface(loadResult: false);
+            surfaces.add(s);
+            return s;
+          },
+        ),
+      );
+      await t.pumpAndSettle();
+
+      expect(t.takeException(), isNull);
+      expect(find.byKey(_kVideoViewKey), findsNothing); // repli statique
+      // 1 tentative initiale + au plus 2 retries -> jamais plus de 3.
+      expect(surfaces.length, lessThanOrEqualTo(3));
+    },
+  );
+
+  // =========================================================================
   // Cycle de vie de LA VIDÉO (jamais l'audio)
   // =========================================================================
 
