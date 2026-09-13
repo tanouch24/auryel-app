@@ -14,9 +14,9 @@ import '../data/relaxation_video_selector.dart';
 import '../state/auth_controller.dart';
 import '../state/wellbeing_controller.dart';
 import '../theme/auryel_theme.dart';
+import '../widgets/feed_page_scope.dart';
 import '../widgets/main_nav_scope.dart';
 import '../widgets/relaxation_video_background.dart';
-import '../widgets/relaxation_visual_picker.dart';
 
 /// Lecteur d'une séance « Ton Moment ». Ouvert depuis la bibliothèque
 /// ([MeditationLibraryScreen]) avec une séance précise ([item]), ou sans
@@ -32,9 +32,8 @@ import '../widgets/relaxation_visual_picker.dart';
 /// échec de chargement ou de lecture), la mission reste NON cochée pour la
 /// séance. Un seul marquage par jour (idempotent), persistant.
 ///
-/// Un visuel d'ambiance MUET est choisi automatiquement au lancement ;
-/// « Choisir le visuel » permet d'en sélectionner un autre SANS jamais
-/// toucher à l'audio.
+/// Un visuel d'ambiance MUET est choisi automatiquement au lancement — TOUJOURS
+/// automatique désormais (feed méditation) : aucune sélection manuelle.
 ///
 /// Aucune promesse médicale. Aucune récompense en temps de consultation.
 ///
@@ -63,6 +62,7 @@ class MeditationScreen extends StatefulWidget {
     this.videoSelector,
     this.videoSurfaceFactory,
     this.autoplayOnOpen = false,
+    this.showCatalogNavigation = true,
   });
 
   /// Séance à jouer, choisie dans la bibliothèque. `null` -> l'écran retombe
@@ -78,6 +78,15 @@ class MeditationScreen extends StatefulWidget {
   /// Moment du jour ») : comportement historique « jamais d'autoplay à
   /// l'ouverture » strictement inchangé pour ces cas.
   final bool autoplayOnOpen;
+
+  /// FEED MÉDITATION — `false` UNIQUEMENT quand cet écran est une page du
+  /// feed vertical ([MeditationFeedScreen]) : masque les boutons « précédent
+  /// / suivant » (skip de catalogue), la navigation s'y fait exclusivement
+  /// par swipe vertical, dans l'ordre mélangé anti-répétition du feed — les
+  /// garder actifs permettrait de contourner cet ordre (retour possible à une
+  /// séance déjà vue). `true` par défaut PARTOUT ailleurs (bibliothèque, «
+  /// Ton Moment du jour ») : comportement historique inchangé.
+  final bool showCatalogNavigation;
 
   /// Test uniquement : lecteur injecté (aucun canal plateforme en test).
   final MeditationAudio? audioOverride;
@@ -243,10 +252,31 @@ class _MeditationScreenState extends State<MeditationScreen>
 
     final idx = MainNavScope.maybeOf(context)?.currentIndex;
     final onTab = idx == null || idx == kTabMeditation;
-    if (onTab == _onThisTab) return;
-    _onThisTab = onTab;
-    // On quitte l'onglet -> on suspend. On y revient -> on NE relance PAS.
-    if (!onTab && _status == _PlayStatus.playing) _pause();
+    // FEED MÉDITATION — en plus de l'onglet, cette séance doit aussi être la
+    // page ACTIVE du feed vertical (voir `FeedPageScope`) pour être
+    // considérée « à l'écran ». Absent (écran ouvert seul, hors feed) ->
+    // toujours actif : comportement historique inchangé.
+    final feedScope = FeedPageScope.maybeOf(context);
+    final onFeedPage = feedScope?.isActive ?? true;
+    final onScreen = onTab && onFeedPage;
+    if (onScreen == _onThisTab) return;
+    _onThisTab = onScreen;
+    if (!onScreen && _status == _PlayStatus.playing) {
+      // On quitte l'onglet/la page -> on suspend.
+      _pause();
+    } else if (onScreen && feedScope != null) {
+      // FEED MÉDITATION UNIQUEMENT — cette page (re)devient la page active du
+      // feed (swipe de retour, ou activation différée d'une page déjà
+      // préparée en voisine) : démarrage/reprise AUTOMATIQUE, à la différence
+      // du comportement historique hors feed (jamais de reprise automatique
+      // au simple retour au premier plan / à l'onglet, volontairement
+      // inchangé ci-dessus quand `feedScope` est `null`).
+      if (_status == _PlayStatus.idle || _status == _PlayStatus.unavailable) {
+        unawaited(_start());
+      } else if (_status == _PlayStatus.paused) {
+        unawaited(_resume());
+      }
+    }
   }
 
   @override
@@ -397,54 +427,6 @@ class _MeditationScreenState extends State<MeditationScreen>
     }
   }
 
-  /// « Aléatoire » dans le sélecteur : re-tire un visuel compatible au hasard
-  /// (anti-répétition conservée). Aucun impact audio ; la nouvelle vidéo
-  /// démarre automatiquement dès qu'elle est prête (voir [_videoActive]).
-  Future<void> _pickRandomVisual() async {
-    if (_availableVideos.isEmpty) return;
-    final picked = await _videoSelector.pick(
-      _availableVideos,
-      meditationCategory: _item.category.name,
-    );
-    if (mounted && picked != null) {
-      setState(() {
-        _video = picked;
-        _videoActive = true;
-      });
-    }
-  }
-
-  /// Choix manuel d'un visuel : on remplace UNIQUEMENT le visuel. L'audio
-  /// (source, position, état lecture/pause) n'est JAMAIS touché — le MP3
-  /// continue exactement où il en était (ou reste en pause/à l'arrêt s'il
-  /// l'était). La nouvelle vidéo, elle, se lance automatiquement dès qu'elle
-  /// est prête (`_videoActive = true`, indépendant du MP3) : c'est
-  /// [RelaxationVideoStage] qui dispose l'ancien contrôleur, charge le
-  /// nouveau (volume 0, looping) et le démarre.
-  void _selectVisual(RelaxationVideo v) {
-    if (_video?.slug == v.slug) return;
-    setState(() {
-      _video = v;
-      _videoActive = true;
-    });
-  }
-
-  Future<void> _openVisualPicker() async {
-    if (_availableVideos.isEmpty) return;
-    _keepControlsVisible();
-    final choice = await showRelaxationVisualPicker(
-      context,
-      videos: _availableVideos,
-      currentSlug: _video?.slug,
-    );
-    if (choice == null || !mounted) return;
-    if (choice.isRandom) {
-      await _pickRandomVisual();
-    } else if (choice.video != null) {
-      _selectVisual(choice.video!);
-    }
-  }
-
   /// Résout le catalogue distant (même source que [MeditationLibraryScreen])
   /// pour précédent/suivant. Non bloquant : le repli embarqué déjà posé dans
   /// [initState] reste utilisable tant que/si cette résolution échoue.
@@ -537,6 +519,16 @@ class _MeditationScreenState extends State<MeditationScreen>
     // « bientôt disponible » (jamais de tentative de lecture d'asset manquant).
     final ok = await _audio.play(_item.playbackSource);
     if (!mounted) return;
+    // FEED MÉDITATION — l'autoplay (`autoplayOnOpen`) est déclenché dès
+    // `initState`, avant que la vérification de page active n'ait eu lieu.
+    // Si la page a été quittée entre-temps (swipe très rapide), on n'affiche
+    // JAMAIS un état "en lecture" pour une page qui n'est plus à l'écran :
+    // on coupe tout de suite (aucun double audio entre deux pages du feed).
+    if (ok && !_onThisTab) {
+      unawaited(_audio.pause());
+      setState(() => _status = _PlayStatus.paused);
+      return;
+    }
     setState(() {
       _status = ok ? _PlayStatus.playing : _PlayStatus.unavailable;
       if (ok) _videoActive = true;
@@ -798,64 +790,29 @@ class _MeditationScreenState extends State<MeditationScreen>
                 Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   crossAxisAlignment: CrossAxisAlignment.center,
-                  children: [
-                    _SkipButton(
-                      key: const Key('meditation-previous-button'),
-                      icon: Icons.skip_previous_rounded,
-                      tooltip: 'Méditation précédente',
-                      onTap: _canGoPrevious ? _goPrevious : null,
-                    ),
-                    const SizedBox(width: 26),
-                    _PlayButton(playing: playing, onTap: _onPrimaryTap),
-                    const SizedBox(width: 26),
-                    _SkipButton(
-                      key: const Key('meditation-next-button'),
-                      icon: Icons.skip_next_rounded,
-                      tooltip: 'Méditation suivante',
-                      onTap: _canGoNext ? _goNext : null,
-                    ),
-                  ],
+                  children: widget.showCatalogNavigation
+                      ? [
+                          _SkipButton(
+                            key: const Key('meditation-previous-button'),
+                            icon: Icons.skip_previous_rounded,
+                            tooltip: 'Méditation précédente',
+                            onTap: _canGoPrevious ? _goPrevious : null,
+                          ),
+                          const SizedBox(width: 26),
+                          _PlayButton(playing: playing, onTap: _onPrimaryTap),
+                          const SizedBox(width: 26),
+                          _SkipButton(
+                            key: const Key('meditation-next-button'),
+                            icon: Icons.skip_next_rounded,
+                            tooltip: 'Méditation suivante',
+                            onTap: _canGoNext ? _goNext : null,
+                          ),
+                        ]
+                      : [_PlayButton(playing: playing, onTap: _onPrimaryTap)],
                 ),
-                // Action SECONDAIRE, discrète : ne concurrence jamais Play/Pause.
-                // Masquée s'il n'y a aucun visuel distant disponible.
-                if (_availableVideos.isNotEmpty) ...[
-                  const SizedBox(height: 16),
-                  Center(
-                    child: Material(
-                      color: Colors.black.withValues(alpha: 0.26),
-                      borderRadius: BorderRadius.circular(999),
-                      child: InkWell(
-                        borderRadius: BorderRadius.circular(999),
-                        onTap: _openVisualPicker,
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 14,
-                            vertical: 8,
-                          ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              const PhosphorIcon(
-                                PhosphorIconsRegular.image,
-                                size: 15,
-                                color: Colors.white,
-                              ),
-                              const SizedBox(width: 6),
-                              Text(
-                                'Choisir le visuel',
-                                style: AuryelText.body(
-                                  fontSize: 12,
-                                  fontWeight: FontWeight.w600,
-                                  color: Colors.white,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
+                // « Choisir le visuel » SUPPRIMÉ (CORRECTIF « feed méditation
+                // + réveil vocal ») : le visuel est désormais TOUJOURS choisi
+                // automatiquement par le feed, jamais manuellement.
               ],
             ),
           ),

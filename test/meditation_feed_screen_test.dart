@@ -1,0 +1,359 @@
+import 'dart:async';
+import 'dart:convert';
+import 'dart:math';
+
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
+import 'package:auryel/api/api_client.dart';
+import 'package:auryel/api/content_api.dart';
+import 'package:auryel/data/content_repository.dart';
+import 'package:auryel/data/daily_thought.dart';
+import 'package:auryel/data/feed_swipe_hint_store.dart';
+import 'package:auryel/data/meditation_audio.dart';
+import 'package:auryel/data/meditation_catalog.dart';
+import 'package:auryel/data/meditation_feed_order.dart';
+import 'package:auryel/data/meditation_item.dart';
+import 'package:auryel/screens/meditation_feed_screen.dart';
+import 'package:auryel/screens/meditation_library_screen.dart';
+import 'package:auryel/screens/meditation_screen.dart';
+import 'package:auryel/widgets/relaxation_video_background.dart';
+
+// ===========================================================================
+// GROS LOT « feed méditation + réveil vocal » — feed vertical : 1 page = 1
+// méditation (audio + visuel auto), ordre mélangé anti-répétition, autoplay
+// sur la page active seulement, contrôleurs minimaux.
+// ===========================================================================
+
+Map<String, dynamic> _m(String id) => {
+  'id': id,
+  'title': 'T $id',
+  'description': '',
+  'duration_minutes': 4,
+  'category': 'detente',
+  'audio_url': 'https://cdn.auryel.app/$id.mp3',
+};
+
+MeditationItem _item(String id) => MeditationItem(
+  id: id,
+  title: 'T $id',
+  description: '',
+  assetPath: '',
+  duration: const Duration(minutes: 4),
+  category: MeditationCategory.detente,
+  audioUrl: 'https://cdn.auryel.app/$id.mp3',
+);
+
+ContentRepository _repoWithMeditations(List<Map<String, dynamic>> meditations) {
+  final client = ApiClient(
+    httpClient: MockClient((req) async {
+      if (req.url.path.contains('meditations')) {
+        return http.Response(
+          jsonEncode({'catalog_version': 'v1', 'meditations': meditations}),
+          200,
+          headers: {'content-type': 'application/json', 'etag': '"v1"'},
+        );
+      }
+      // relaxation-videos -> vide : pas de scène vidéo, non pertinent ici.
+      return http.Response(
+        jsonEncode({'catalog_version': 'v1', 'videos': <dynamic>[]}),
+        200,
+        headers: {'content-type': 'application/json', 'etag': '"v1"'},
+      );
+    }),
+    baseUrl: 'http://test.local',
+  );
+  return ContentRepository(
+    api: ContentApi(client),
+    tokenProvider: () async => 'tok',
+    embeddedThoughts: DailyThoughtRepository(
+      seed: [
+        DailyThought(
+          id: 1,
+          publishDate: DateTime(2026, 1, 1),
+          phrase: 'x',
+          interpretation: 'y',
+          imageAsset: 'assets/pensees/x.webp',
+        ),
+      ],
+    ),
+    embeddedMeditations: const MeditationCatalog(),
+  );
+}
+
+/// Mémorisation de l'indication de swipe, contrôlable en test (pas de
+/// SharedPreferences réel nécessaire, mais on le garde cohérent).
+class _FakeHintStore extends FeedSwipeHintStore {
+  _FakeHintStore({this.shown = false});
+  bool shown;
+
+  @override
+  Future<bool> hasBeenShown() async => shown;
+
+  @override
+  Future<void> markShown() async => shown = true;
+}
+
+/// Lecteur audio factice — pas de canal plateforme réel en test (mêmes
+/// bases que `meditation_video_test.dart`), TOUJOURS un `play()` réussi pour
+/// que l'autoplay du feed soit observable.
+class _FakeAudio implements MeditationAudio {
+  final _pos = StreamController<Duration>.broadcast();
+  final _dur = StreamController<Duration>.broadcast();
+  final _done = StreamController<void>.broadcast();
+  bool _playing = false;
+
+  @override
+  Stream<Duration> get onPosition => _pos.stream;
+  @override
+  Stream<Duration> get onDuration => _dur.stream;
+  @override
+  Stream<void> get onComplete => _done.stream;
+  @override
+  bool get isPlaying => _playing;
+  @override
+  Future<bool> play(String s) async {
+    _playing = true;
+    return true;
+  }
+
+  @override
+  Future<void> pause() async => _playing = false;
+  @override
+  Future<void> resume() async => _playing = true;
+  @override
+  Future<void> stop() async => _playing = false;
+  @override
+  void dispose() {}
+}
+
+class _FakeSurface implements RelaxationVideoSurface {
+  bool _ready = false;
+
+  @override
+  bool get isReady => _ready;
+  @override
+  Future<bool> load(String url) async {
+    _ready = true;
+    return true;
+  }
+
+  @override
+  Future<bool> play() async => true;
+  @override
+  Future<void> pause() async {}
+  @override
+  Widget? buildView() =>
+      _ready ? const ColoredBox(color: Colors.black) : null;
+  @override
+  void dispose() => _ready = false;
+}
+
+Widget _host(
+  ContentRepository content, {
+  MeditationItem? initialItem,
+  FeedSwipeHintStore? hintStore,
+  MeditationFeedOrder? feedOrder,
+}) {
+  return MaterialApp(
+    home: ContentScope(
+      repository: content,
+      child: MeditationFeedScreen(
+        initialItem: initialItem,
+        hintStore: hintStore ?? _FakeHintStore(shown: true),
+        feedOrder: feedOrder ?? MeditationFeedOrder(random: Random(0)),
+        audioFactory: () => _FakeAudio(),
+        videoSurfaceFactory: () => _FakeSurface(),
+      ),
+    ),
+  );
+}
+
+void main() {
+  setUp(() => SharedPreferences.setMockInitialValues({}));
+
+  testWidgets('catalogue distant -> feed vertical avec la 1ʳᵉ page jouable', (
+    t,
+  ) async {
+    final repo = _repoWithMeditations([_m('a'), _m('b'), _m('c')]);
+    await t.pumpWidget(_host(repo));
+    await t.pumpAndSettle();
+
+    expect(find.byType(MeditationFeedScreen), findsOneWidget);
+    expect(find.byType(PageView), findsOneWidget);
+    expect(find.byType(MeditationScreen), findsOneWidget);
+  });
+
+  testWidgets(
+    'la 1ʳᵉ page démarre AUTOMATIQUEMENT (autoplay), sans aucun tap',
+    (t) async {
+      final repo = _repoWithMeditations([_m('a'), _m('b'), _m('c')]);
+      await t.pumpWidget(_host(repo));
+      await t.pumpAndSettle();
+
+      expect(find.bySemanticsLabel('Mettre en pause'), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    'swipe vers le haut -> passe à la page/méditation suivante, celle-ci '
+    'démarre automatiquement',
+    (t) async {
+      final repo = _repoWithMeditations([_m('a'), _m('b'), _m('c')]);
+      await t.pumpWidget(_host(repo));
+      await t.pumpAndSettle();
+      final firstTitle = t
+          .widgetList<Text>(find.byType(Text))
+          .map((w) => w.data)
+          .whereType<String>()
+          .firstWhere((s) => s.startsWith('T '));
+
+      await t.fling(
+        find.byKey(const Key('meditation-feed-page-view')),
+        const Offset(0, -600),
+        1200,
+      );
+      await t.pumpAndSettle();
+
+      final secondTitle = t
+          .widgetList<Text>(find.byType(Text))
+          .map((w) => w.data)
+          .whereType<String>()
+          .firstWhere((s) => s.startsWith('T '));
+      expect(secondTitle, isNot(firstTitle));
+      // La nouvelle page active a démarré toute seule.
+      expect(find.bySemanticsLabel('Mettre en pause'), findsOneWidget);
+    },
+  );
+
+  testWidgets(
+    'jamais plus de 3 lecteurs (`MeditationScreen`) instanciés en même '
+    'temps, quelle que soit la taille du catalogue',
+    (t) async {
+      final repo = _repoWithMeditations([
+        for (var i = 0; i < 12; i++) _m('med-$i'),
+      ]);
+      await t.pumpWidget(_host(repo));
+      await t.pumpAndSettle();
+      expect(
+        t.widgetList<MeditationScreen>(find.byType(MeditationScreen)).length,
+        lessThanOrEqualTo(3),
+      );
+
+      await t.fling(
+        find.byKey(const Key('meditation-feed-page-view')),
+        const Offset(0, -600),
+        1200,
+      );
+      await t.pumpAndSettle();
+      expect(
+        t.widgetList<MeditationScreen>(find.byType(MeditationScreen)).length,
+        lessThanOrEqualTo(3),
+      );
+    },
+  );
+
+  testWidgets(
+    'entrée depuis la bibliothèque (initialItem) -> cette séance est la 1ʳᵉ '
+    'page, immédiatement jouée',
+    (t) async {
+      final repo = _repoWithMeditations([_m('a'), _m('b'), _m('c')]);
+      await t.pumpWidget(_host(repo, initialItem: _item('b')));
+      await t.pumpAndSettle();
+
+      expect(find.text('T b'), findsWidgets);
+      expect(find.bySemanticsLabel('Mettre en pause'), findsOneWidget);
+    },
+  );
+
+  testWidgets('sans ContentScope -> repli embarqué, aucun crash', (t) async {
+    await t.pumpWidget(
+      const MaterialApp(home: MeditationFeedScreen()),
+    );
+    await t.pumpAndSettle();
+    expect(t.takeException(), isNull);
+    expect(find.byType(MeditationFeedScreen), findsOneWidget);
+  });
+
+  testWidgets(
+    'bouton « Toutes les méditations » ouvre la bibliothèque existante',
+    (t) async {
+      final repo = _repoWithMeditations([_m('a'), _m('b')]);
+      await t.pumpWidget(_host(repo));
+      await t.pumpAndSettle();
+
+      await t.tap(find.byKey(const Key('meditation-feed-library-button')));
+      await t.pumpAndSettle();
+      expect(find.byType(MeditationLibraryScreen), findsOneWidget);
+    },
+  );
+
+  group('Indication de swipe (1er usage uniquement)', () {
+    testWidgets('jamais montrée -> visible à l\'ouverture', (t) async {
+      final repo = _repoWithMeditations([_m('a'), _m('b'), _m('c')]);
+      await t.pumpWidget(
+        _host(repo, hintStore: _FakeHintStore(shown: false)),
+      );
+      await t.pumpAndSettle();
+
+      expect(
+        find.text('Fais glisser pour découvrir une autre méditation'),
+        findsOneWidget,
+      );
+      final opacity = t
+          .widget<AnimatedOpacity>(
+            find.byKey(const Key('meditation-feed-swipe-hint')),
+          )
+          .opacity;
+      expect(opacity, 1.0);
+    });
+
+    testWidgets('déjà montrée -> masquée d\'emblée', (t) async {
+      final repo = _repoWithMeditations([_m('a'), _m('b'), _m('c')]);
+      await t.pumpWidget(_host(repo, hintStore: _FakeHintStore(shown: true)));
+      await t.pumpAndSettle();
+
+      final opacity = t
+          .widget<AnimatedOpacity>(
+            find.byKey(const Key('meditation-feed-swipe-hint')),
+          )
+          .opacity;
+      expect(opacity, 0.0);
+    });
+
+    testWidgets('se masque et se mémorise dès le 1er VRAI swipe', (t) async {
+      final repo = _repoWithMeditations([_m('a'), _m('b'), _m('c')]);
+      final hint = _FakeHintStore(shown: false);
+      await t.pumpWidget(_host(repo, hintStore: hint));
+      await t.pumpAndSettle();
+      expect(
+        t
+            .widget<AnimatedOpacity>(
+              find.byKey(const Key('meditation-feed-swipe-hint')),
+            )
+            .opacity,
+        1.0,
+      );
+
+      await t.fling(
+        find.byKey(const Key('meditation-feed-page-view')),
+        const Offset(0, -600),
+        1200,
+      );
+      await t.pumpAndSettle();
+
+      expect(
+        t
+            .widget<AnimatedOpacity>(
+              find.byKey(const Key('meditation-feed-swipe-hint')),
+            )
+            .opacity,
+        0.0,
+      );
+      expect(hint.shown, isTrue, reason: 'jamais gênant après le 1er swipe');
+    });
+  });
+}

@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 
 import '../data/intro_video_store.dart';
+import '../services/wake_alarm_channel.dart';
 import '../state/auryel_state.dart';
 import '../state/auth_controller.dart';
 import '../state/consultation_controller.dart';
@@ -15,18 +16,25 @@ import 'adult_gate.dart';
 import 'intro_video_screen.dart';
 import 'onboarding/email_auth_screen.dart';
 import 'onboarding/first_name_screen.dart';
+import 'wake_ringing_screen.dart';
 
 /// Écran d'ouverture : le wordmark s'illumine, court et élégant (~2s), pendant
 /// que la session est restaurée en arrière-plan, puis fondu vers l'écran
 /// approprié. Vu à chaque lancement — ne doit jamais lasser.
 class SplashScreen extends StatefulWidget {
-  const SplashScreen({super.key});
+  const SplashScreen({super.key, this.wakeAlarmChannel});
+
+  /// Test uniquement : pont natif du Réveil Auryel injecté (aucun canal
+  /// plateforme réel en test).
+  final WakeAlarmChannel? wakeAlarmChannel;
 
   @override
   State<SplashScreen> createState() => _SplashScreenState();
 }
 
 class _SplashScreenState extends State<SplashScreen> {
+  late final WakeAlarmChannel _wakeChannel =
+      widget.wakeAlarmChannel ?? MethodChannelWakeAlarm();
   @override
   void initState() {
     super.initState();
@@ -157,6 +165,7 @@ class _SplashScreenState extends State<SplashScreen> {
         // Onboarding terminé : SEUL un vrai jeton donne accès à l'app.
         // Un onboarding local terminé et/ou un ancien `temp_xxx` ne comptent
         // jamais comme une authentification.
+        bool enteringApp;
         switch (auth.status) {
           case AuthStatus.signedIn:
           case AuthStatus.networkError:
@@ -164,15 +173,34 @@ class _SplashScreenState extends State<SplashScreen> {
             // injoignable (jeton conservé) → accueil, éventuellement en mode
             // dégradé/offline.
             next = const AdultGate();
+            enteringApp = true;
           case AuthStatus.signedOut:
           case AuthStatus.sessionExpired:
           case AuthStatus.unknown:
             // Aucun jeton, ou jeton rejeté en 401 (déjà purgé) → connexion.
             next = const EmailAuthScreen();
+            enteringApp = false;
         }
+        navigator.pushReplacement(_fadeRoute(next));
+        // RÉVEIL AURYEL — l'app a été (re)lancée par le déclenchement natif
+        // de l'alarme (notification plein écran / activité directe) : on
+        // affiche l'écran de sonnerie PAR-DESSUS l'app normale, jamais à la
+        // place de l'écran de connexion (un conseiller nécessite une session
+        // valide). Consommé une seule fois côté natif -> jamais réaffiché
+        // sans une nouvelle sonnerie réelle.
+        if (enteringApp) unawaited(_maybeShowWakeRinging(navigator));
+        return;
     }
 
     navigator.pushReplacement(_fadeRoute(next));
+  }
+
+  Future<void> _maybeShowWakeRinging(NavigatorState navigator) async {
+    final launched = await _wakeChannel.consumeWakeRingingLaunch();
+    if (!launched || !mounted) return;
+    navigator.push(
+      MaterialPageRoute(builder: (_) => const WakeRingingScreen()),
+    );
   }
 
   @override

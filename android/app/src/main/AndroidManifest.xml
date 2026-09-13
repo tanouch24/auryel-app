@@ -8,6 +8,24 @@
          le service FirebaseMessagingService est fusionné par le plugin
          firebase_messaging. -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
+    <!-- RÉVEIL AURYEL — alarme exacte. SCHEDULE_EXACT_ALARM (PAS
+         USE_EXACT_ALARM : Auryel n'est pas une appli dédiée alarme/minuteur,
+         cf. politique Play). Vérifiée via canScheduleExactAlarms() avant toute
+         programmation ; si refusée, l'utilisateur est guidé vers le réglage
+         spécial "Alarmes et rappels" (ACTION_REQUEST_SCHEDULE_EXACT_ALARM),
+         jamais une exigence bloquante au démarrage. -->
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM"/>
+    <!-- Écran d'alarme affiché même verrouillé (notification plein écran +
+         activité). Permission NORMALE (accordée à l'installation) jusqu'à
+         Android 13 ; à partir d'Android 14, vérifiée à l'exécution via
+         NotificationManagerCompat.canUseFullScreenIntent() côté natif — repli
+         sur une notification haute priorité classique si refusée. -->
+    <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT"/>
+    <!-- Reprogrammer l'alarme après un redémarrage du téléphone (les alarmes
+         AlarmManager ne survivent PAS un reboot par elles-mêmes). -->
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
+    <!-- Bref réveil CPU le temps que l'écran d'alarme s'affiche réellement. -->
+    <uses-permission android:name="android.permission.WAKE_LOCK"/>
     <application
         android:label="Auryel"
         android:name="${applicationName}"
@@ -42,6 +60,25 @@
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
         </activity>
+        <!-- RÉVEIL AURYEL — reçoit le déclenchement AlarmManager exact
+             (setExactAndAllowWhileIdle). Jamais exportée : seule l'app
+             s'auto-programme, aucun autre appelant système direct. -->
+        <receiver
+            android:name=".WakeAlarmReceiver"
+            android:exported="false" />
+        <!-- Reprogramme l'alarme après reboot (AlarmManager ne survit pas un
+             redémarrage). Lit un fichier SharedPreferences NATIF dédié
+             ("auryel_wake_alarm", écrit uniquement par AlarmScheduler.kt,
+             DISTINCT de "FlutterSharedPreferences") : reprogrammation sans
+             dépendre d'un moteur Flutter complet à ce stade. -->
+        <receiver
+            android:name=".WakeBootReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
         <!-- FCM : canal Android utilisé quand un message `notification` arrive
              app en arrière-plan / tuée. Le canal `auryel_default` est créé côté
              Dart (flutter_local_notifications) avec visibilité PRIVATE (rien de

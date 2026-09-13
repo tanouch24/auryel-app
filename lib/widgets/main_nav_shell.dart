@@ -8,10 +8,10 @@ import '../notifications/notification_payload.dart';
 import '../notifications/notification_router.dart';
 import '../notifications/notification_service.dart';
 import '../screens/consultation_screen.dart';
-import '../screens/dashboard_screen.dart';
 import '../screens/home_screen.dart';
-import '../screens/meditation_library_screen.dart';
+import '../screens/meditation_feed_screen.dart';
 import '../screens/tirage_jeu_screen.dart';
+import '../screens/wake_settings_screen.dart';
 import '../state/auth_controller.dart';
 import '../state/wellbeing_controller.dart';
 import '../theme/auryel_theme.dart';
@@ -24,13 +24,15 @@ export 'main_nav_scope.dart'
         kTabTirage,
         kTabConsultation,
         kTabMeditation,
-        kTabCompte;
+        kTabReveil;
 
-/// Coquille de navigation V1 finale : 5 onglets — Accueil · Tirage & Jeu ·
-/// CONSULTATION · Méditation · Mon compte. CONSULTATION est AU CENTRE
-/// (index 2) et mise en avant visuellement (icône + relief doré). « Mon
-/// compte » réutilise le Dashboard existant (sans flèche retour). La Boutique
-/// n'est plus un onglet V1 (son code reste dans le repo pour plus tard).
+/// Coquille de navigation V2 (CORRECTIF « feed méditation + réveil vocal ») :
+/// 5 onglets — Accueil · Tirage & Jeu · CONSULTATION · Méditation · RÉVEIL.
+/// CONSULTATION est AU CENTRE (index 2) et mise en avant visuellement (icône
+/// + relief doré). « Mon compte » QUITTE la barre du bas : accessible depuis
+/// le nouvel en-tête de l'Accueil (voir `home_screen.dart`), qui ouvre le
+/// Dashboard existant. La Boutique n'est plus un onglet V1 (son code reste
+/// dans le repo pour plus tard).
 class MainNavShell extends StatefulWidget {
   const MainNavShell({super.key, this.notificationsOverride});
 
@@ -49,8 +51,8 @@ class _MainNavShellState extends State<MainNavShell> {
     HomeScreen(),
     TirageJeuScreen(),
     ConsultationScreen(),
-    MeditationLibraryScreen(),
-    DashboardScreen(showBackButton: false),
+    MeditationFeedScreen(),
+    WakeSettingsScreen(),
   ];
 
   static const _router = NotificationRouter();
@@ -173,9 +175,9 @@ class _AuryelTabBar extends StatelessWidget {
       activeIcon: PhosphorIconsFill.flowerLotus,
     ),
     (
-      label: 'Mon compte',
-      icon: PhosphorIconsRegular.userCircle,
-      activeIcon: PhosphorIconsFill.userCircle,
+      label: 'Réveil',
+      icon: PhosphorIconsRegular.alarm,
+      activeIcon: PhosphorIconsFill.alarm,
     ),
   ];
 
@@ -248,9 +250,9 @@ class _AuryelTabBar extends StatelessWidget {
                         SizedBox(height: centre ? 2 : 4),
                         Padding(
                           padding: const EdgeInsets.symmetric(horizontal: 3),
-                          // FittedBox : les libellés longs (« Tirage & Jeu »,
-                          // « Mon compte ») se réduisent au lieu d'être coupés
-                          // ou de déborder à 360 dp.
+                          // FittedBox : le libellé long (« Tirage & Jeu »)
+                          // se réduit au lieu d'être coupé ou de déborder à
+                          // 360 dp.
                           child: FittedBox(
                             fit: BoxFit.scaleDown,
                             child: Text(

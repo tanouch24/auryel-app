@@ -161,7 +161,8 @@ void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
 
   testWidgets(
-    'A/B — l\'icône profil de l\'accueil ouvre le Dashboard « Mon espace »',
+    'A/B — le bouton « Mon compte » de l\'accueil ouvre le Dashboard '
+    '« Mon espace »',
     (t) async {
       await t.pumpWidget(
         AuryelStateScope(
@@ -171,11 +172,10 @@ void main() {
       );
       await t.pump(const Duration(seconds: 1));
 
-      final profileIcon = find.byWidgetPredicate(
-        (w) => w is PhosphorIcon && w.icon == PhosphorIconsThin.userCircle,
-      );
-      expect(profileIcon, findsOneWidget);
-      await t.tap(profileIcon);
+      final accountButton = find.byKey(const Key('home-my-account-button'));
+      expect(accountButton, findsOneWidget);
+      expect(find.text('Mon compte'), findsOneWidget);
+      await t.tap(accountButton);
       await t.pumpAndSettle();
 
       expect(find.byType(DashboardScreen), findsOneWidget);
@@ -449,39 +449,47 @@ void main() {
     });
   }
 
-  testWidgets('S/T — bottom nav V1 : « Mon compte » réutilise le Dashboard '
-      '(une seule implémentation), Boutique absente', (t) async {
-    await t.pumpWidget(
-      AuryelStateScope(
-        state: _state(),
-        child: const MaterialApp(home: MainNavShell()),
-      ),
-    );
-    await t.pumpAndSettle();
-    // AUDIT ACCUEIL/PARCOURS — Accueil affiche désormais une mission
-    // « Consultation » (même libellé que le parcours bien-être serveur) :
-    // on restreint la recherche à la barre d'onglets elle-même, tous les
-    // onglets restant montés simultanément (IndexedStack).
-    final tabBar = find.byKey(const Key('auryel-bottom-tab-bar'));
-    Finder tab(String label) =>
-        find.descendant(of: tabBar, matching: find.widgetWithText(InkWell, label));
-    for (final label in [
-      'Accueil',
-      'Tirage & Jeu',
-      'Consultation',
-      'Méditation',
-      'Mon compte',
-    ]) {
-      expect(tab(label), findsOneWidget);
-    }
-    expect(tab('Boutique'), findsNothing);
-    expect(tab('Bibliothèque'), findsNothing);
+  testWidgets(
+    'S/T — bottom nav V2 : « Mon compte » a QUITTÉ la barre du bas — le '
+    'bouton d\'en-tête Accueil réutilise le Dashboard (une seule '
+    'implémentation), Boutique absente',
+    (t) async {
+      await t.pumpWidget(
+        AuryelStateScope(
+          state: _state(),
+          child: const MaterialApp(home: MainNavShell()),
+        ),
+      );
+      await t.pumpAndSettle();
+      // AUDIT ACCUEIL/PARCOURS — Accueil affiche désormais une mission
+      // « Consultation » (même libellé que le parcours bien-être serveur) :
+      // on restreint la recherche à la barre d'onglets elle-même, tous les
+      // onglets restant montés simultanément (IndexedStack).
+      final tabBar = find.byKey(const Key('auryel-bottom-tab-bar'));
+      Finder tab(String label) => find.descendant(
+        of: tabBar,
+        matching: find.widgetWithText(InkWell, label),
+      );
+      for (final label in [
+        'Accueil',
+        'Tirage & Jeu',
+        'Consultation',
+        'Méditation',
+        'Réveil',
+      ]) {
+        expect(tab(label), findsOneWidget);
+      }
+      expect(tab('Boutique'), findsNothing);
+      expect(tab('Bibliothèque'), findsNothing);
+      expect(tab('Mon compte'), findsNothing);
 
-    // « Mon compte » = le Dashboard existant (une seule implémentation).
-    await t.tap(tab('Mon compte'));
-    await t.pumpAndSettle();
-    expect(find.byType(DashboardScreen), findsOneWidget);
-  });
+      // « Mon compte » = le bouton d'en-tête Accueil -> le Dashboard existant
+      // (une seule implémentation).
+      await t.tap(find.byKey(const Key('home-my-account-button')));
+      await t.pumpAndSettle();
+      expect(find.byType(DashboardScreen), findsOneWidget);
+    },
+  );
 
   // =========================================================================
   // B10.1 — corrections Mes tirages / profil / récompenses

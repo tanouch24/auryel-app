@@ -21,7 +21,7 @@ import 'package:auryel/screens/consultation_screen.dart';
 import 'package:auryel/screens/dashboard_screen.dart';
 import 'package:auryel/screens/home_screen.dart';
 import 'package:auryel/screens/jeu_auryel_screen.dart';
-import 'package:auryel/screens/meditation_library_screen.dart';
+import 'package:auryel/screens/meditation_feed_screen.dart';
 import 'package:auryel/screens/tirage_jeu_screen.dart';
 import 'package:auryel/screens/tirage_screen.dart';
 import 'package:auryel/screens/wellbeing_journey_screen.dart';
@@ -108,19 +108,22 @@ void main() {
   // NAVIGATION (5 cas)
   // -------------------------------------------------------------------------
   group('Navigation V1', () {
-    testWidgets('N1 — les 5 onglets finaux sont présents, Boutique retirée', (
-      t,
-    ) async {
-      await t.pumpWidget(_shell());
-      await t.pumpAndSettle();
+    testWidgets(
+      'N1 — les 5 onglets finaux sont présents (Réveil remplace Mon '
+      'compte), Boutique retirée',
+      (t) async {
+        await t.pumpWidget(_shell());
+        await t.pumpAndSettle();
 
-      expect(_tab('Accueil'), findsOneWidget);
-      expect(_tab('Tirage & Jeu'), findsOneWidget);
-      expect(_tab('Consultation'), findsOneWidget);
-      expect(_tab('Méditation'), findsOneWidget);
-      expect(_tab('Mon compte'), findsOneWidget);
-      expect(_tab('Boutique'), findsNothing);
-    });
+        expect(_tab('Accueil'), findsOneWidget);
+        expect(_tab('Tirage & Jeu'), findsOneWidget);
+        expect(_tab('Consultation'), findsOneWidget);
+        expect(_tab('Méditation'), findsOneWidget);
+        expect(_tab('Réveil'), findsOneWidget);
+        expect(_tab('Boutique'), findsNothing);
+        expect(_tab('Mon compte'), findsNothing);
+      },
+    );
 
     testWidgets('N2 — CONSULTATION est au centre (index 2) entre Tirage & Jeu '
         'et Méditation', (t) async {
@@ -132,7 +135,7 @@ void main() {
         t.getCenter(_tab('Tirage & Jeu')).dx,
         t.getCenter(_tab('Consultation')).dx,
         t.getCenter(_tab('Méditation')).dx,
-        t.getCenter(_tab('Mon compte')).dx,
+        t.getCenter(_tab('Réveil')).dx,
       ];
       final sorted = [...xs]..sort();
       expect(xs, sorted, reason: 'ordre gauche→droite');
@@ -167,16 +170,20 @@ void main() {
       },
     );
 
-    testWidgets('N4 — « Mon compte » ouvre le Dashboard existant '
-        '(pas de 2ᵉ implémentation)', (t) async {
-      await t.pumpWidget(_shell());
-      await t.pumpAndSettle();
+    testWidgets(
+      'N4 — le bouton d\'en-tête « Mon compte » de l\'Accueil ouvre le '
+      'Dashboard existant (pas de 2ᵉ implémentation, plus d\'onglet dédié)',
+      (t) async {
+        await t.pumpWidget(_shell());
+        await t.pumpAndSettle();
 
-      await t.tap(_tab('Mon compte'));
-      await t.pumpAndSettle();
-      expect(find.byType(DashboardScreen), findsOneWidget);
-      expect(find.text('Mon espace'), findsOneWidget);
-    });
+        expect(find.byKey(const Key('home-my-account-button')), findsOneWidget);
+        await t.tap(find.byKey(const Key('home-my-account-button')));
+        await t.pumpAndSettle();
+        expect(find.byType(DashboardScreen), findsOneWidget);
+        expect(find.text('Mon espace'), findsOneWidget);
+      },
+    );
 
     testWidgets('N5 — Consultation reste montée quand on change d\'onglet '
         '(feed non détruit)', (t) async {
@@ -331,8 +338,7 @@ void main() {
 
       await t.tap(find.text('Prends ton temps'));
       await t.pumpAndSettle();
-      expect(find.byType(MeditationLibraryScreen), findsOneWidget);
-      expect(find.text('Bibliothèque'), findsOneWidget);
+      expect(find.byType(MeditationFeedScreen), findsOneWidget);
     });
   });
 
@@ -388,7 +394,7 @@ void main() {
 
         // Libellés longs lisibles / présents.
         expect(_tab('Tirage & Jeu'), findsOneWidget);
-        expect(_tab('Mon compte'), findsOneWidget);
+        expect(_tab('Réveil'), findsOneWidget);
 
         await t.tap(_tab('Tirage & Jeu'));
         await t.pumpAndSettle();

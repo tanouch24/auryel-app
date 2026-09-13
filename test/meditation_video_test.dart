@@ -259,12 +259,6 @@ Widget _host(
   );
 }
 
-/// Slug ('a'..) du visuel actuellement chargé par la dernière surface.
-String _currentSlug(List<_FakeSurface> surfaces) {
-  final load = surfaces.last.calls.firstWhere((c) => c.startsWith('load:'));
-  return load.split('/').last.split('.').first;
-}
-
 void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
 
@@ -357,244 +351,6 @@ void main() {
     await t.pumpAndSettle();
     expect(find.text('01:32'), findsOneWidget);
     expect(a.calls, audioBefore);
-  });
-
-  testWidgets('CHANGEMENT de visuel : seul le contrôleur vidéo est remplacé — '
-      'l\'audio (commandes, état, position) est INCHANGÉ', (t) async {
-    final a = _FakeAudio();
-    final surfaces = <_FakeSurface>[];
-    await t.pumpWidget(
-      _host(
-        a,
-        item: _libItem(),
-        content: _repoWithVideos([_v('a'), _v('b'), _v('c')]),
-        surfaceFactory: () {
-          final s = _FakeSurface();
-          surfaces.add(s);
-          return s;
-        },
-      ),
-    );
-    await t.pumpAndSettle();
-    await t.ensureVisible(find.bySemanticsLabel('Lancer le moment'));
-    await t.tap(find.bySemanticsLabel('Lancer le moment'));
-    await t.pumpAndSettle();
-    a.emitDuration(const Duration(minutes: 4));
-    a.emitPosition(const Duration(seconds: 90));
-    await t.pumpAndSettle();
-    expect(find.text('01:30'), findsOneWidget);
-
-    final audioBefore = [...a.calls];
-    final firstSurface = surfaces.last;
-    final autoSlug = _currentSlug(surfaces);
-    final target = ['a', 'b', 'c'].firstWhere((s) => s != autoSlug);
-
-    await t.ensureVisible(find.text('Choisir le visuel'));
-    await t.tap(find.text('Choisir le visuel'));
-    await t.pumpAndSettle();
-    await t.tap(find.text('T $target'));
-    await t.pumpAndSettle();
-
-    // AUDIO strictement inchangé
-    expect(
-      a.calls,
-      audioBefore,
-      reason:
-          'aucune commande audio pendant le '
-          'changement de visuel',
-    );
-    expect(a.isPlaying, isTrue);
-    // position toujours 01:30, puis continue
-    expect(find.text('01:30'), findsOneWidget);
-    a.emitPosition(const Duration(seconds: 91));
-    await t.pumpAndSettle();
-    expect(find.text('01:31'), findsOneWidget);
-
-    // VIDÉO : ancien contrôleur disposé, nouveau sur une autre URL, relancé
-    expect(firstSurface.disposed, isTrue);
-    expect(surfaces.last, isNot(same(firstSurface)));
-    expect(_currentSlug(surfaces), target);
-    expect(surfaces.last.calls, contains('play'));
-  });
-
-  // =========================================================================
-  // FINITIONS UX — autoplay vidéo après « Choisir le visuel », MP3 intact
-  // =========================================================================
-
-  testWidgets(
-    'changement de visuel SANS que le MP3 ait jamais joué -> la nouvelle '
-    'vidéo démarre quand même automatiquement, le MP3 reste inchangé',
-    (t) async {
-      final a = _FakeAudio();
-      final surfaces = <_FakeSurface>[];
-      await t.pumpWidget(
-        _host(
-          a,
-          item: _libItem(),
-          content: _repoWithVideos([_v('a'), _v('b'), _v('c')]),
-          surfaceFactory: () {
-            final s = _FakeSurface();
-            surfaces.add(s);
-            return s;
-          },
-        ),
-      );
-      await t.pumpAndSettle();
-
-      // Aucun tap sur Play : le MP3 n'a jamais démarré.
-      expect(a.calls, isEmpty);
-      expect(a.isPlaying, isFalse);
-
-      final autoSlug = _currentSlug(surfaces);
-      final target = ['a', 'b', 'c'].firstWhere((s) => s != autoSlug);
-      await t.ensureVisible(find.text('Choisir le visuel'));
-      await t.tap(find.text('Choisir le visuel'));
-      await t.pumpAndSettle();
-      await t.tap(find.text('T $target'));
-      await t.pumpAndSettle();
-
-      // MP3 strictement inchangé : aucune commande, toujours à l'arrêt.
-      expect(
-        a.calls,
-        isEmpty,
-        reason: 'le MP3 ne doit jamais être touché par un changement de visuel',
-      );
-      expect(a.isPlaying, isFalse);
-
-      // La NOUVELLE vidéo, elle, a démarré automatiquement.
-      expect(_currentSlug(surfaces), target);
-      expect(surfaces.last.calls, contains('play'));
-    },
-  );
-
-  testWidgets(
-    'changement de visuel pendant que le MP3 est EN PAUSE (position non '
-    'nulle) -> nouvelle vidéo autoplay, position et état du MP3 INCHANGÉS',
-    (t) async {
-      final a = _FakeAudio();
-      final surfaces = <_FakeSurface>[];
-      await t.pumpWidget(
-        _host(
-          a,
-          item: _libItem(),
-          content: _repoWithVideos([_v('a'), _v('b'), _v('c')]),
-          surfaceFactory: () {
-            final s = _FakeSurface();
-            surfaces.add(s);
-            return s;
-          },
-        ),
-      );
-      await t.pumpAndSettle();
-      await t.ensureVisible(find.bySemanticsLabel('Lancer le moment'));
-      await t.tap(find.bySemanticsLabel('Lancer le moment'));
-      await t.pumpAndSettle();
-      a.emitDuration(const Duration(minutes: 4));
-      a.emitPosition(const Duration(seconds: 47));
-      await t.pumpAndSettle();
-      await t.ensureVisible(find.bySemanticsLabel('Mettre en pause'));
-      await t.tap(find.bySemanticsLabel('Mettre en pause'));
-      await t.pumpAndSettle();
-      expect(find.text('00:47'), findsOneWidget);
-      final audioBefore = [...a.calls];
-
-      final autoSlug = _currentSlug(surfaces);
-      final target = ['a', 'b', 'c'].firstWhere((s) => s != autoSlug);
-      await t.ensureVisible(find.text('Choisir le visuel'));
-      await t.tap(find.text('Choisir le visuel'));
-      await t.pumpAndSettle();
-      await t.tap(find.text('T $target'));
-      await t.pumpAndSettle();
-
-      // MP3 : aucune commande de plus, toujours en pause, position inchangée.
-      expect(a.calls, audioBefore);
-      expect(a.isPlaying, isFalse);
-      expect(find.text('00:47'), findsOneWidget);
-
-      // La nouvelle vidéo, elle, joue.
-      expect(_currentSlug(surfaces), target);
-      expect(surfaces.last.calls, contains('play'));
-    },
-  );
-
-  testWidgets('option « Aléatoire » : re-tire un visuel, audio INTACT', (
-    t,
-  ) async {
-    final a = _FakeAudio();
-    final surfaces = <_FakeSurface>[];
-    await t.pumpWidget(
-      _host(
-        a,
-        item: _libItem(),
-        content: _repoWithVideos([_v('a'), _v('b'), _v('c'), _v('d')]),
-        surfaceFactory: () {
-          final s = _FakeSurface();
-          surfaces.add(s);
-          return s;
-        },
-      ),
-    );
-    await t.pumpAndSettle();
-    await t.ensureVisible(find.bySemanticsLabel('Lancer le moment'));
-    await t.tap(find.bySemanticsLabel('Lancer le moment'));
-    await t.pumpAndSettle();
-    a.emitDuration(const Duration(minutes: 4));
-    a.emitPosition(const Duration(seconds: 42));
-    await t.pumpAndSettle();
-    final audioBefore = [...a.calls];
-
-    await t.ensureVisible(find.text('Choisir le visuel'));
-    await t.tap(find.text('Choisir le visuel'));
-    await t.pumpAndSettle();
-    await t.tap(find.text('Aléatoire'));
-    await t.pumpAndSettle();
-
-    expect(a.calls, audioBefore);
-    expect(a.isPlaying, isTrue);
-    expect(find.text('00:42'), findsOneWidget); // position conservée
-    expect(t.takeException(), isNull);
-  });
-
-  testWidgets('ÉCHEC de chargement du nouveau visuel -> AUDIO CONTINUE, '
-      'placeholder statique', (t) async {
-    final a = _FakeAudio();
-    final surfaces = <_FakeSurface>[];
-    var n = 0;
-    await t.pumpWidget(
-      _host(
-        a,
-        item: _libItem(),
-        content: _repoWithVideos([_v('a'), _v('b'), _v('c')]),
-        surfaceFactory: () {
-          final s = _FakeSurface(loadResult: n++ == 0);
-          surfaces.add(s);
-          return s;
-        },
-      ),
-    );
-    await t.pumpAndSettle();
-    await t.ensureVisible(find.bySemanticsLabel('Lancer le moment'));
-    await t.tap(find.bySemanticsLabel('Lancer le moment'));
-    await t.pumpAndSettle();
-    a.emitDuration(const Duration(minutes: 4));
-    a.emitPosition(const Duration(seconds: 30));
-    await t.pumpAndSettle();
-    expect(find.byKey(_kVideoViewKey), findsOneWidget);
-    final audioBefore = [...a.calls];
-
-    final autoSlug = _currentSlug(surfaces);
-    final target = ['a', 'b', 'c'].firstWhere((s) => s != autoSlug);
-    await t.ensureVisible(find.text('Choisir le visuel'));
-    await t.tap(find.text('Choisir le visuel'));
-    await t.pumpAndSettle();
-    await t.tap(find.text('T $target'));
-    await t.pumpAndSettle();
-
-    expect(t.takeException(), isNull);
-    expect(a.calls, audioBefore); // audio jamais touché
-    expect(a.isPlaying, isTrue);
-    expect(find.text('00:30'), findsOneWidget);
-    expect(find.byKey(_kVideoViewKey), findsNothing); // placeholder
   });
 
   testWidgets('vidéo en échec au 1er chargement -> placeholder, AUDIO OK', (
@@ -769,68 +525,6 @@ void main() {
   });
 
   // =========================================================================
-  // « Choisir le visuel » — présence / absence / perf
-  // =========================================================================
-
-  testWidgets('bouton « Choisir le visuel » visible avec catalogue vidéo', (
-    t,
-  ) async {
-    final a = _FakeAudio();
-    await t.pumpWidget(
-      _host(
-        a,
-        item: _libItem(),
-        content: _repoWithVideos([_v('a'), _v('b')]),
-        surfaceFactory: () => _FakeSurface(),
-      ),
-    );
-    await t.pumpAndSettle();
-    expect(find.text('Choisir le visuel'), findsOneWidget);
-  });
-
-  testWidgets('bouton « Choisir le visuel » ABSENT si aucun visuel', (t) async {
-    final a = _FakeAudio();
-    await t.pumpWidget(
-      _host(a, item: _libItem(), content: _repoWithVideos(const [])),
-    );
-    await t.pumpAndSettle();
-    expect(find.text('Choisir le visuel'), findsNothing);
-    await t.ensureVisible(find.bySemanticsLabel('Lancer le moment'));
-    await t.tap(find.bySemanticsLabel('Lancer le moment'));
-    await t.pump();
-    expect(a.isPlaying, isTrue);
-  });
-
-  testWidgets('la sheet n\'initialise AUCUNE vidéo réelle en plus (perf)', (
-    t,
-  ) async {
-    final a = _FakeAudio();
-    final surfaces = <_FakeSurface>[];
-    await t.pumpWidget(
-      _host(
-        a,
-        item: _libItem(),
-        content: _repoWithVideos([for (var i = 0; i < 12; i++) _v('v$i')]),
-        surfaceFactory: () {
-          final s = _FakeSurface();
-          surfaces.add(s);
-          return s;
-        },
-      ),
-    );
-    await t.pumpAndSettle();
-    expect(surfaces, hasLength(1)); // 1 seule vidéo (la scène)
-
-    await t.ensureVisible(find.text('Choisir le visuel'));
-    await t.tap(find.text('Choisir le visuel'));
-    await t.pumpAndSettle();
-    expect(find.text('Aléatoire'), findsOneWidget);
-    expect(find.text('T v0'), findsOneWidget);
-    expect(surfaces, hasLength(1)); // ouvrir la sheet n'a rien initialisé
-    expect(find.byType(RelaxationVideoStage), findsOneWidget);
-  });
-
-  // =========================================================================
   // Petits écrans Android
   // =========================================================================
 
@@ -840,33 +534,29 @@ void main() {
     Size(360, 640),
     Size(412, 915),
   ]) {
-    testWidgets('aucun overflow à ${size.width.toInt()}×${size.height.toInt()} '
-        '(scène + contrôles + « Choisir le visuel »)', (t) async {
-      t.view.physicalSize = size;
-      t.view.devicePixelRatio = 1.0;
-      addTearDown(t.view.resetPhysicalSize);
-      addTearDown(t.view.resetDevicePixelRatio);
+    testWidgets(
+      'aucun overflow à ${size.width.toInt()}×${size.height.toInt()} '
+      '(scène + contrôles, visuel auto-sélectionné)',
+      (t) async {
+        t.view.physicalSize = size;
+        t.view.devicePixelRatio = 1.0;
+        addTearDown(t.view.resetPhysicalSize);
+        addTearDown(t.view.resetDevicePixelRatio);
 
-      final a = _FakeAudio();
-      await t.pumpWidget(
-        _host(
-          a,
-          item: _libItem(),
-          content: _repoWithVideos([for (var i = 0; i < 12; i++) _v('v$i')]),
-          surfaceFactory: () => _FakeSurface(),
-        ),
-      );
-      await t.pumpAndSettle();
-      expect(t.takeException(), isNull);
-      expect(find.byKey(_kStageKey), findsOneWidget);
-
-      final btn = find.text('Choisir le visuel');
-      await t.ensureVisible(btn);
-      await t.tap(btn);
-      await t.pumpAndSettle();
-      expect(t.takeException(), isNull);
-      expect(find.text('Aléatoire'), findsOneWidget);
-    });
+        final a = _FakeAudio();
+        await t.pumpWidget(
+          _host(
+            a,
+            item: _libItem(),
+            content: _repoWithVideos([for (var i = 0; i < 12; i++) _v('v$i')]),
+            surfaceFactory: () => _FakeSurface(),
+          ),
+        );
+        await t.pumpAndSettle();
+        expect(t.takeException(), isNull);
+        expect(find.byKey(_kStageKey), findsOneWidget);
+      },
+    );
   }
 
   // =========================================================================
@@ -993,12 +683,11 @@ void main() {
 
     testWidgets(
       'validation idempotente : un seul markDone malgré plusieurs signaux '
-      '(tap, démarrage vidéo, changement de visuel)',
+      '(tap, démarrage vidéo, pause puis reprise -> nouveau démarrage vidéo)',
       (t) async {
         var markCalls = 0;
         final tracker = _CountingMissionTracker(() => markCalls++);
         final a = _FakeAudio();
-        final surfaces = <_FakeSurface>[];
         await t.pumpWidget(
           MaterialApp(
             home: MainNavScope(
@@ -1013,11 +702,7 @@ void main() {
                     now: DateTime(2026, 1, 1),
                     missionTracker: tracker,
                     videoSelector: RelaxationVideoSelector(random: Random(0)),
-                    videoSurfaceFactory: () {
-                      final s = _FakeSurface();
-                      surfaces.add(s);
-                      return s;
-                    },
+                    videoSurfaceFactory: () => _FakeSurface(),
                   ),
                 ),
               ),
@@ -1028,15 +713,15 @@ void main() {
         await t.ensureVisible(find.bySemanticsLabel('Lancer le moment'));
         await t.tap(find.bySemanticsLabel('Lancer le moment'));
         await t.pumpAndSettle();
+        expect(markCalls, 1);
 
-        // Un changement de visuel relance une nouvelle vidéo -> re-déclenche
-        // le signal `onStarted`, mais ne doit PAS re-marquer la mission.
-        final autoSlug = _currentSlug(surfaces);
-        final target = ['a', 'b'].firstWhere((s) => s != autoSlug);
-        await t.ensureVisible(find.text('Choisir le visuel'));
-        await t.tap(find.text('Choisir le visuel'));
+        // Pause puis reprise : la vidéo redevient active -> re-déclenche le
+        // signal `onStarted`, mais ne doit PAS re-marquer la mission.
+        await t.ensureVisible(find.bySemanticsLabel('Mettre en pause'));
+        await t.tap(find.bySemanticsLabel('Mettre en pause'));
         await t.pumpAndSettle();
-        await t.tap(find.text('T $target'));
+        await t.ensureVisible(find.bySemanticsLabel('Lancer le moment'));
+        await t.tap(find.bySemanticsLabel('Lancer le moment'));
         await t.pumpAndSettle();
 
         expect(

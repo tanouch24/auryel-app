@@ -4,7 +4,7 @@ import '../data/content_repository.dart';
 import '../data/meditation_catalog.dart';
 import '../data/meditation_item.dart';
 import '../theme/auryel_theme.dart';
-import 'meditation_screen.dart';
+import 'meditation_feed_screen.dart';
 
 /// Onglet « Méditation » — la BIBLIOTHÈQUE. Une liste 100 % distante et
 /// extensible : 1 entrée = 1 AUDIO, identifiée par `id` stable. Une méditation
@@ -104,12 +104,14 @@ class _MeditationLibraryScreenState extends State<MeditationLibraryScreen> {
   }
 
   void _open(MeditationItem item) {
-    // CORRECTIF UX FINAL — réaction immédiate au tap : le player s'ouvre et
-    // lance l'audio tout de suite (voir `MeditationScreen.autoplayOnOpen`),
-    // sans que l'utilisateur ait besoin d'un 2e tap sur Play.
+    // FEED MÉDITATION — un tap explicite dans la bibliothèque ouvre
+    // désormais le feed vertical directement sur cette séance (réaction
+    // immédiate : autoplay dès la 1ʳᵉ page, voir
+    // `MeditationScreen.autoplayOnOpen`), puis le swipe continue sur le
+    // reste du catalogue mélangé.
     Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (_) => MeditationScreen(item: item, autoplayOnOpen: true),
+        builder: (_) => MeditationFeedScreen(initialItem: item),
       ),
     );
   }

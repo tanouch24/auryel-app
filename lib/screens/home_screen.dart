@@ -173,25 +173,68 @@ class HomeScreen extends StatelessWidget {
             child: SafeArea(
               bottom: false,
               child: Padding(
-                padding: const EdgeInsets.only(right: 12, top: 2),
+                padding: const EdgeInsets.only(right: 16, top: 8),
                 child: Align(
                   alignment: Alignment.topRight,
                   child: GestureDetector(
                     onLongPress: kDebugMode
                         ? () => _debugResetOnboarding(context)
                         : null,
-                    child: IconButton(
-                      onPressed: () => Navigator.of(context).push(
-                        MaterialPageRoute(
-                          builder: (_) => const DashboardScreen(),
+                    // CORRECTIF UX FINAL — « Mon compte » quitte la barre du
+                    // bas (nav V2) : ce bouton devient le SEUL accès au
+                    // Dashboard depuis l'Accueil. Nettement plus visible
+                    // qu'une simple icône profil (icône + texte, zone
+                    // tactile confortable, rendu premium reconnaissable
+                    // comme une action de navigation, pas un détail discret).
+                    child: Semantics(
+                      button: true,
+                      label: 'Mon compte',
+                      child: Material(
+                        color: Colors.transparent,
+                        borderRadius: BorderRadius.circular(999),
+                        child: InkWell(
+                          key: const Key('home-my-account-button'),
+                          borderRadius: BorderRadius.circular(999),
+                          onTap: () => Navigator.of(context).push(
+                            MaterialPageRoute(
+                              builder: (_) => const DashboardScreen(),
+                            ),
+                          ),
+                          child: Container(
+                            padding: const EdgeInsets.fromLTRB(10, 8, 14, 8),
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(999),
+                              color: AuryelColors.surface.withValues(
+                                alpha: 0.75,
+                              ),
+                              border: Border.all(
+                                color: AuryelColors.goldLight.withValues(
+                                  alpha: 0.45,
+                                ),
+                              ),
+                            ),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const PhosphorIcon(
+                                  PhosphorIconsFill.userCircle,
+                                  size: 20,
+                                  color: AuryelColors.goldLight,
+                                ),
+                                const SizedBox(width: 7),
+                                Text(
+                                  'Mon compte',
+                                  style: AuryelText.body(
+                                    fontSize: 12.5,
+                                    fontWeight: FontWeight.w600,
+                                    color: AuryelColors.textCream,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
                         ),
                       ),
-                      icon: PhosphorIcon(
-                        PhosphorIconsThin.userCircle,
-                        size: 22,
-                        color: AuryelColors.textMuted,
-                      ),
-                      splashRadius: 20,
                     ),
                   ),
                 ),

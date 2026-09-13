@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
+import 'package:phosphor_icons/phosphor_icons.dart';
 
 import 'package:auryel/api/api_client.dart';
 import 'package:auryel/api/auth_api.dart';
@@ -17,9 +18,10 @@ import 'package:auryel/data/token_store.dart';
 import 'package:auryel/screens/consultation_screen.dart';
 import 'package:auryel/screens/dashboard_screen.dart';
 import 'package:auryel/screens/home_screen.dart';
-import 'package:auryel/screens/meditation_library_screen.dart';
+import 'package:auryel/screens/meditation_feed_screen.dart';
 import 'package:auryel/screens/tirage_jeu_screen.dart';
 import 'package:auryel/screens/tirage_screen.dart';
+import 'package:auryel/screens/wake_settings_screen.dart';
 import 'package:auryel/state/auryel_state.dart';
 import 'package:auryel/state/auth_controller.dart';
 import 'package:auryel/widgets/main_nav_shell.dart';
@@ -83,68 +85,90 @@ Finder _tab(String label) => find.descendant(
 void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
 
-  testWidgets('nav V1 finale : 5 onglets Accueil · Tirage & Jeu · Consultation '
-      '· Méditation · Mon compte (Consultation au centre)', (tester) async {
-    await tester.pumpWidget(_wrap());
-    await tester.pumpAndSettle();
+  testWidgets(
+    'nav V2 (feed méditation + réveil vocal) : 5 onglets Accueil · Tirage & '
+    'Jeu · Consultation · Méditation · Réveil (Consultation au centre), '
+    '« Mon compte » a QUITTÉ la barre du bas',
+    (tester) async {
+      await tester.pumpWidget(_wrap());
+      await tester.pumpAndSettle();
 
-    expect(_tab('Accueil'), findsOneWidget);
-    expect(_tab('Tirage & Jeu'), findsOneWidget);
-    expect(_tab('Consultation'), findsOneWidget);
-    expect(_tab('Méditation'), findsOneWidget);
-    expect(_tab('Mon compte'), findsOneWidget);
-    // Boutique retirée de la bottom nav V1.
-    expect(_tab('Boutique'), findsNothing);
-    expect(_tab('Bibliothèque'), findsNothing);
-    expect(_tab('Mon espace'), findsNothing);
+      expect(_tab('Accueil'), findsOneWidget);
+      expect(_tab('Tirage & Jeu'), findsOneWidget);
+      expect(_tab('Consultation'), findsOneWidget);
+      expect(_tab('Méditation'), findsOneWidget);
+      expect(_tab('Réveil'), findsOneWidget);
+      // Boutique retirée de la bottom nav V1 ; Mon compte n'y est plus (V2).
+      expect(_tab('Boutique'), findsNothing);
+      expect(_tab('Bibliothèque'), findsNothing);
+      expect(_tab('Mon espace'), findsNothing);
+      expect(_tab('Mon compte'), findsNothing);
 
-    // Ordre visuel : Consultation au centre (index 2), Mon compte en dernier.
-    final tirageX = tester.getCenter(_tab('Tirage & Jeu')).dx;
-    final consultX = tester.getCenter(_tab('Consultation')).dx;
-    final meditX = tester.getCenter(_tab('Méditation')).dx;
-    final compteX = tester.getCenter(_tab('Mon compte')).dx;
-    expect(consultX, greaterThan(tirageX));
-    expect(meditX, greaterThan(consultX));
-    expect(compteX, greaterThan(meditX));
-  });
+      // Ordre visuel : Consultation au centre (index 2), Réveil en dernier.
+      final tirageX = tester.getCenter(_tab('Tirage & Jeu')).dx;
+      final consultX = tester.getCenter(_tab('Consultation')).dx;
+      final meditX = tester.getCenter(_tab('Méditation')).dx;
+      final reveilX = tester.getCenter(_tab('Réveil')).dx;
+      expect(consultX, greaterThan(tirageX));
+      expect(meditX, greaterThan(consultX));
+      expect(reveilX, greaterThan(meditX));
+    },
+  );
 
-  testWidgets('Accueil -> HomeScreen ; Tirage & Jeu -> hub ; Consultation -> '
-      'feed ; Méditation -> bibliothèque ; Mon compte -> Dashboard ; '
-      'retour Accueil', (tester) async {
-    await tester.pumpWidget(_wrap());
-    await tester.pumpAndSettle();
+  testWidgets(
+    'Accueil -> HomeScreen ; Tirage & Jeu -> hub ; Consultation -> feed ; '
+    'Méditation -> bibliothèque ; Réveil -> réglages ; bouton d\'en-tête '
+    '« Mon compte » -> Dashboard ; retour Accueil',
+    (tester) async {
+      await tester.pumpWidget(_wrap());
+      await tester.pumpAndSettle();
 
-    // Onglet initial : Accueil.
-    expect(find.byType(HomeScreen), findsOneWidget);
-    expect(find.text('ESPACE PRIVÉ'), findsOneWidget);
+      // Onglet initial : Accueil.
+      expect(find.byType(HomeScreen), findsOneWidget);
+      expect(find.text('ESPACE PRIVÉ'), findsOneWidget);
 
-    // Tirage & Jeu : ouvre le HUB, pas le TirageScreen directement.
-    await tester.tap(_tab('Tirage & Jeu'));
-    await tester.pumpAndSettle();
-    expect(find.byType(TirageJeuScreen), findsOneWidget);
-    expect(find.text('Le Jeu Auryel'), findsOneWidget);
-    expect(find.byType(TirageScreen), findsNothing);
+      // « Mon compte » : bouton d'en-tête Accueil -> le Dashboard existant
+      // (une seule implémentation), plus un onglet dédié.
+      await tester.tap(find.byKey(const Key('home-my-account-button')));
+      await tester.pumpAndSettle();
+      expect(find.byType(DashboardScreen), findsOneWidget);
+      // Dashboard utilise une flèche retour custom (PhosphorIcon), pas un
+      // BackButton Material -> `pageBack()` ne la reconnaît pas.
+      await tester.tap(
+        find.byWidgetPredicate(
+          (w) => w is PhosphorIcon && w.icon == PhosphorIconsRegular.arrowLeft,
+        ),
+      );
+      await tester.pumpAndSettle();
 
-    // Consultation (J6-F2 : LISTE des discussions en cours).
-    await tester.tap(_tab('Consultation'));
-    await tester.pumpAndSettle();
-    expect(find.byType(ConsultationScreen), findsOneWidget);
-    expect(find.text('Consultations en cours'), findsOneWidget);
+      // Tirage & Jeu : ouvre le HUB, pas le TirageScreen directement.
+      await tester.tap(_tab('Tirage & Jeu'));
+      await tester.pumpAndSettle();
+      expect(find.byType(TirageJeuScreen), findsOneWidget);
+      expect(find.text('Le Jeu Auryel'), findsOneWidget);
+      expect(find.byType(TirageScreen), findsNothing);
 
-    // Méditation : la BIBLIOTHÈQUE (1 audio = 1 fiche ; le lecteur s'ouvre au tap).
-    await tester.tap(_tab('Méditation'));
-    await tester.pumpAndSettle();
-    expect(find.byType(MeditationLibraryScreen), findsOneWidget);
-    expect(find.text('Bibliothèque'), findsOneWidget);
+      // Consultation (J6-F2 : LISTE des discussions en cours).
+      await tester.tap(_tab('Consultation'));
+      await tester.pumpAndSettle();
+      expect(find.byType(ConsultationScreen), findsOneWidget);
+      expect(find.text('Consultations en cours'), findsOneWidget);
 
-    // Mon compte : réutilise le Dashboard existant (une seule implémentation).
-    await tester.tap(_tab('Mon compte'));
-    await tester.pumpAndSettle();
-    expect(find.byType(DashboardScreen), findsOneWidget);
+      // Méditation : le FEED vertical (1 page = 1 séance + son visuel auto).
+      await tester.tap(_tab('Méditation'));
+      await tester.pumpAndSettle();
+      expect(find.byType(MeditationFeedScreen), findsOneWidget);
 
-    // Retour Accueil.
-    await tester.tap(_tab('Accueil'));
-    await tester.pumpAndSettle();
-    expect(find.text('ESPACE PRIVÉ'), findsOneWidget);
-  });
+      // Réveil : nouvel onglet, écran de réglages.
+      await tester.tap(_tab('Réveil'));
+      await tester.pumpAndSettle();
+      expect(find.byType(WakeSettingsScreen), findsOneWidget);
+      expect(find.text('Commence ta journée avec Auryel'), findsOneWidget);
+
+      // Retour Accueil.
+      await tester.tap(_tab('Accueil'));
+      await tester.pumpAndSettle();
+      expect(find.text('ESPACE PRIVÉ'), findsOneWidget);
+    },
+  );
 }

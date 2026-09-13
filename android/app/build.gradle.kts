@@ -198,4 +198,9 @@ flutter {
 dependencies {
     // Core library desugaring — dépendance de flutter_local_notifications.
     coreLibraryDesugaring("com.android.tools:desugar_jdk_libs:2.1.4")
+    // NotificationCompat (notification plein écran du Réveil Auryel, cf.
+    // WakeAlarmReceiver). Déjà présent transitivement via
+    // flutter_local_notifications ; déclaré ici explicitement pour ne pas en
+    // dépendre implicitement.
+    implementation("androidx.core:core-ktx:1.15.0")
 }

@@ -75,7 +75,7 @@ void main() {
     expect(_tab('Tirage & Jeu'), findsOneWidget);
     expect(_tab('Consultation'), findsOneWidget);
     expect(_tab('Méditation'), findsOneWidget);
-    expect(_tab('Mon compte'), findsOneWidget);
+    expect(_tab('Réveil'), findsOneWidget);
 
     expect(_tab('Boutique'), findsNothing);
     expect(_tab('Bibliothèque'), findsNothing);

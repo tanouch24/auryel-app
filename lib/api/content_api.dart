@@ -1,6 +1,7 @@
 import '../data/daily_thought.dart';
 import '../data/meditation_item.dart';
 import '../data/relaxation_video.dart';
+import '../data/wake_message.dart';
 import 'api_client.dart';
 
 /// Contenu du jour renvoyé par `GET /api/app/content/today`.
@@ -83,6 +84,31 @@ class RelaxationVideosResult {
 
   final int status;
   final List<RelaxationVideo> videos;
+  final String? catalogVersion;
+  final String? etag;
+
+  bool get notModified => status == 304;
+  bool get ok => status == 200;
+}
+
+/// Résultat de `GET /api/app/content/wake-messages` (catalogue conditionnel,
+/// même philosophie que [RelaxationVideosResult]).
+///
+///  - `status == 304` -> l'appelant CONSERVE son cache (pas une erreur).
+///  - `status == 200` -> `messages` = liste active (peut être VIDE) +
+///    `catalogVersion` + `etag`.
+///  - autre -> `messages` vide : l'app retombe sur cache local / repli
+///    embarqué. Une absence de message ne bloque JAMAIS le réveil.
+class WakeMessagesResult {
+  const WakeMessagesResult({
+    required this.status,
+    required this.messages,
+    this.catalogVersion,
+    this.etag,
+  });
+
+  final int status;
+  final List<WakeMessage> messages;
   final String? catalogVersion;
   final String? etag;
 
@@ -175,6 +201,38 @@ class ContentApi {
     return RelaxationVideosResult(
       status: 200,
       videos: videos,
+      catalogVersion: _str(res.body['catalog_version']),
+      etag: res.etag ?? etag,
+    );
+  }
+
+  /// Messages du Réveil Auryel. Même contrat que [relaxationVideos] : `etag`
+  /// -> `If-None-Match`, `304` -> `WakeMessagesResult(status: 304)`. Ne
+  /// bloque jamais l'app : un statut hors-2xx renvoie une liste vide (repli
+  /// cache local / embarqué côté appelant).
+  Future<WakeMessagesResult> wakeMessages({String? bearer, String? etag}) async {
+    final res = await _client.getRaw(
+      '/api/app/content/wake-messages',
+      bearer: bearer,
+      ifNoneMatch: etag,
+    );
+    if (res.notModified) {
+      return WakeMessagesResult(status: 304, messages: const [], etag: etag);
+    }
+    if (!res.ok) {
+      return WakeMessagesResult(status: res.statusCode, messages: const []);
+    }
+    final raw = res.body['messages'];
+    final messages = raw is List
+        ? raw
+              .whereType<Map<String, dynamic>>()
+              .map(WakeMessage.tryFromJson)
+              .whereType<WakeMessage>()
+              .toList(growable: false)
+        : const <WakeMessage>[];
+    return WakeMessagesResult(
+      status: 200,
+      messages: messages,
       catalogVersion: _str(res.body['catalog_version']),
       etag: res.etag ?? etag,
     );

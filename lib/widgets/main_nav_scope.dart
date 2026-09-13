@@ -1,14 +1,17 @@
 import 'package:flutter/widgets.dart';
 
 /// Index des onglets de [MainNavShell] (stables, partagés avec l'Accueil et les
-/// tests). Nav V1 finale : Accueil · Tirage & Jeu · CONSULTATION · Méditation ·
-/// Mon compte. (La Boutique n'est plus un onglet V1 — son code reste dans le
-/// repo pour plus tard.)
+/// tests). Nav V2 (CORRECTIF « feed méditation + réveil vocal ») : Accueil ·
+/// Tirage & Jeu · CONSULTATION · Méditation · RÉVEIL. « Mon compte » QUITTE la
+/// barre du bas : accessible depuis le nouvel en-tête bien visible de
+/// l'Accueil (voir `home_screen.dart`), qui ouvre directement le Dashboard
+/// existant (aucun onglet dédié). (La Boutique n'est plus un onglet V1 — son
+/// code reste dans le repo pour plus tard.)
 const int kTabHome = 0;
 const int kTabTirage = 1; // hub « Tirage & Jeu »
 const int kTabConsultation = 2;
 const int kTabMeditation = 3;
-const int kTabCompte = 4; // Dashboard « Mon compte »
+const int kTabReveil = 4; // Réveil Auryel
 
 /// Permet à un écran (ex. l'Accueil, depuis « Tes missions du jour ») de
 /// demander un changement d'onglet SANS reconstruire la barre de navigation, et

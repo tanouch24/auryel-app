@@ -68,6 +68,10 @@ dependencies:
   # la façade lib/analytics/meta_events.dart : aucun écran n'appelle ce package.
   facebook_app_events: ^0.20.1
   saga_map: ^2.0.0
+  # Réveil Auryel — voix du message matinal en repli LOCAL quand aucun MP3
+  # pré-généré (R2) n'existe encore pour le message tiré (jamais un appel TTS
+  # payant/réseau au moment où l'alarme sonne). Voir lib/screens/wake_ringing_screen.dart.
+  flutter_tts: ^4.2.5
 
 dev_dependencies:
   flutter_test:
