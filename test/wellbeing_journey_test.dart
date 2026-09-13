@@ -404,7 +404,8 @@ void main() {
       expect(find.text('Terminée'), findsOneWidget);
       expect(find.text('Découvrir ma carte'), findsOneWidget);
       expect(find.text('Prendre un moment'), findsOneWidget);
-      // ligne récompense (bas de la carte : on scrolle).
+      // ligne récompense — désormais tout en haut de l'écran (FINITIONS UX),
+      // déjà visible sans scroll ; `scrollUntilVisible` est un no-op ici.
       await t.scrollUntilVisible(
         find.textContaining('15 minutes de consultation offertes'),
         250,
@@ -415,6 +416,42 @@ void main() {
         findsOneWidget,
       );
     });
+
+    testWidgets(
+      'FINITIONS UX — bloc récompense (30 jours -> 15 min) affiché EN HAUT, '
+      'avant la carte/chemin, jamais dupliqué',
+      (t) async {
+        final rig = _rig(
+          handler: (_) async =>
+              _json(_progress(total: 3, cycleDays: 3, current: 'Ancrage')),
+        );
+        await t.pumpWidget(_host(rig.controller));
+        await t.pumpAndSettle();
+
+        // Un seul exemplaire du texte (pas de duplication).
+        expect(
+          find.textContaining('15 minutes de consultation offertes'),
+          findsOneWidget,
+        );
+
+        // Comprendre le principe/la récompense AVANT la carte/chemin des 30
+        // jours : le bloc récompense apparaît plus haut à l'écran que
+        // l'en-tête de la carte de progression.
+        final rewardY = t
+            .getTopLeft(
+              find.textContaining('15 minutes de consultation offertes'),
+            )
+            .dy;
+        final cycleHeaderY = t.getTopLeft(find.text('CYCLE 1')).dy;
+        expect(
+          rewardY,
+          lessThan(cycleHeaderY),
+          reason:
+              'le principe/la récompense du parcours doit se comprendre '
+              'immédiatement, avant la carte/chemin des 30 jours',
+        );
+      },
+    );
 
     testWidgets('12 bis — CARTE DE PROGRESSION type jeu : chemin peint, '
         'étapes validées / du jour / verrouillées', (t) async {

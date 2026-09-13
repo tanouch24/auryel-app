@@ -84,6 +84,14 @@ class _WellbeingJourneyMapState extends State<WellbeingJourneyMap> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
+                // FINITIONS UX — le principe + la récompense du parcours
+                // (30 journées -> 15 min de consultation offertes) doivent se
+                // comprendre IMMÉDIATEMENT, avant même la carte/chemin des 30
+                // jours. Bloc déplacé ici (texte inchangé, pas de duplication) ;
+                // il restait auparavant tout en bas, après le chemin ET
+                // l'étape du jour.
+                _RewardLine(progress: p),
+                const SizedBox(height: 16),
                 _Header(progress: p),
                 const SizedBox(height: 16),
                 LayoutBuilder(
@@ -91,10 +99,7 @@ class _WellbeingJourneyMapState extends State<WellbeingJourneyMap> {
                     final w = inner.maxWidth;
                     final centers = <Offset>[
                       for (var i = 0; i < _cycle; i++)
-                        Offset(
-                          w * _xFrac[i % 4],
-                          _topPad + i * _rowGap,
-                        ),
+                        Offset(w * _xFrac[i % 4], _topPad + i * _rowGap),
                     ];
                     return SizedBox(
                       height: pathHeight,
@@ -116,8 +121,8 @@ class _WellbeingJourneyMapState extends State<WellbeingJourneyMap> {
                               state: i < _done
                                   ? _NodeState.done
                                   : (i == _done && _done < _cycle)
-                                        ? _NodeState.current
-                                        : _NodeState.locked,
+                                  ? _NodeState.current
+                                  : _NodeState.locked,
                               levelName: _levelForDay(i + 1),
                             ),
                         ],
@@ -131,8 +136,6 @@ class _WellbeingJourneyMapState extends State<WellbeingJourneyMap> {
                   busy: widget.busy,
                   onCta: widget.onMissionCta,
                 ),
-                const SizedBox(height: 14),
-                _RewardLine(progress: p),
               ],
             ),
           );
@@ -340,10 +343,7 @@ class _Node extends StatelessWidget {
           decoration: BoxDecoration(
             shape: BoxShape.circle,
             color: AuryelColors.surface.withValues(alpha: 0.7),
-            border: Border.all(
-              color: AuryelColors.warmBorder,
-              width: 1,
-            ),
+            border: Border.all(color: AuryelColors.warmBorder, width: 1),
           ),
           alignment: Alignment.center,
           child: Text(
@@ -593,9 +593,7 @@ class _MissionChip extends StatelessWidget {
                   label.name,
                   style: AuryelText.body(
                     fontSize: 13,
-                    fontWeight: completed
-                        ? FontWeight.w600
-                        : FontWeight.w400,
+                    fontWeight: completed ? FontWeight.w600 : FontWeight.w400,
                     color: completed
                         ? AuryelColors.goldLight
                         : AuryelColors.textCream,

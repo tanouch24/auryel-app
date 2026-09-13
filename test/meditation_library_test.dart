@@ -82,9 +82,7 @@ ContentRepository _repo({required int meditations, required int videos}) {
 Widget _host(ContentRepository? repo) {
   const screen = MeditationLibraryScreen();
   return MaterialApp(
-    home: repo == null
-        ? screen
-        : ContentScope(repository: repo, child: screen),
+    home: repo == null ? screen : ContentScope(repository: repo, child: screen),
   );
 }
 
@@ -147,6 +145,33 @@ void main() {
     expect(_card(), findsNWidgets(MeditationCatalog.items.length));
   });
 
+  group('Flèche de défilement (FINITIONS UX)', () {
+    testWidgets('visible dès l\'arrivée sur l\'écran', (t) async {
+      await t.pumpWidget(_host(_repo(meditations: 30, videos: 0)));
+      await t.pumpAndSettle();
+      expect(find.text('Découvrir les méditations'), findsOneWidget);
+    });
+
+    testWidgets('disparaît après un vrai scroll de l\'utilisateur', (t) async {
+      await t.pumpWidget(_host(_repo(meditations: 30, videos: 0)));
+      await t.pumpAndSettle();
+      expect(find.text('Découvrir les méditations'), findsOneWidget);
+
+      await t.drag(find.byType(ListView), const Offset(0, -400));
+      await t.pumpAndSettle();
+
+      final opacity = t
+          .widget<AnimatedOpacity>(
+            find.ancestor(
+              of: find.text('Découvrir les méditations'),
+              matching: find.byType(AnimatedOpacity),
+            ),
+          )
+          .opacity;
+      expect(opacity, 0.0, reason: 'un vrai scroll masque l’indication');
+    });
+  });
+
   testWidgets('tap sur une fiche -> ouvre le lecteur MeditationScreen', (
     t,
   ) async {
@@ -158,17 +183,18 @@ void main() {
     expect(find.byType(MeditationScreen), findsOneWidget);
   });
 
-  testWidgets('petit écran Android 320x480 : liste scrollable, pas d\'overflow', (
-    t,
-  ) async {
-    t.view.physicalSize = const Size(320, 480);
-    t.view.devicePixelRatio = 1.0;
-    addTearDown(t.view.resetPhysicalSize);
-    addTearDown(t.view.resetDevicePixelRatio);
+  testWidgets(
+    'petit écran Android 320x480 : liste scrollable, pas d\'overflow',
+    (t) async {
+      t.view.physicalSize = const Size(320, 480);
+      t.view.devicePixelRatio = 1.0;
+      addTearDown(t.view.resetPhysicalSize);
+      addTearDown(t.view.resetDevicePixelRatio);
 
-    await t.pumpWidget(_host(_repo(meditations: 30, videos: 12)));
-    await t.pumpAndSettle();
-    expect(t.takeException(), isNull);
-    expect(find.byType(MeditationLibraryScreen), findsOneWidget);
-  });
+      await t.pumpWidget(_host(_repo(meditations: 30, videos: 12)));
+      await t.pumpAndSettle();
+      expect(t.takeException(), isNull);
+      expect(find.byType(MeditationLibraryScreen), findsOneWidget);
+    },
+  );
 }

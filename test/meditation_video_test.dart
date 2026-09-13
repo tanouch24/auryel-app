@@ -68,8 +68,9 @@ class _FakeSurface implements RelaxationVideoSurface {
   Future<void> pause() async => calls.add('pause');
 
   @override
-  Widget? buildView() =>
-      _ready ? const ColoredBox(key: _kVideoViewKey, color: Colors.black) : null;
+  Widget? buildView() => _ready
+      ? const ColoredBox(key: _kVideoViewKey, color: Colors.black)
+      : null;
 
   @override
   void dispose() {
@@ -291,14 +292,19 @@ void main() {
     expect(t.getSize(find.byKey(_kStageKey)).height, greaterThanOrEqualTo(180));
   });
 
-  testWidgets('sans ContentScope : aucune vidéo, l\'écran fonctionne', (t) async {
+  testWidgets('sans ContentScope : aucune vidéo, l\'écran fonctionne', (
+    t,
+  ) async {
     final a = _FakeAudio();
     await t.pumpWidget(_host(a));
     await t.pumpAndSettle();
 
     expect(find.byType(MeditationScreen), findsOneWidget);
     expect(find.byType(RelaxationVideoStage), findsNothing);
-    expect(find.byKey(_kStageKey), findsOneWidget); // la zone reste (placeholder)
+    expect(
+      find.byKey(_kStageKey),
+      findsOneWidget,
+    ); // la zone reste (placeholder)
 
     await t.ensureVisible(find.bySemanticsLabel('Lancer le moment'));
     await t.tap(find.bySemanticsLabel('Lancer le moment'));
@@ -388,8 +394,13 @@ void main() {
     await t.pumpAndSettle();
 
     // AUDIO strictement inchangé
-    expect(a.calls, audioBefore, reason: 'aucune commande audio pendant le '
-        'changement de visuel');
+    expect(
+      a.calls,
+      audioBefore,
+      reason:
+          'aucune commande audio pendant le '
+          'changement de visuel',
+    );
     expect(a.isPlaying, isTrue);
     // position toujours 01:30, puis continue
     expect(find.text('01:30'), findsOneWidget);
@@ -403,6 +414,106 @@ void main() {
     expect(_currentSlug(surfaces), target);
     expect(surfaces.last.calls, contains('play'));
   });
+
+  // =========================================================================
+  // FINITIONS UX — autoplay vidéo après « Choisir le visuel », MP3 intact
+  // =========================================================================
+
+  testWidgets(
+    'changement de visuel SANS que le MP3 ait jamais joué -> la nouvelle '
+    'vidéo démarre quand même automatiquement, le MP3 reste inchangé',
+    (t) async {
+      final a = _FakeAudio();
+      final surfaces = <_FakeSurface>[];
+      await t.pumpWidget(
+        _host(
+          a,
+          item: _libItem(),
+          content: _repoWithVideos([_v('a'), _v('b'), _v('c')]),
+          surfaceFactory: () {
+            final s = _FakeSurface();
+            surfaces.add(s);
+            return s;
+          },
+        ),
+      );
+      await t.pumpAndSettle();
+
+      // Aucun tap sur Play : le MP3 n'a jamais démarré.
+      expect(a.calls, isEmpty);
+      expect(a.isPlaying, isFalse);
+
+      final autoSlug = _currentSlug(surfaces);
+      final target = ['a', 'b', 'c'].firstWhere((s) => s != autoSlug);
+      await t.ensureVisible(find.text('Choisir le visuel'));
+      await t.tap(find.text('Choisir le visuel'));
+      await t.pumpAndSettle();
+      await t.tap(find.text('T $target'));
+      await t.pumpAndSettle();
+
+      // MP3 strictement inchangé : aucune commande, toujours à l'arrêt.
+      expect(
+        a.calls,
+        isEmpty,
+        reason: 'le MP3 ne doit jamais être touché par un changement de visuel',
+      );
+      expect(a.isPlaying, isFalse);
+
+      // La NOUVELLE vidéo, elle, a démarré automatiquement.
+      expect(_currentSlug(surfaces), target);
+      expect(surfaces.last.calls, contains('play'));
+    },
+  );
+
+  testWidgets(
+    'changement de visuel pendant que le MP3 est EN PAUSE (position non '
+    'nulle) -> nouvelle vidéo autoplay, position et état du MP3 INCHANGÉS',
+    (t) async {
+      final a = _FakeAudio();
+      final surfaces = <_FakeSurface>[];
+      await t.pumpWidget(
+        _host(
+          a,
+          item: _libItem(),
+          content: _repoWithVideos([_v('a'), _v('b'), _v('c')]),
+          surfaceFactory: () {
+            final s = _FakeSurface();
+            surfaces.add(s);
+            return s;
+          },
+        ),
+      );
+      await t.pumpAndSettle();
+      await t.ensureVisible(find.bySemanticsLabel('Lancer le moment'));
+      await t.tap(find.bySemanticsLabel('Lancer le moment'));
+      await t.pumpAndSettle();
+      a.emitDuration(const Duration(minutes: 4));
+      a.emitPosition(const Duration(seconds: 47));
+      await t.pumpAndSettle();
+      await t.ensureVisible(find.bySemanticsLabel('Mettre en pause'));
+      await t.tap(find.bySemanticsLabel('Mettre en pause'));
+      await t.pumpAndSettle();
+      expect(find.text('00:47'), findsOneWidget);
+      final audioBefore = [...a.calls];
+
+      final autoSlug = _currentSlug(surfaces);
+      final target = ['a', 'b', 'c'].firstWhere((s) => s != autoSlug);
+      await t.ensureVisible(find.text('Choisir le visuel'));
+      await t.tap(find.text('Choisir le visuel'));
+      await t.pumpAndSettle();
+      await t.tap(find.text('T $target'));
+      await t.pumpAndSettle();
+
+      // MP3 : aucune commande de plus, toujours en pause, position inchangée.
+      expect(a.calls, audioBefore);
+      expect(a.isPlaying, isFalse);
+      expect(find.text('00:47'), findsOneWidget);
+
+      // La nouvelle vidéo, elle, joue.
+      expect(_currentSlug(surfaces), target);
+      expect(surfaces.last.calls, contains('play'));
+    },
+  );
 
   testWidgets('option « Aléatoire » : re-tire un visuel, audio INTACT', (
     t,
@@ -511,57 +622,61 @@ void main() {
   // Cycle de vie de LA VIDÉO (jamais l'audio)
   // =========================================================================
 
-  testWidgets('pause de l\'audio -> pause de la vidéo (la vidéo suit l\'état)', (
+  testWidgets(
+    'pause de l\'audio -> pause de la vidéo (la vidéo suit l\'état)',
+    (t) async {
+      final a = _FakeAudio();
+      final surface = _FakeSurface();
+      await t.pumpWidget(
+        _host(
+          a,
+          item: _libItem(),
+          content: _repoWithVideos([_v('ocean-1')]),
+          surfaceFactory: () => surface,
+        ),
+      );
+      await t.pumpAndSettle();
+      await t.ensureVisible(find.bySemanticsLabel('Lancer le moment'));
+      await t.tap(find.bySemanticsLabel('Lancer le moment'));
+      await t.pumpAndSettle();
+      surface.calls.clear();
+
+      await t.ensureVisible(find.bySemanticsLabel('Mettre en pause'));
+      await t.tap(find.bySemanticsLabel('Mettre en pause'));
+      await t.pumpAndSettle();
+      expect(surface.calls, contains('pause'));
+    },
+  );
+
+  testWidgets(
+    'arrière-plan -> pause de la vidéo (et de l\'audio par l\'écran)',
+    (t) async {
+      final a = _FakeAudio();
+      final surface = _FakeSurface();
+      await t.pumpWidget(
+        _host(
+          a,
+          item: _libItem(),
+          content: _repoWithVideos([_v('ocean-1')]),
+          surfaceFactory: () => surface,
+        ),
+      );
+      await t.pumpAndSettle();
+      await t.ensureVisible(find.bySemanticsLabel('Lancer le moment'));
+      await t.tap(find.bySemanticsLabel('Lancer le moment'));
+      await t.pumpAndSettle();
+      surface.calls.clear();
+
+      t.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+      await t.pump();
+      expect(a.calls, contains('pause'));
+      expect(surface.calls, contains('pause'));
+    },
+  );
+
+  testWidgets('dispose de l\'écran -> le contrôleur vidéo est libéré', (
     t,
   ) async {
-    final a = _FakeAudio();
-    final surface = _FakeSurface();
-    await t.pumpWidget(
-      _host(
-        a,
-        item: _libItem(),
-        content: _repoWithVideos([_v('ocean-1')]),
-        surfaceFactory: () => surface,
-      ),
-    );
-    await t.pumpAndSettle();
-    await t.ensureVisible(find.bySemanticsLabel('Lancer le moment'));
-    await t.tap(find.bySemanticsLabel('Lancer le moment'));
-    await t.pumpAndSettle();
-    surface.calls.clear();
-
-    await t.ensureVisible(find.bySemanticsLabel('Mettre en pause'));
-    await t.tap(find.bySemanticsLabel('Mettre en pause'));
-    await t.pumpAndSettle();
-    expect(surface.calls, contains('pause'));
-  });
-
-  testWidgets('arrière-plan -> pause de la vidéo (et de l\'audio par l\'écran)', (
-    t,
-  ) async {
-    final a = _FakeAudio();
-    final surface = _FakeSurface();
-    await t.pumpWidget(
-      _host(
-        a,
-        item: _libItem(),
-        content: _repoWithVideos([_v('ocean-1')]),
-        surfaceFactory: () => surface,
-      ),
-    );
-    await t.pumpAndSettle();
-    await t.ensureVisible(find.bySemanticsLabel('Lancer le moment'));
-    await t.tap(find.bySemanticsLabel('Lancer le moment'));
-    await t.pumpAndSettle();
-    surface.calls.clear();
-
-    t.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
-    await t.pump();
-    expect(a.calls, contains('pause'));
-    expect(surface.calls, contains('pause'));
-  });
-
-  testWidgets('dispose de l\'écran -> le contrôleur vidéo est libéré', (t) async {
     final a = _FakeAudio();
     final surface = _FakeSurface();
     await t.pumpWidget(
@@ -655,36 +770,33 @@ void main() {
     Size(360, 640),
     Size(412, 915),
   ]) {
-    testWidgets(
-      'aucun overflow à ${size.width.toInt()}×${size.height.toInt()} '
-      '(scène + contrôles + « Choisir le visuel »)',
-      (t) async {
-        t.view.physicalSize = size;
-        t.view.devicePixelRatio = 1.0;
-        addTearDown(t.view.resetPhysicalSize);
-        addTearDown(t.view.resetDevicePixelRatio);
+    testWidgets('aucun overflow à ${size.width.toInt()}×${size.height.toInt()} '
+        '(scène + contrôles + « Choisir le visuel »)', (t) async {
+      t.view.physicalSize = size;
+      t.view.devicePixelRatio = 1.0;
+      addTearDown(t.view.resetPhysicalSize);
+      addTearDown(t.view.resetDevicePixelRatio);
 
-        final a = _FakeAudio();
-        await t.pumpWidget(
-          _host(
-            a,
-            item: _libItem(),
-            content: _repoWithVideos([for (var i = 0; i < 12; i++) _v('v$i')]),
-            surfaceFactory: () => _FakeSurface(),
-          ),
-        );
-        await t.pumpAndSettle();
-        expect(t.takeException(), isNull);
-        expect(find.byKey(_kStageKey), findsOneWidget);
+      final a = _FakeAudio();
+      await t.pumpWidget(
+        _host(
+          a,
+          item: _libItem(),
+          content: _repoWithVideos([for (var i = 0; i < 12; i++) _v('v$i')]),
+          surfaceFactory: () => _FakeSurface(),
+        ),
+      );
+      await t.pumpAndSettle();
+      expect(t.takeException(), isNull);
+      expect(find.byKey(_kStageKey), findsOneWidget);
 
-        final btn = find.text('Choisir le visuel');
-        await t.ensureVisible(btn);
-        await t.tap(btn);
-        await t.pumpAndSettle();
-        expect(t.takeException(), isNull);
-        expect(find.text('Aléatoire'), findsOneWidget);
-      },
-    );
+      final btn = find.text('Choisir le visuel');
+      await t.ensureVisible(btn);
+      await t.tap(btn);
+      await t.pumpAndSettle();
+      expect(t.takeException(), isNull);
+      expect(find.text('Aléatoire'), findsOneWidget);
+    });
   }
 
   // =========================================================================
@@ -757,32 +869,29 @@ void main() {
       );
     });
 
-    testWidgets(
-      'vidéo qui échoue à charger -> AUCUN repli, mission NON cochée '
-      '(même avec l’audio en lecture)',
-      (t) async {
-        final a = _FakeAudio();
-        await t.pumpWidget(
-          _host(
-            a,
-            item: _libItem(),
-            content: _repoWithVideos([_v('broken')]),
-            surfaceFactory: () => _FakeSurface(loadResult: false),
-          ),
-        );
-        await t.pumpAndSettle();
-        await t.ensureVisible(find.bySemanticsLabel('Lancer le moment'));
-        await t.tap(find.bySemanticsLabel('Lancer le moment'));
-        await t.pumpAndSettle();
-        expect(find.byKey(_kVideoViewKey), findsNothing); // placeholder
-        expect(a.isPlaying, isTrue, reason: 'l’audio, lui, joue bien');
-        expect(
-          await DailyMissionTracker().isDone(DailyMissionTracker.moment),
-          isFalse,
-          reason: 'échec de chargement confirmé -> aucun repli sur l’audio',
-        );
-      },
-    );
+    testWidgets('vidéo qui échoue à charger -> AUCUN repli, mission NON cochée '
+        '(même avec l’audio en lecture)', (t) async {
+      final a = _FakeAudio();
+      await t.pumpWidget(
+        _host(
+          a,
+          item: _libItem(),
+          content: _repoWithVideos([_v('broken')]),
+          surfaceFactory: () => _FakeSurface(loadResult: false),
+        ),
+      );
+      await t.pumpAndSettle();
+      await t.ensureVisible(find.bySemanticsLabel('Lancer le moment'));
+      await t.tap(find.bySemanticsLabel('Lancer le moment'));
+      await t.pumpAndSettle();
+      expect(find.byKey(_kVideoViewKey), findsNothing); // placeholder
+      expect(a.isPlaying, isTrue, reason: 'l’audio, lui, joue bien');
+      expect(
+        await DailyMissionTracker().isDone(DailyMissionTracker.moment),
+        isFalse,
+        reason: 'échec de chargement confirmé -> aucun repli sur l’audio',
+      );
+    });
 
     testWidgets(
       'vidéo chargée mais qui échoue à RÉELLEMENT démarrer (play() renvoie '
@@ -805,7 +914,8 @@ void main() {
         expect(
           await DailyMissionTracker().isDone(DailyMissionTracker.moment),
           isFalse,
-          reason: 'play() vidéo a échoué -> jamais de démarrage confirmé, '
+          reason:
+              'play() vidéo a échoué -> jamais de démarrage confirmé, '
               'aucun repli sur l’audio',
         );
       },
@@ -859,8 +969,13 @@ void main() {
         await t.tap(find.text('T $target'));
         await t.pumpAndSettle();
 
-        expect(markCalls, 1, reason: 'un seul markDone malgré plusieurs '
-            'démarrages vidéo');
+        expect(
+          markCalls,
+          1,
+          reason:
+              'un seul markDone malgré plusieurs '
+              'démarrages vidéo',
+        );
       },
     );
 
@@ -904,6 +1019,42 @@ void main() {
           await DailyMissionTracker().isDone(DailyMissionTracker.moment),
           isTrue,
           reason: 'la coche survit à un démontage/remontage complet',
+        );
+      },
+    );
+
+    testWidgets(
+      'FINITIONS UX — précédent/suivant démarrent l\'audio automatiquement '
+      'mais, SANS vidéo disponible, ne cochent JAMAIS la mission (aucun '
+      'repli)',
+      (t) async {
+        final a = _FakeAudio();
+        await t.pumpWidget(
+          _host(
+            a,
+            item: _libItem(),
+            content: _repoWithMeditations([
+              _m('quand-tu-attends-un-message', 'Quand tu attends un message'),
+              _m('deuxieme', 'Deuxième séance'),
+            ]), // pas de vidéo dans ce catalogue
+          ),
+        );
+        await t.pumpAndSettle();
+        await t.ensureVisible(find.byKey(const Key('meditation-next-button')));
+        await t.tap(find.byKey(const Key('meditation-next-button')));
+        await t.pumpAndSettle();
+
+        expect(
+          a.isPlaying,
+          isTrue,
+          reason: 'l’audio, lui, a bien démarré automatiquement',
+        );
+        expect(
+          await DailyMissionTracker().isDone(DailyMissionTracker.moment),
+          isFalse,
+          reason:
+              'démarrage audio automatique via suivant -> aucun repli, '
+              'mission non cochée',
         );
       },
     );
@@ -1011,6 +1162,77 @@ void main() {
       expect(t.takeException(), isNull);
     });
 
+    testWidgets('FINITIONS UX — suivant démarre AUTOMATIQUEMENT l\'audio de la '
+        'nouvelle méditation (sans repasser par Play), position à zéro', (
+      t,
+    ) async {
+      final a = _FakeAudio();
+      await t.pumpWidget(
+        _host(
+          a,
+          item: _libItem(),
+          content: _repoWithMeditations([
+            _m('quand-tu-attends-un-message', 'Quand tu attends un message'),
+            _m('deuxieme', 'Deuxième séance'),
+          ]),
+        ),
+      );
+      await t.pumpAndSettle();
+      expect(a.calls, isEmpty, reason: 'jamais d’autoplay à l’ouverture');
+
+      await t.ensureVisible(find.byKey(kNextBtn));
+      await t.tap(find.byKey(kNextBtn));
+      await t.pumpAndSettle();
+
+      expect(find.text('Deuxième séance'), findsWidgets);
+      expect(a.calls, contains('stop'), reason: 'nouvelle piste = reset');
+      expect(
+        a.calls.any((c) => c.startsWith('play:')),
+        isTrue,
+        reason: 'la nouvelle méditation démarre automatiquement',
+      );
+      expect(a.isPlaying, isTrue);
+      expect(
+        find.bySemanticsLabel('Mettre en pause'),
+        findsOneWidget,
+        reason: 'le bouton central reflète immédiatement la lecture en cours',
+      );
+      expect(find.text('00:00'), findsOneWidget);
+    });
+
+    testWidgets(
+      'FINITIONS UX — précédent démarre AUTOMATIQUEMENT l\'audio de la '
+      'méditation précédente',
+      (t) async {
+        final a = _FakeAudio();
+        await t.pumpWidget(
+          _host(
+            a,
+            item: _libItem(),
+            content: _repoWithMeditations([
+              _m('quand-tu-attends-un-message', 'Quand tu attends un message'),
+              _m('deuxieme', 'Deuxième séance'),
+            ]),
+          ),
+        );
+        await t.pumpAndSettle();
+        await t.ensureVisible(find.byKey(kNextBtn));
+        await t.tap(find.byKey(kNextBtn));
+        await t.pumpAndSettle();
+        a.calls.clear();
+
+        await t.ensureVisible(find.byKey(kPrevBtn));
+        await t.tap(find.byKey(kPrevBtn));
+        await t.pumpAndSettle();
+
+        expect(find.text('Quand tu attends un message'), findsWidgets);
+        expect(a.calls, contains('stop'));
+        expect(a.calls.any((c) => c.startsWith('play:')), isTrue);
+        expect(a.isPlaying, isTrue);
+        expect(find.text('00:00'), findsOneWidget);
+      },
+    );
+
     testWidgets(
       'précédent charge la méditation précédente ; sur le DERNIER élément, '
       'suivant est désactivé',
@@ -1059,7 +1281,10 @@ void main() {
             item: _libItem(),
             content: _repoWithMeditations(
               [
-                _m('quand-tu-attends-un-message', 'Quand tu attends un message'),
+                _m(
+                  'quand-tu-attends-un-message',
+                  'Quand tu attends un message',
+                ),
                 _m('deuxieme', 'Deuxième séance'),
               ],
               videos: [_v('ocean-1')],
@@ -1089,36 +1314,131 @@ void main() {
       },
     );
 
+    testWidgets('changer de méditation réinitialise la position audio à zéro '
+        '(nouvelle piste = nouvelle position, pas un bug de l’indépendance '
+        'audio/vidéo)', (t) async {
+      final a = _FakeAudio();
+      await t.pumpWidget(
+        _host(
+          a,
+          item: _libItem(),
+          content: _repoWithMeditations([
+            _m('quand-tu-attends-un-message', 'Quand tu attends un message'),
+            _m('deuxieme', 'Deuxième séance'),
+          ]),
+        ),
+      );
+      await t.pumpAndSettle();
+      await t.ensureVisible(find.bySemanticsLabel('Lancer le moment'));
+      await t.tap(find.bySemanticsLabel('Lancer le moment'));
+      await t.pumpAndSettle();
+      a.emitDuration(const Duration(minutes: 4));
+      a.emitPosition(const Duration(seconds: 90));
+      await t.pumpAndSettle();
+      expect(find.text('01:30'), findsOneWidget);
+
+      await t.ensureVisible(find.byKey(kNextBtn));
+      await t.tap(find.byKey(kNextBtn));
+      await t.pumpAndSettle();
+      expect(find.text('00:00'), findsOneWidget);
+      expect(a.calls, contains('stop'));
+    });
+  });
+
+  // =========================================================================
+  // FINITIONS UX — contrôles « façon lecteur vidéo moderne » : visibles à
+  // l'ouverture, auto-hide après inactivité, tap pour basculer.
+  // =========================================================================
+
+  group('Auto-hide des contrôles', () {
+    List<double> opacities(WidgetTester t) => t
+        .widgetList<AnimatedOpacity>(find.byType(AnimatedOpacity))
+        .map((w) => w.opacity)
+        .toList();
+
+    testWidgets('contrôles visibles dès l\'ouverture', (t) async {
+      final a = _FakeAudio();
+      await t.pumpWidget(_host(a, item: _libItem()));
+      await t.pump();
+      final op = opacities(t);
+      expect(op, isNotEmpty);
+      expect(op, everyElement(1.0));
+    });
+
     testWidgets(
-      'changer de méditation réinitialise la position audio à zéro '
-      '(nouvelle piste = nouvelle position, pas un bug de l’indépendance '
-      'audio/vidéo)',
+      'un tap simple sur la vidéo masque les contrôles ; un second tap les '
+      'réaffiche',
       (t) async {
         final a = _FakeAudio();
-        await t.pumpWidget(
-          _host(
-            a,
-            item: _libItem(),
-            content: _repoWithMeditations([
-              _m('quand-tu-attends-un-message', 'Quand tu attends un message'),
-              _m('deuxieme', 'Deuxième séance'),
-            ]),
-          ),
-        );
-        await t.pumpAndSettle();
-        await t.ensureVisible(find.bySemanticsLabel('Lancer le moment'));
-        await t.tap(find.bySemanticsLabel('Lancer le moment'));
-        await t.pumpAndSettle();
-        a.emitDuration(const Duration(minutes: 4));
-        a.emitPosition(const Duration(seconds: 90));
-        await t.pumpAndSettle();
-        expect(find.text('01:30'), findsOneWidget);
+        await t.pumpWidget(_host(a, item: _libItem()));
+        await t.pump();
 
-        await t.ensureVisible(find.byKey(kNextBtn));
-        await t.tap(find.byKey(kNextBtn));
-        await t.pumpAndSettle();
-        expect(find.text('00:00'), findsOneWidget);
-        expect(a.calls, contains('stop'));
+        await t.tap(find.byKey(const Key('meditation-video-stage')));
+        await t.pump();
+        expect(
+          opacities(t),
+          everyElement(0.0),
+          reason: 'un tap sur la vidéo masque les contrôles',
+        );
+
+        await t.tap(find.byKey(const Key('meditation-video-stage')));
+        await t.pump();
+        expect(
+          opacities(t),
+          everyElement(1.0),
+          reason: 'un second tap les réaffiche',
+        );
+      },
+    );
+
+    testWidgets('disparition automatique après un délai d\'inactivité', (
+      t,
+    ) async {
+      final a = _FakeAudio();
+      await t.pumpWidget(_host(a, item: _libItem()));
+      await t.pump();
+      expect(opacities(t), everyElement(1.0));
+
+      await t.pump(const Duration(seconds: 5));
+      expect(
+        opacities(t),
+        everyElement(0.0),
+        reason: 'auto-hide après quelques secondes sans interaction',
+      );
+    });
+
+    testWidgets(
+      'le timer d\'auto-hide est annulé proprement au dispose (pas de timer '
+      'résiduel)',
+      (t) async {
+        final a = _FakeAudio();
+        await t.pumpWidget(_host(a, item: _libItem()));
+        await t.pump();
+        // Démonte l'écran AVANT l'échéance du timer : si `dispose()` ne
+        // l'annulait pas, flutter_test ferait échouer ce test (timer
+        // résiduel détecté par le framework).
+        await t.pumpWidget(const SizedBox());
+        await t.pump(const Duration(seconds: 5));
+        expect(t.takeException(), isNull);
+      },
+    );
+
+    testWidgets(
+      'interagir avec un contrôle (Play) relance le délai d\'auto-hide',
+      (t) async {
+        final a = _FakeAudio();
+        await t.pumpWidget(_host(a, item: _libItem()));
+        await t.pump(const Duration(seconds: 3)); // < 4 s : encore visible
+        await t.tap(find.bySemanticsLabel('Lancer le moment'));
+        await t.pump(); // interaction -> délai relancé
+        await t.pump(const Duration(seconds: 3)); // 3 s depuis l'interaction
+        expect(
+          opacities(t),
+          everyElement(1.0),
+          reason: 'le délai a été relancé par l’interaction, pas encore écoulé',
+        );
+        await t.pump(const Duration(seconds: 2)); // 5 s depuis l'interaction
+        expect(opacities(t), everyElement(0.0));
       },
     );
   });

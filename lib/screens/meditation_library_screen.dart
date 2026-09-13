@@ -15,19 +15,49 @@ import 'meditation_screen.dart';
 /// Sans [ContentScope] (tests hérités), la liste embarquée est utilisée.
 /// Aucun plafond : 50 aujourd'hui, davantage demain, sans nouvelle version.
 class MeditationLibraryScreen extends StatefulWidget {
-  const MeditationLibraryScreen({super.key, this.catalog = const MeditationCatalog()});
+  const MeditationLibraryScreen({
+    super.key,
+    this.catalog = const MeditationCatalog(),
+  });
 
   /// Repli embarqué quand aucun contenu distant n'est disponible.
   final MeditationCatalog catalog;
 
   @override
-  State<MeditationLibraryScreen> createState() => _MeditationLibraryScreenState();
+  State<MeditationLibraryScreen> createState() =>
+      _MeditationLibraryScreenState();
 }
 
 class _MeditationLibraryScreenState extends State<MeditationLibraryScreen> {
   bool _loading = true;
   bool _resolved = false;
   List<MeditationItem> _items = const [];
+
+  /// Indication de défilement (flèche + texte court) : visible dès l'arrivée
+  /// sur l'écran, s'efface dès qu'un VRAI scroll est détecté.
+  final ScrollController _scrollController = ScrollController();
+  bool _scrolled = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _scrollController.addListener(_onScroll);
+  }
+
+  void _onScroll() {
+    // Seuil > 0 pour ignorer les micro-rebonds d'overscroll (pas une vraie
+    // intention de défiler).
+    final scrolled = _scrollController.offset > 12;
+    if (scrolled != _scrolled) setState(() => _scrolled = scrolled);
+  }
+
+  @override
+  void dispose() {
+    _scrollController
+      ..removeListener(_onScroll)
+      ..dispose();
+    super.dispose();
+  }
 
   @override
   void didChangeDependencies() {
@@ -74,84 +104,163 @@ class _MeditationLibraryScreenState extends State<MeditationLibraryScreen> {
   }
 
   void _open(MeditationItem item) {
-    Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => MeditationScreen(item: item)),
-    );
+    Navigator.of(context)
+        .push(MaterialPageRoute(builder: (_) => MeditationScreen(item: item)));
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Container(
-        decoration: const BoxDecoration(
-          gradient: AuryelColors.backgroundGradient,
-        ),
-        child: SafeArea(
-          child: ListView(
-            physics: const AlwaysScrollableScrollPhysics(),
-            padding: const EdgeInsets.fromLTRB(24, 24, 24, 28),
-            children: [
-              Text(
-                'AURYEL · MÉDITATION',
-                style: AuryelText.body(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w600,
-                  color: AuryelColors.gold,
-                  letterSpacing: 3.2,
-                ),
-              ),
-              const SizedBox(height: 10),
-              Text(
-                'Bibliothèque',
-                style: AuryelText.display(
-                  fontSize: 26,
-                  fontWeight: FontWeight.w600,
-                  color: AuryelColors.textCream,
-                ),
-              ),
-              const SizedBox(height: 6),
-              Text(
-                'Choisis un moment. Le visuel apaisant se met en place tout seul.',
-                style: AuryelText.body(
-                  fontSize: 12.5,
-                  height: 1.4,
-                  color: AuryelColors.textSecondary,
-                ),
-              ),
-              const SizedBox(height: 18),
-              if (_loading)
-                const Padding(
-                  padding: EdgeInsets.only(top: 60),
-                  child: Center(
-                    child: CircularProgressIndicator(
-                      color: AuryelColors.goldLight,
+      body: Stack(
+        children: [
+          Container(
+            decoration: const BoxDecoration(
+              gradient: AuryelColors.backgroundGradient,
+            ),
+            child: SafeArea(
+              child: ListView(
+                controller: _scrollController,
+                physics: const AlwaysScrollableScrollPhysics(),
+                padding: const EdgeInsets.fromLTRB(24, 24, 24, 28),
+                children: [
+                  Text(
+                    'AURYEL · MÉDITATION',
+                    style: AuryelText.body(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      color: AuryelColors.gold,
+                      letterSpacing: 3.2,
                     ),
                   ),
-                )
-              else if (_items.isEmpty)
-                Padding(
-                  padding: const EdgeInsets.only(top: 60),
-                  child: Center(
-                    child: Text(
-                      'Les méditations arrivent très bientôt.',
-                      textAlign: TextAlign.center,
-                      style: AuryelText.body(
-                        fontSize: 13,
-                        color: AuryelColors.textMuted,
+                  const SizedBox(height: 10),
+                  Text(
+                    'Bibliothèque',
+                    style: AuryelText.display(
+                      fontSize: 26,
+                      fontWeight: FontWeight.w600,
+                      color: AuryelColors.textCream,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    'Choisis un moment. Le visuel apaisant se met en place tout seul.',
+                    style: AuryelText.body(
+                      fontSize: 12.5,
+                      height: 1.4,
+                      color: AuryelColors.textSecondary,
+                    ),
+                  ),
+                  const SizedBox(height: 18),
+                  if (_loading)
+                    const Padding(
+                      padding: EdgeInsets.only(top: 60),
+                      child: Center(
+                        child: CircularProgressIndicator(
+                          color: AuryelColors.goldLight,
+                        ),
                       ),
+                    )
+                  else if (_items.isEmpty)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 60),
+                      child: Center(
+                        child: Text(
+                          'Les méditations arrivent très bientôt.',
+                          textAlign: TextAlign.center,
+                          style: AuryelText.body(
+                            fontSize: 13,
+                            color: AuryelColors.textMuted,
+                          ),
+                        ),
+                      ),
+                    )
+                  else
+                    for (final m in _items) ...[
+                      _MeditationCard(
+                        key: ValueKey('med-${m.id}'),
+                        item: m,
+                        onTap: () => _open(m),
+                      ),
+                      const SizedBox(height: 12),
+                    ],
+                ],
+              ),
+            ),
+          ),
+          // Indication de défilement — bien visible à l'arrivée, discrète
+          // (une pastille, pas une bannière), disparaît dès un vrai scroll.
+          if (!_loading && _items.isNotEmpty)
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: 16,
+              child: IgnorePointer(
+                child: AnimatedOpacity(
+                  opacity: _scrolled ? 0 : 1,
+                  duration: const Duration(milliseconds: 320),
+                  curve: Curves.easeOut,
+                  child: const _ScrollHint(),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Petite pastille « défiler pour en découvrir plus », premium et discrète —
+/// flèche plus visible que le simple contenu de la liste, sans bannière.
+class _ScrollHint extends StatelessWidget {
+  const _ScrollHint();
+
+  @override
+  Widget build(BuildContext context) {
+    return SafeArea(
+      top: false,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 24),
+        child: Center(
+          child: Container(
+            padding: const EdgeInsets.fromLTRB(14, 8, 12, 8),
+            decoration: BoxDecoration(
+              color: AuryelColors.surface.withValues(alpha: 0.94),
+              borderRadius: BorderRadius.circular(999),
+              border: Border.all(color: AuryelColors.warmBorder),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.35),
+                  blurRadius: 14,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // `Flexible` + ellipsis : jamais d'overflow, quelle que soit
+                // la largeur d'écran ou la métrique de police disponible.
+                Flexible(
+                  child: Text(
+                    'Découvrir les méditations',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: AuryelText.body(
+                      fontSize: 11.5,
+                      fontWeight: FontWeight.w600,
+                      color: AuryelColors.goldLight,
+                      letterSpacing: 0.3,
                     ),
                   ),
-                )
-              else
-                for (final m in _items) ...[
-                  _MeditationCard(
-                    key: ValueKey('med-${m.id}'),
-                    item: m,
-                    onTap: () => _open(m),
-                  ),
-                  const SizedBox(height: 12),
-                ],
-            ],
+                ),
+                const SizedBox(width: 4),
+                const Icon(
+                  Icons.keyboard_arrow_down_rounded,
+                  size: 26,
+                  color: AuryelColors.goldLight,
+                ),
+              ],
+            ),
           ),
         ),
       ),
