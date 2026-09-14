@@ -1047,7 +1047,9 @@ class _NoCreditPanel extends StatelessWidget {
               width: double.infinity,
               child: FilledButton(
                 onPressed: () => Navigator.of(context).push(
-                  MaterialPageRoute(builder: (_) => const PremiumScreen()),
+                  MaterialPageRoute(
+                    builder: (_) => const ExtraHourPurchaseScreen(),
+                  ),
                 ),
                 child: const Text('Acheter du temps'),
               ),

@@ -30,6 +30,28 @@ class PremiumScreen extends StatefulWidget {
   State<PremiumScreen> createState() => _PremiumScreenState();
 }
 
+/// Vue dédiée au consommable de temps supplémentaire. Elle réutilise
+/// exactement le même [PurchaseController] que l’écran Premium, sans afficher
+/// ni recréer le tunnel d’abonnement.
+class ExtraHourPurchaseScreen extends StatelessWidget {
+  const ExtraHourPurchaseScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final controller = PurchaseScope.of(context);
+    return Scaffold(
+      appBar: AppBar(title: const Text('Ajouter du temps')),
+      body: Padding(
+        padding: const EdgeInsets.all(20),
+        child: ListenableBuilder(
+          listenable: controller,
+          builder: (context, _) => _ExtraHourBlock(controller: controller),
+        ),
+      ),
+    );
+  }
+}
+
 class _PremiumScreenState extends State<PremiumScreen> {
   bool _paywallLogged = false;
 

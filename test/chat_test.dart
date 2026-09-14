@@ -489,29 +489,31 @@ void main() {
     },
   );
 
-  testWidgets('I — "Acheter du temps" ouvre PremiumScreen (plus de snackbar)', (
-    t,
-  ) async {
-    // non-Premium : le CTA « Acheter du temps » est présent.
-    const body = {
-      'error': 'time_exhausted',
-      'consultation': null,
-      'quota': {'is_premium': false, 'monthly_limit': 8, 'monthly_used': 8},
-    };
-    final e = _env((_) async => _json(body, 402));
-    await _pumpChat(t, auth: e.auth, purchase: _stubPurchase(e.auth));
-    await _type(t, 'coucou');
-    await _tapSend(t);
-    await t.tap(find.text('Commencer'));
-    await t.pumpAndSettle();
+  testWidgets(
+    'I — "Acheter du temps" ouvre le parcours +1 h (plus de snackbar)',
+    (t) async {
+      // non-Premium : le CTA « Acheter du temps » est présent.
+      const body = {
+        'error': 'time_exhausted',
+        'consultation': null,
+        'quota': {'is_premium': false, 'monthly_limit': 8, 'monthly_used': 8},
+      };
+      final e = _env((_) async => _json(body, 402));
+      await _pumpChat(t, auth: e.auth, purchase: _stubPurchase(e.auth));
+      await _type(t, 'coucou');
+      await _tapSend(t);
+      await t.tap(find.text('Commencer'));
+      await t.pumpAndSettle();
 
-    await t.tap(find.text('Acheter du temps'));
-    await t.pumpAndSettle();
+      await t.tap(find.text('Acheter du temps'));
+      await t.pumpAndSettle();
 
-    expect(find.byType(PremiumScreen), findsOneWidget);
-    expect(find.text('Auryel Premium'), findsWidgets);
-    expect(find.text('Premium arrive bientôt.'), findsNothing);
-  });
+      expect(find.byType(ExtraHourPurchaseScreen), findsOneWidget);
+      expect(find.text('Ajouter du temps'), findsOneWidget);
+      expect(find.text('1 heure supplémentaire'), findsOneWidget);
+      expect(find.text('Premium arrive bientôt.'), findsNothing);
+    },
+  );
 
   testWidgets('401 -> session purgée + retour EmailAuthScreen', (t) async {
     final e = _env((_) async => _json({'error': 'unauthorized'}, 401));

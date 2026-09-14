@@ -13,17 +13,12 @@ import 'package:auryel/api/consultation_api.dart';
 import 'package:auryel/api/profile_api.dart';
 import 'package:auryel/api/tirage_api.dart';
 import 'package:auryel/data/auth_repository.dart';
-import 'package:auryel/data/daily_mission_tracker.dart';
 import 'package:auryel/data/onboarding_record.dart';
 import 'package:auryel/data/onboarding_repository.dart';
 import 'package:auryel/data/token_store.dart';
 import 'package:auryel/screens/consultation_screen.dart';
 import 'package:auryel/screens/dashboard_screen.dart';
 import 'package:auryel/screens/home_screen.dart';
-import 'package:auryel/screens/jeu_auryel_screen.dart';
-import 'package:auryel/screens/tirage_screen.dart';
-import 'package:auryel/screens/wellbeing_journey_screen.dart';
-import 'package:auryel/screens/wellbeing_program_screen.dart';
 import 'package:auryel/state/auryel_state.dart';
 import 'package:auryel/state/auth_controller.dart';
 import 'package:auryel/widgets/main_nav_shell.dart';
@@ -200,99 +195,6 @@ void main() {
       expect(find.byType(HomeScreen), findsOneWidget);
     });
   });
-
-  // -------------------------------------------------------------------------
-  // TIRAGE & JEU — hub (4 cas)
-  // -------------------------------------------------------------------------
-  group('Ancien hub Tirage & Jeu', () {
-    // L’ancien hub n’est plus une destination de la barre principale.
-    // Tirage et mini-jeux sont couverts depuis l’espace Étoiles.
-    testWidgets('TJ1 — le hub affiche titre, sous-titre et 2 entrées '
-        '(Tirage, Jeu Auryel) — plus de bloc missions/bien-être', (t) async {
-      await t.pumpWidget(_shell());
-      await t.pumpAndSettle();
-      await t.tap(_tab('Bien-être'));
-      await t.pumpAndSettle();
-
-      expect(find.byType(WellbeingProgramScreen), findsOneWidget);
-      expect(
-        find.text('Écoute ton intuition, tire les cartes ou relève un défi.'),
-        findsOneWidget,
-      );
-      expect(find.text('TIRAGE'), findsOneWidget);
-      expect(find.text('DÉFI DU JOUR'), findsOneWidget);
-      // Le parcours bien-être n'est PLUS présenté dans Bien-être.
-      expect(find.text('BIEN-ÊTRE'), findsNothing);
-      expect(find.text('Jour après jour'), findsNothing);
-      expect(find.text('Suivre mon parcours'), findsNothing);
-    });
-
-    testWidgets('TJ5 — le parcours bien-être a migré vers l\'Accueil : '
-        'Bien-être n\'ouvre plus WellbeingJourneyScreen', (t) async {
-      await t.pumpWidget(_shell());
-      await t.pumpAndSettle();
-      await t.tap(_tab('Bien-être'));
-      await t.pumpAndSettle();
-
-      expect(find.byType(WellbeingJourneyScreen), findsNothing);
-      expect(find.textContaining('parcours bien-être'), findsNothing);
-    });
-
-    testWidgets('TJ2 — l\'entrée TIRAGE ouvre le vrai TirageScreen '
-        '(aucune logique dupliquée)', (t) async {
-      await t.pumpWidget(_shell());
-      await t.pumpAndSettle();
-      await t.tap(_tab('Bien-être'));
-      await t.pumpAndSettle();
-
-      await t.tap(find.text('Faire mon tirage'));
-      await t.pumpAndSettle();
-      expect(find.byType(TirageScreen), findsOneWidget);
-    });
-
-    testWidgets('TJ3 — l\'entrée DÉFI DU JOUR ouvre le Jeu Auryel (menu '
-        'jouable), sans aucune récompense de temps', (t) async {
-      await t.pumpWidget(_shell());
-      await t.pumpAndSettle();
-      await t.tap(_tab('Bien-être'));
-      await t.pumpAndSettle();
-
-      await t.tap(find.text('Relever le défi'));
-      await t.pumpAndSettle();
-      await t.tap(find.text('Le Jeu Auryel'));
-      await t.pumpAndSettle();
-
-      expect(find.byType(JeuAuryelScreen), findsOneWidget);
-      expect(find.text('Le Jeu Auryel'), findsOneWidget);
-      expect(find.text('Commencer'), findsOneWidget);
-      // Les 3 niveaux sont proposés.
-      expect(find.text('Facile'), findsOneWidget);
-      expect(find.text('Moyen'), findsOneWidget);
-      expect(find.text('Difficile'), findsOneWidget);
-      // Aucune promesse de gain / récompense de consultation.
-      expect(find.textContaining('heure offerte'), findsNothing);
-      expect(find.textContaining('minutes offertes'), findsNothing);
-      expect(find.textContaining('consultation offerte'), findsNothing);
-      expect(find.textContaining('points'), findsNothing);
-    });
-
-    testWidgets('TJ4 — ouvrir le hub ne coche PAS la mission Tirage '
-        '(seule une sauvegarde réelle la valide)', (t) async {
-      final tracker = DailyMissionTracker();
-      expect(await tracker.isDone(DailyMissionTracker.tirage), isFalse);
-
-      await t.pumpWidget(_shell());
-      await t.pumpAndSettle();
-      await t.tap(_tab('Bien-être'));
-      await t.pumpAndSettle();
-
-      expect(
-        await tracker.isDone(DailyMissionTracker.tirage),
-        isFalse,
-        reason: 'le hub seul ne valide rien',
-      );
-    });
-  }, skip: 'Remplacé par le Programme Bien-être dans la navigation principale');
 
   // -------------------------------------------------------------------------
   // HOME — les missions ne sont plus dans la Home (3 anciens cas remplacés)
