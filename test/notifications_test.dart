@@ -232,6 +232,9 @@ void main() {
     test('6 — type inconnu -> null (aucune navigation)', () {
       expect(router.routeFor(NotificationType.unknown), isNull);
     });
+    test('ebook_monthly -> Bien-être (1)', () {
+      expect(router.routeFor(NotificationType.ebookMonthly)!.tabIndex, kTabBienEtre);
+    });
     test('8 — aucune route ne cible un onglet hors 0..4 (jamais Boutique)', () {
       for (final t in NotificationType.values) {
         final r = router.routeFor(t);

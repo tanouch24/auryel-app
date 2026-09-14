@@ -7,6 +7,7 @@ enum NotificationType {
   personalGuidance(wire: 'personal_guidance'),
   weeklySleep(wire: 'weekly_sleep'),
   weeklyLifeLesson(wire: 'weekly_life_lesson'),
+  ebookMonthly(wire: 'ebook_monthly'),
   unknown(wire: '');
 
   const NotificationType({required this.wire});

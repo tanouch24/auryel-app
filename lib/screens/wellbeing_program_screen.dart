@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../api/wellbeing_program_api.dart';
+import '../api/wellbeing_ebooks_api.dart';
 import '../state/wellbeing_program_controller.dart';
+import '../state/wellbeing_ebooks_controller.dart';
 import '../theme/auryel_theme.dart';
 import 'consultation_screen.dart';
 
@@ -64,20 +66,24 @@ class _WellbeingProgramScreenState extends State<WellbeingProgramScreen> {
     if (enabled != null) await controller.setReminder(enabled);
   }
 
-  Future<void> _openEbook(WellbeingProgramEbook ebook) async {
-    final url = ebook.pdfUrl?.trim();
-    if (url == null || url.isEmpty) return;
-    await launchUrl(Uri.parse(url), mode: LaunchMode.externalApplication);
+  Future<void> _openEbook(String url) async {
+    final uri = Uri.tryParse(url);
+    if (uri == null || !(uri.scheme == 'https' || uri.scheme == 'http')) return;
+    await launchUrl(uri, mode: LaunchMode.externalApplication);
   }
 
   @override
   Widget build(BuildContext context) {
     final controller = _program;
+    final ebooks = WellbeingEbooksScope.maybeOf(context);
     if (controller == null) {
-      return _scaffold(_intro(null));
+      return _scaffold(_intro(null, const []));
     }
     return AnimatedBuilder(
-      animation: controller,
+      animation: Listenable.merge([
+        controller,
+        if (ebooks case final ebookController) ebookController,
+      ]),
       builder: (context, _) {
         if (controller.loading && controller.state == null) {
           return _scaffold(const Center(child: CircularProgressIndicator()));
@@ -87,15 +93,20 @@ class _WellbeingProgramScreenState extends State<WellbeingProgramScreen> {
         }
         final state = controller.state;
         if (state == null || !state.started) {
-          return _scaffold(_intro(controller));
+          return _scaffold(_intro(controller, ebooks?.ebooks ?? const []));
         }
-        if (state.completed) return _scaffold(_completed(state));
-        return _scaffold(_active(controller, state));
+        if (state.completed) {
+          return _scaffold(_completed(state, ebooks?.ebooks ?? const []));
+        }
+        return _scaffold(_active(controller, state, ebooks));
       },
     );
   }
 
-  Widget _intro(WellbeingProgramController? controller) => ListView(
+  Widget _intro(
+    WellbeingProgramController? controller,
+    List<WellbeingEbook> ebooks,
+  ) => ListView(
     padding: const EdgeInsets.all(20),
     children: [
       _title('Mon programme Bien-être'),
@@ -104,15 +115,7 @@ class _WellbeingProgramScreenState extends State<WellbeingProgramScreen> {
         'Pendant 30 jours, Auryel t’accompagne avec 5 petites actions quotidiennes pour prendre davantage soin de toi.',
       ),
       const SizedBox(height: 18),
-      _ebookCard(
-        const WellbeingProgramEbook(
-          title: '30 jours pour prendre soin de soi',
-          subtitle: 'Le petit guide Bien-être Auryel',
-          pdfUrl: null,
-          version: 1,
-          active: true,
-        ),
-      ),
+      _librarySection(ebooks),
       const SizedBox(height: 18),
       const Text(
         'Je m’engage à prendre soin de moi pendant 30 jours.',
@@ -133,6 +136,7 @@ class _WellbeingProgramScreenState extends State<WellbeingProgramScreen> {
   Widget _active(
     WellbeingProgramController controller,
     WellbeingProgramState state,
+    WellbeingEbooksController? ebooksController,
   ) {
     final today = state.today!;
     return ListView(
@@ -164,7 +168,8 @@ class _WellbeingProgramScreenState extends State<WellbeingProgramScreen> {
             .take(5)
             .map((action) => _actionCard(controller, action)),
         const SizedBox(height: 10),
-        _ebookCard(state.ebook),
+        _librarySection(ebooksController?.ebooks ?? const []),
+        if (ebooksController?.error != null) _libraryError(ebooksController!),
         if (controller.error != null) ...[
           const SizedBox(height: 8),
           _error(controller),
@@ -217,7 +222,10 @@ class _WellbeingProgramScreenState extends State<WellbeingProgramScreen> {
     ),
   );
 
-  Widget _completed(WellbeingProgramState state) => ListView(
+  Widget _completed(
+    WellbeingProgramState state,
+    List<WellbeingEbook> ebooks,
+  ) => ListView(
     padding: const EdgeInsets.all(20),
     children: [
       _title('30 jours pour prendre soin de toi ✓'),
@@ -232,20 +240,111 @@ class _WellbeingProgramScreenState extends State<WellbeingProgramScreen> {
       Text('${state.summary.totalActions} actions réalisées'),
       const SizedBox(height: 12),
       const Text('Programme terminé'),
+      const SizedBox(height: 24),
+      _librarySection(ebooks),
     ],
   );
 
-  Widget _ebookCard(WellbeingProgramEbook ebook) => Card(
-    child: ListTile(
-      title: Text(ebook.title),
-      subtitle: Text(ebook.subtitle),
-      trailing: ebook.pdfUrl?.trim().isNotEmpty == true
-          ? TextButton(
-              onPressed: () => _openEbook(ebook),
-              child: const Text('Ouvrir mon ebook offert'),
-            )
-          : const Text('Offert'),
+  Widget _librarySection(List<WellbeingEbook> ebooks) => Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      _title('Bibliothèque Auryel'),
+      const SizedBox(height: 4),
+      const Text('Des guides offerts pour prendre soin de toi.'),
+      const SizedBox(height: 10),
+      if (ebooks.isEmpty)
+        const Card(
+          child: ListTile(
+            leading: Icon(Icons.menu_book_outlined),
+            title: Text('Ton premier guide arrive bientôt.'),
+          ),
+        )
+      else
+        ...ebooks.map(_ebookCard),
+    ],
+  );
+
+  Widget _ebookCard(WellbeingEbook ebook) {
+    final pdfUrl = ebook.pdfUrl?.trim();
+    final coverUrl = ebook.coverUrl?.trim();
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            SizedBox(
+              width: 64,
+              height: 88,
+              child: coverUrl != null && coverUrl.isNotEmpty
+                  ? ClipRRect(
+                      borderRadius: BorderRadius.circular(8),
+                      child: Image.network(
+                        coverUrl,
+                        fit: BoxFit.cover,
+                        errorBuilder: (context, error, stackTrace) =>
+                            _coverPlaceholder(),
+                      ),
+                    )
+                  : _coverPlaceholder(),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    ebook.title,
+                    style: const TextStyle(fontWeight: FontWeight.w600),
+                  ),
+                  const SizedBox(height: 3),
+                  Text(ebook.subtitle),
+                  if (ebook.description != null) ...[
+                    const SizedBox(height: 4),
+                    Text(
+                      ebook.description!,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                  const SizedBox(height: 6),
+                  if (pdfUrl != null && pdfUrl.isNotEmpty)
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: TextButton(
+                        onPressed: () => _openEbook(pdfUrl),
+                        child: const Text('Lire l’ebook'),
+                      ),
+                    )
+                  else
+                    const Text(
+                      'Disponible prochainement',
+                      style: TextStyle(color: AuryelColors.textMuted),
+                    ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _coverPlaceholder() => DecoratedBox(
+    decoration: BoxDecoration(
+      color: AuryelColors.surfaceLight,
+      borderRadius: BorderRadius.circular(8),
     ),
+    child: const Icon(Icons.menu_book_outlined, color: AuryelColors.goldLight),
+  );
+
+  Widget _libraryError(WellbeingEbooksController controller) => Row(
+    children: [
+      const Expanded(
+        child: Text('La bibliothèque est momentanément indisponible.'),
+      ),
+      TextButton(onPressed: controller.refresh, child: const Text('Réessayer')),
+    ],
   );
 
   Widget _error(WellbeingProgramController controller) => Column(

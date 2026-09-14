@@ -52,6 +52,8 @@ class NotificationRouter {
           tabIndex: kTabConsultation,
           requiresAuth: true,
         );
+      case NotificationType.ebookMonthly:
+        return const NotificationRoute(tabIndex: kTabBienEtre);
       case NotificationType.unknown:
         return null;
     }
