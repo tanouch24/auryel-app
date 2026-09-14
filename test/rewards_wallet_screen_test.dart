@@ -132,8 +132,7 @@ void main() {
     expect(find.textContaining('rewarded_ad'), findsNothing);
   });
 
-  testWidgets('aucun bouton de dépense dans ce lot (Prompt 2/5 = acquisition '
-      'uniquement)', (t) async {
+  testWidgets('rappel Premium visible dans le wallet', (t) async {
     final rewards = _rewards(
       (_) async =>
           _json({'stars_balance': 500, 'rules': [], 'recent_transactions': []}),
@@ -143,8 +142,8 @@ void main() {
     await t.pump();
     await t.pump();
 
-    expect(find.textContaining('consultation'), findsNothing);
-    expect(find.textContaining('€'), findsNothing);
+    expect(find.text('Auryel Premium'), findsOneWidget);
+    expect(find.textContaining('4,99 €/mois'), findsOneWidget);
   });
 
   testWidgets('historique vide -> message neutre, jamais un crash', (t) async {

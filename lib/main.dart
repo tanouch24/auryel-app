@@ -98,7 +98,8 @@ void main() async {
     metaEvents: metaEvents,
   );
   // AUDIT ACCUEIL/PARCOURS — instance UNIQUE et PARTAGÉE (cf. WellbeingScope) :
-  // Accueil (« TES MISSIONS DU JOUR ») et « Mon parcours bien-être » lisent et
+  // Le parcours bien-être reste disponible dans son écran dédié ; la Home
+  // n'affiche plus les missions et le wallet Étoiles porte les règles actives.
   // notifient désormais le MÊME contrôleur. Corrige l'incohérence où Accueil
   // pouvait annoncer la journée terminée pendant que Parcours affichait 3/4
   // (deux systèmes de suivi indépendants qui pouvaient diverger).

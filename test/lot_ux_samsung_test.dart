@@ -8,7 +8,6 @@ import 'package:auryel/data/onboarding_record.dart';
 import 'package:auryel/data/onboarding_repository.dart';
 import 'package:auryel/screens/advisor_selector_screen.dart';
 import 'package:auryel/screens/home_screen.dart';
-import 'package:auryel/screens/wellbeing_journey_screen.dart';
 import 'package:auryel/state/auryel_state.dart';
 import 'package:auryel/widgets/main_nav_scope.dart';
 
@@ -68,42 +67,26 @@ class _FakeAudio implements AdvisorAudio {
 void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
 
-  group('Accueil — CTA parcours bien-être', () {
-    testWidgets('le CTA « Suis ton parcours pendant 30 jours » est visible', (
+  group('Accueil — Home v2 responsive', () {
+    testWidgets('offres visibles et anciennes missions absentes', (t) async {
+      await t.pumpWidget(_home());
+      await t.pumpAndSettle();
+      expect(find.text('DÉCOUVRE LES OFFRES DE CONSULTATION'), findsOneWidget);
+      expect(find.text('4,99 €/mois'), findsOneWidget);
+      expect(find.text('TES MISSIONS DU JOUR'), findsNothing);
+      expect(find.text('Suis ton parcours pendant 30 jours'), findsNothing);
+    });
+
+    testWidgets('le contenu quotidien reste accessible après les offres', (
       t,
     ) async {
       await t.pumpWidget(_home());
       await t.pumpAndSettle();
-      expect(find.text('Suis ton parcours pendant 30 jours'), findsOneWidget);
+      await t.ensureVisible(find.text('Partager maintenant'));
+      expect(find.text('Partager maintenant'), findsOneWidget);
     });
 
-    testWidgets('CORRECTIF PRODUIT — le sous-texte ne promet plus 15 min de '
-        'consultation (univers recentré sur les Étoiles)', (t) async {
-      await t.pumpWidget(_home());
-      await t.pumpAndSettle();
-      expect(
-        find.text(
-          'Avance à ton rythme. Chaque journée complétée construit ton '
-          'parcours.',
-        ),
-        findsOneWidget,
-      );
-      expect(find.textContaining('15 min'), findsNothing);
-    });
-
-    testWidgets('tap sur le CTA -> ouvre l\'écran parcours (carte)', (t) async {
-      await t.pumpWidget(_home());
-      await t.pumpAndSettle();
-      final cta = find.text('Suis ton parcours pendant 30 jours');
-      await t.ensureVisible(cta);
-      await t.pumpAndSettle();
-      await t.tap(cta);
-      await t.pumpAndSettle();
-      expect(find.byType(WellbeingJourneyScreen), findsOneWidget);
-    });
-
-    testWidgets('petit écran Samsung 360×640 : CTA présent, aucun overflow '
-        'introduit par la carte CTA', (t) async {
+    testWidgets('petit écran Samsung 360×640 : pas d\'overflow', (t) async {
       t.view.physicalSize = const Size(360, 640);
       t.view.devicePixelRatio = 1.0;
       addTearDown(t.view.resetPhysicalSize);
@@ -111,7 +94,6 @@ void main() {
       await t.pumpWidget(_home());
       await t.pumpAndSettle();
       expect(t.takeException(), isNull);
-      expect(find.text('Suis ton parcours pendant 30 jours'), findsOneWidget);
     });
   });
 

@@ -420,7 +420,7 @@ void main() {
       findsOneWidget,
     );
     expect(find.textContaining('à la prochaine période'), findsOneWidget);
-    expect(find.text('Premium — 7,99 €/mois'), findsNothing);
+    expect(find.text('Premium — 4,99 €/mois'), findsNothing);
     expect(find.text('Découvrir Premium'), findsNothing);
     expect(find.textContaining('consultations de 2 h'), findsNothing);
     expect(find.textContaining('4 consultations'), findsNothing);
@@ -429,7 +429,7 @@ void main() {
   });
 
   testWidgets(
-    '402 time_exhausted (non Premium) -> upsell 8 h/mois + Découvrir Premium',
+    '402 time_exhausted (non Premium) -> upsell 4 h/mois + Découvrir Premium',
     (t) async {
       const body = {
         'error': 'time_exhausted',
@@ -456,10 +456,10 @@ void main() {
         findsOneWidget,
       );
       expect(
-        find.textContaining('8 h de consultation par mois'),
+        find.textContaining('4 h de consultation par mois'),
         findsOneWidget,
       );
-      expect(find.text('Premium — 7,99 €/mois'), findsOneWidget);
+      expect(find.text('Premium — 4,99 €/mois'), findsOneWidget);
       expect(find.text('Découvrir Premium'), findsOneWidget);
       expect(find.textContaining('4 consultations'), findsNothing);
       expect(find.textContaining('consultations de 2 h'), findsNothing);

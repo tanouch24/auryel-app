@@ -1290,10 +1290,11 @@ class _TimeAvailableBlock extends StatelessWidget {
       if (!c.hasActiveSession && total == t.firstFreeRemainingSeconds) {
         return '$minutes minutes offertes';
       }
-      if (c.hasActiveSession || seconds > 0) {
+      if (c.hasActiveSession && total < 3600) {
         return '$minutes min ${seconds.toString().padLeft(2, '0')} s restantes';
       }
-      return '$minutes min restantes';
+      final formatted = ConsultationController.formatTotalTime(total);
+      return '$formatted restantes';
     }
     if (t == null && c.quota?.firstFreeAvailable == true) {
       return '20 minutes offertes';

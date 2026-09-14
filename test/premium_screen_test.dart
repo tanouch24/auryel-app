@@ -95,12 +95,12 @@ Map<String, dynamic> _verifyOk() => {
   'quota': _stateBody()['quota'],
 };
 
-ProductDetails _product({String price = '7,99 €'}) => ProductDetails(
+ProductDetails _product({String price = '4,99 €'}) => ProductDetails(
   id: kPremiumMonthlyProductId,
   title: 'Auryel Premium',
   description: 'desc',
   price: price,
-  rawPrice: 7.99,
+  rawPrice: 4.99,
   currencyCode: 'EUR',
   currencySymbol: '€',
 );
@@ -185,14 +185,14 @@ Future<http.Response> _happy(http.Request r) async {
 void main() {
   testWidgets('A/B produit dispo -> titre + prix store affichés', (t) async {
     final rig = _rig(handler: _happy);
-    rig.gateway.products = [_product(price: '7,99 €')];
+    rig.gateway.products = [_product(price: '4,99 €')];
     await rig.controller.initialize();
     await _pump(t, rig.controller);
     await t.pump();
 
     expect(find.text('Auryel Premium'), findsOneWidget);
-    expect(find.text('8 h de consultation par mois'), findsOneWidget);
-    expect(find.text('7,99 €'), findsOneWidget); // prix du store
+    expect(find.text('4 h de consultation par mois'), findsOneWidget);
+    expect(find.text('4,99 €'), findsOneWidget); // prix du store
     expect(find.text('S’abonner'), findsOneWidget);
     expect(find.text('Restaurer mes achats'), findsOneWidget);
   });
@@ -321,13 +321,13 @@ void main() {
   testWidgets('J3 — accès aux textes juridiques + infos essentielles, sans '
       'déclencher d\'achat', (t) async {
     final rig = _rig(handler: _happy);
-    rig.gateway.products = [_product(price: '7,99 €')];
+    rig.gateway.products = [_product(price: '4,99 €')];
     await rig.controller.initialize();
     await _pump(t, rig.controller);
     await t.pump();
 
     // Rappel juridique essentiel présent sur l'écran d'achat.
-    expect(find.text('7,99 €'), findsOneWidget); // prix du Store, autoritaire
+    expect(find.text('4,99 €'), findsOneWidget); // prix du Store, autoritaire
     expect(
       find.textContaining('renouvellement automatique via Google Play'),
       findsOneWidget,
@@ -349,7 +349,7 @@ void main() {
     // Écran de lecture in-app, AUCUN achat déclenché par la navigation.
     expect(find.byType(LegalDocumentScreen), findsOneWidget);
     expect(
-      find.textContaining('8 heures de consultation par mois'),
+      find.textContaining('4 heures de consultation par mois'),
       findsWidgets,
     );
     expect(rig.gateway.buyCalls, buyBefore);

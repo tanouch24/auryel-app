@@ -95,7 +95,7 @@ class _Body extends StatelessWidget {
     final p = controller.premiumProduct?.price;
     // Prix STORE d'abord (régionalisé, autoritaire). Store indisponible ->
     // libellé neutre, JAMAIS un prix inventé ni un faux ProductDetails
-    // (le « 7,99 €/mois » marketing vit sur la carte Dashboard, pas ici).
+    // Le prix Store reste autoritaire ; la carte Home porte le rappel produit.
     return (p != null && p.isNotEmpty) ? p : 'Abonnement mensuel';
   }
 

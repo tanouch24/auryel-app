@@ -342,14 +342,14 @@ AURYEL PREMIUM
 Auryel Premium est un abonnement payant donnant accès à un volume de temps
 de consultation et aux échanges illimités pendant ce temps.
 Identifiant du produit : auryel_premium_monthly.
-Prix commercial de référence : 7,99 € par mois. Le prix effectivement
+Prix commercial de référence : 4,99 € par mois. Le prix effectivement
 facturé est celui affiché par le magasin (Google Play ou App Store) au
 moment de l'achat, dans votre devise et selon votre région ; en cas de
 différence, le prix du magasin fait foi.
 
 CONTENU
 
-8 heures de consultation par mois. Messages illimités pendant le temps de
+4 heures de consultation par mois. Messages illimités pendant le temps de
 consultation disponible. Le décompte du temps et des droits est géré par le
 serveur.
 

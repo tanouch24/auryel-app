@@ -1006,7 +1006,7 @@ class _NoCreditPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // TIMER-D.2 — panneau « temps épuisé ». Non-Premium : upsell 8 h/mois.
+    // TIMER-D.2 — panneau « temps épuisé ». Non-Premium : upsell 4 h/mois.
     // Premium : pas de promesse d'achat d'heure (consommable non câblé).
     final isPremium = quota?.isPremium == true;
     return Container(
@@ -1036,7 +1036,7 @@ class _NoCreditPanel extends StatelessWidget {
               isPremium
                   ? 'Ta conversation reste enregistrée. Ton temps se '
                         'renouvellera à la prochaine période.'
-                  : 'Passe à Premium pour continuer, avec 8 h de consultation '
+                  : 'Passe à Premium pour continuer, avec 4 h de consultation '
                         'par mois.',
               style: AuryelText.body(
                 fontSize: 13,
@@ -1046,7 +1046,7 @@ class _NoCreditPanel extends StatelessWidget {
             if (!isPremium) ...[
               const SizedBox(height: 12),
               Text(
-                'Premium — 7,99 €/mois',
+                'Premium — 4,99 €/mois',
                 style: AuryelText.body(
                   fontSize: 14,
                   fontWeight: FontWeight.w600,

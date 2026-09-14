@@ -494,18 +494,20 @@ void main() {
       },
     };
 
-    test('availableTimeLabel — bienvenue pas encore ouverte (buckets à 0) '
-        '-> libellé neutre, jamais « 0 min », jamais une durée figée en dur',
-        () {
-      // GROS CHANTIER ÉCONOMIQUE (Prompt 1/5) : le backend ne crédite le
-      // bucket bienvenue qu'à l'ouverture de la 1re consultation ; d'ici là
-      // on ne connaît pas le montant réel (20 min désormais, Migration v48)
-      // -> jamais de durée figée en dur (ex-« 1 h offerte »).
-      expect(
-        labelRig(timeQuota(ffAvail: true)).availableTimeLabel,
-        'Temps offert disponible',
-      );
-    });
+    test(
+      'availableTimeLabel — bienvenue pas encore ouverte (buckets à 0) '
+      '-> libellé neutre, jamais « 0 min », jamais une durée figée en dur',
+      () {
+        // GROS CHANTIER ÉCONOMIQUE (Prompt 1/5) : le backend ne crédite le
+        // bucket bienvenue qu'à l'ouverture de la 1re consultation ; d'ici là
+        // on ne connaît pas le montant réel (20 min désormais, Migration v48)
+        // -> jamais de durée figée en dur (ex-« 1 h offerte »).
+        expect(
+          labelRig(timeQuota(ffAvail: true)).availableTimeLabel,
+          'Temps offert disponible',
+        );
+      },
+    );
 
     test(
       'availableTimeLabel — portefeuille vide, pas de gratuite -> « 0 min »',
@@ -564,8 +566,9 @@ void main() {
   // D. Accueil
   // =========================================================================
   group('D. Accueil', () {
-    testWidgets('consultation active -> "Consultation en cours" (CTA + ligne) '
-        '+ portefeuille "3 h"', (t) async {
+    testWidgets('consultation active -> compteur serveur + CTA consultation', (
+      t,
+    ) async {
       final rig = _rig((req) async {
         if (req.url.path == '/api/consultation/state') {
           return _json(
@@ -587,12 +590,8 @@ void main() {
       // J6-F2 §9 — « Consultation en cours » (jamais « Reprendre »).
       expect(find.text('Consultation en cours'), findsOneWidget);
       expect(find.text('Reprendre'), findsNothing);
-      expect(
-        find.textContaining('Consultation en cours avec Séléna'),
-        findsOneWidget,
-      );
-      // TIMER-D.2 — portefeuille d'heures, pas un countdown.
-      expect(find.text('3 h'), findsOneWidget);
+      expect(find.text('Temps réel communiqué par le serveur'), findsOneWidget);
+      expect(find.text('3 h restantes'), findsOneWidget);
       expect(find.textContaining('consultations'), findsNothing);
     });
 
@@ -616,8 +615,7 @@ void main() {
     });
 
     // F5-C — états du bloc consultation dérivés du quota RÉEL (lecture seule).
-    testWidgets('first_free_available -> "Commencer une consultation" + "20 '
-        'min" (bienvenue réellement créditée, Migration v48)', (t) async {
+    testWidgets('first_free_available -> 20 minutes offertes', (t) async {
       final rig = _rig((req) async {
         if (req.url.path == '/api/consultation/state') {
           return _json(_noState(isPremium: false, firstFree: true));
@@ -628,27 +626,25 @@ void main() {
       await _pumpWithin(t, rig, const HomeScreen());
       await t.pumpAndSettle();
       expect(find.text('Commencer une consultation'), findsOneWidget);
-      // Bloc compact « TEMPS DISPONIBLE » : valeur mise en avant.
-      expect(find.text('TEMPS DISPONIBLE'), findsOneWidget);
-      expect(find.text('20 min'), findsOneWidget);
+      expect(find.text('TON TEMPS DE CONSULTATION'), findsOneWidget);
+      expect(find.text('20 minutes offertes'), findsOneWidget);
     });
 
-    testWidgets(
-      'TIMER-D.1 : crédit gagné SANS temps -> S’abonner (l\'earned ne '
-      'déverrouille plus l\'accès)',
-      (t) async {
-        final rig = _rig((req) async {
-          if (req.url.path == '/api/consultation/state') {
-            return _json(_noState(isPremium: false, earned: 1, timeTotal: 0));
-          }
-          return _json({}, 404);
-        });
-        await rig.controller.refresh();
-        await _pumpWithin(t, rig, const HomeScreen());
-        await t.pumpAndSettle();
-        expect(find.text('S’abonner'), findsOneWidget);
-      },
-    );
+    testWidgets('TIMER-D.1 : crédit gagné sans temps -> solutions Premium', (
+      t,
+    ) async {
+      final rig = _rig((req) async {
+        if (req.url.path == '/api/consultation/state') {
+          return _json(_noState(isPremium: false, earned: 1, timeTotal: 0));
+        }
+        return _json({}, 404);
+      });
+      await rig.controller.refresh();
+      await _pumpWithin(t, rig, const HomeScreen());
+      await t.pumpAndSettle();
+      expect(find.text('Temps de consultation épuisé'), findsOneWidget);
+      expect(find.text('Auryel Premium'), findsOneWidget);
+    });
 
     testWidgets('temps disponible -> CTA "Commencer une consultation"', (
       t,
@@ -665,7 +661,7 @@ void main() {
       expect(find.text('Commencer une consultation'), findsOneWidget);
     });
 
-    testWidgets('ni gratuite, ni temps -> S’abonner', (t) async {
+    testWidgets('ni gratuite, ni temps -> solutions Premium', (t) async {
       final rig = _rig((req) async {
         if (req.url.path == '/api/consultation/state') {
           return _json(
@@ -683,10 +679,11 @@ void main() {
       await rig.controller.refresh();
       await _pumpWithin(t, rig, const HomeScreen());
       await t.pumpAndSettle();
-      expect(find.text('S’abonner'), findsOneWidget);
+      expect(find.text('Temps de consultation épuisé'), findsOneWidget);
+      expect(find.text('Auryel Premium'), findsOneWidget);
     });
 
-    testWidgets('Premium SANS temps restant -> S’abonner', (t) async {
+    testWidgets('Premium SANS temps restant -> solutions Premium', (t) async {
       final rig = _rig((req) async {
         if (req.url.path == '/api/consultation/state') {
           return _json(_noState(timeTotal: 0)); // Premium mais time.total = 0
@@ -696,7 +693,8 @@ void main() {
       await rig.controller.refresh();
       await _pumpWithin(t, rig, const HomeScreen());
       await t.pumpAndSettle();
-      expect(find.text('S’abonner'), findsOneWidget);
+      expect(find.text('Temps de consultation épuisé'), findsOneWidget);
+      expect(find.text('Auryel Premium'), findsOneWidget);
     });
 
     testWidgets('J6-F2 §21 : tap CTA -> demande l\'onglet Consultation, jamais '
@@ -938,7 +936,7 @@ void main() {
           find.text('Ton temps de consultation disponible est épuisé.'),
           findsOneWidget,
         );
-        expect(find.text('Premium — 7,99 €/mois'), findsNothing);
+        expect(find.text('Premium — 4,99 €/mois'), findsNothing);
         expect(rig.controller.active, isNull);
         // TIMER-D.1 — le corps du 402 resynchronise `time` (0) + `quota`.
         expect(rig.controller.time!.totalRemainingSeconds, 0);
@@ -1046,11 +1044,13 @@ void main() {
       },
     );
 
-    test('reset() est un no-op silencieux après dispose (jamais d’exception)',
-        () async {
-      final rig = _rig((req) async => _json(_activeState()));
-      rig.controller.dispose();
-      expect(rig.controller.reset, returnsNormally);
-    });
+    test(
+      'reset() est un no-op silencieux après dispose (jamais d’exception)',
+      () async {
+        final rig = _rig((req) async => _json(_activeState()));
+        rig.controller.dispose();
+        expect(rig.controller.reset, returnsNormally);
+      },
+    );
   });
 }

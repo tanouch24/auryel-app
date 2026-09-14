@@ -195,7 +195,8 @@ void main() {
         expect(
           find.text('Premium actif'),
           findsOneWidget,
-          reason: 'PremiumScreen doit refléter isPremium=true sans qu’on '
+          reason:
+              'PremiumScreen doit refléter isPremium=true sans qu’on '
               'quitte l’écran',
         );
         expect(find.text('S’abonner'), findsNothing);
@@ -208,37 +209,33 @@ void main() {
 
   group('2 — DashboardScreen (section abonnement) se reconstruit sans '
       'navigation', () {
-    testWidgets(
-      'statut initial non-Premium -> notifyListeners Premium=true -> '
-      'section abonnement seule se met à jour',
-      (t) async {
-        var premium = false;
-        final rig = _rig(
-          (req) async => _json(_stateJson(isPremium: premium)),
-        );
-        await rig.consultation.refresh(); // état initial résolu : false
-        await t.pumpWidget(_dashHost(rig));
-        await t.pumpAndSettle();
+    testWidgets('statut initial non-Premium -> notifyListeners Premium=true -> '
+        'section abonnement seule se met à jour', (t) async {
+      var premium = false;
+      final rig = _rig((req) async => _json(_stateJson(isPremium: premium)));
+      await rig.consultation.refresh(); // état initial résolu : false
+      await t.pumpWidget(_dashHost(rig));
+      await t.pumpAndSettle();
 
-        expect(find.text('Actif'), findsNothing);
-        expect(find.text('8 h de consultation par mois'), findsOneWidget);
+      expect(find.text('Actif'), findsNothing);
+      expect(find.text('4 h de consultation par mois'), findsOneWidget);
 
-        // Le resync arrive et change le statut, SANS navigation.
-        premium = true;
-        await rig.consultation.refresh();
-        await t.pump();
+      // Le resync arrive et change le statut, SANS navigation.
+      premium = true;
+      await rig.consultation.refresh();
+      await t.pump();
 
-        expect(
-          find.text('Actif'),
-          findsOneWidget,
-          reason: 'la section abonnement doit refléter isPremium=true sans '
-              'quitter/revenir sur le Dashboard',
-        );
-        expect(find.text('8 h de consultation par mois'), findsNothing);
+      expect(
+        find.text('Actif'),
+        findsOneWidget,
+        reason:
+            'la section abonnement doit refléter isPremium=true sans '
+            'quitter/revenir sur le Dashboard',
+      );
+      expect(find.text('4 h de consultation par mois'), findsNothing);
 
-        await t.pumpAndSettle();
-      },
-    );
+      await t.pumpAndSettle();
+    });
   });
 
   group('5 — relance simulée : refresh arrive APRÈS le premier rendu', () {
@@ -292,7 +289,8 @@ void main() {
         expect(
           find.text('Premium actif'),
           findsNothing,
-          reason: 'le Premium de l’ancien compte ne doit plus être affiché '
+          reason:
+              'le Premium de l’ancien compte ne doit plus être affiché '
               'dès la déconnexion',
         );
 

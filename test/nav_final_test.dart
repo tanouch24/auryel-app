@@ -21,7 +21,6 @@ import 'package:auryel/screens/consultation_screen.dart';
 import 'package:auryel/screens/dashboard_screen.dart';
 import 'package:auryel/screens/home_screen.dart';
 import 'package:auryel/screens/jeu_auryel_screen.dart';
-import 'package:auryel/screens/meditation_feed_screen.dart';
 import 'package:auryel/screens/tirage_jeu_screen.dart';
 import 'package:auryel/screens/tirage_screen.dart';
 import 'package:auryel/screens/wellbeing_journey_screen.dart';
@@ -108,22 +107,19 @@ void main() {
   // NAVIGATION (5 cas)
   // -------------------------------------------------------------------------
   group('Navigation V1', () {
-    testWidgets(
-      'N1 — les 5 onglets finaux sont présents (Réveil remplace Mon '
-      'compte), Boutique retirée',
-      (t) async {
-        await t.pumpWidget(_shell());
-        await t.pumpAndSettle();
+    testWidgets('N1 — les 5 onglets finaux sont présents (Réveil remplace Mon '
+        'compte), Boutique retirée', (t) async {
+      await t.pumpWidget(_shell());
+      await t.pumpAndSettle();
 
-        expect(_tab('Accueil'), findsOneWidget);
-        expect(_tab('Tirage & Jeu'), findsOneWidget);
-        expect(_tab('Consultation'), findsOneWidget);
-        expect(_tab('Méditation'), findsOneWidget);
-        expect(_tab('Réveil'), findsOneWidget);
-        expect(_tab('Boutique'), findsNothing);
-        expect(_tab('Mon compte'), findsNothing);
-      },
-    );
+      expect(_tab('Accueil'), findsOneWidget);
+      expect(_tab('Tirage & Jeu'), findsOneWidget);
+      expect(_tab('Consultation'), findsOneWidget);
+      expect(_tab('Méditation'), findsOneWidget);
+      expect(_tab('Réveil'), findsOneWidget);
+      expect(_tab('Boutique'), findsNothing);
+      expect(_tab('Mon compte'), findsNothing);
+    });
 
     testWidgets('N2 — CONSULTATION est au centre (index 2) entre Tirage & Jeu '
         'et Méditation', (t) async {
@@ -297,50 +293,36 @@ void main() {
   });
 
   // -------------------------------------------------------------------------
-  // HOME — routage des missions (3 cas)
+  // HOME — les missions ne sont plus dans la Home (3 anciens cas remplacés)
   // -------------------------------------------------------------------------
-  group('Home → onglets', () {
-    // AUDIT ACCUEIL/PARCOURS — Accueil affiche désormais les 4 missions
-    // SERVEUR (mêmes libellés que le parcours bien-être, dont « Consultation »
-    // qui collide textuellement avec l'onglet de bottom nav du même nom). On
-    // scope donc la recherche aux descendants de HomeScreen (montage unique,
-    // IndexedStack) plutôt qu'au texte brut.
-    Finder homeMission(String label) => find.descendant(
-      of: find.byType(HomeScreen),
-      matching: find.text(label),
-    );
-
-    testWidgets('H1 — mission Tirage renvoie vers l\'onglet 1 (hub), pas '
-        'directement TirageScreen', (t) async {
-      await t.pumpWidget(_shell());
-      await t.pumpAndSettle();
-
-      await t.tap(homeMission('Carte du jour'));
-      await t.pumpAndSettle();
-      expect(find.byType(TirageJeuScreen), findsOneWidget);
-      expect(find.byType(TirageScreen), findsNothing);
-    });
-
-    testWidgets('H2 — mission Consultation renvoie vers l\'onglet central', (
+  group('Home → espace commercial', () {
+    testWidgets('H1 — aucune mission ancienne n\'est montée dans la Home', (
       t,
     ) async {
       await t.pumpWidget(_shell());
       await t.pumpAndSettle();
+      expect(find.text('TES MISSIONS DU JOUR'), findsNothing);
+      expect(find.text('Carte du jour'), findsNothing);
+      expect(find.text('Prends ton temps'), findsNothing);
+      expect(find.text('DÉCOUVRE LES OFFRES DE CONSULTATION'), findsOneWidget);
+    });
 
-      await t.tap(homeMission('Consultation'));
+    testWidgets('H2 — les onglets fonctionnels restent présents', (t) async {
+      await t.pumpWidget(_shell());
+      await t.pumpAndSettle();
+      expect(find.byKey(const Key('auryel-bottom-tab-bar')), findsOneWidget);
+      expect(find.text('Consultation'), findsOneWidget);
+      expect(find.text('Méditation'), findsOneWidget);
+    });
+
+    testWidgets('H3 — l\'accès consultation passe par l\'onglet dédié', (
+      t,
+    ) async {
+      await t.pumpWidget(_shell());
+      await t.pumpAndSettle();
+      await t.tap(find.text('Consultation').last);
       await t.pumpAndSettle();
       expect(find.byType(ConsultationScreen), findsOneWidget);
-    });
-
-    testWidgets('H3 — mission Moment renvoie vers l\'onglet Méditation', (
-      t,
-    ) async {
-      await t.pumpWidget(_shell());
-      await t.pumpAndSettle();
-
-      await t.tap(find.text('Prends ton temps'));
-      await t.pumpAndSettle();
-      expect(find.byType(MeditationFeedScreen), findsOneWidget);
     });
   });
 

@@ -130,12 +130,12 @@ Map<String, dynamic> _verifyOk() => {
   'quota': _quota(premium: true),
 };
 
-ProductDetails _product({String price = '7,99 €'}) => ProductDetails(
+ProductDetails _product({String price = '4,99 €'}) => ProductDetails(
   id: kPremiumMonthlyProductId,
   title: 'Auryel Premium',
   description: 'desc',
   price: price,
-  rawPrice: 7.99,
+  rawPrice: 4.99,
   currencyCode: 'EUR',
   currencySymbol: '€',
 );

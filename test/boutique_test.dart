@@ -94,7 +94,9 @@ void main() {
     expect(find.byType(CartScreen), findsNothing);
     expect(find.byType(ProductDetailScreen), findsNothing);
     expect(find.byTooltip('Mon panier'), findsNothing);
-    expect(find.textContaining('€'), findsNothing);
+    // Le shell monte désormais l'offre Premium dans Home ; ce n'est pas un
+    // produit Boutique. Les produits/panier Boutique restent absents.
+    expect(find.textContaining('4,99 €/mois'), findsOneWidget);
     for (final p in kShopProducts) {
       expect(find.text(p.name), findsNothing, reason: p.name);
     }

@@ -74,7 +74,10 @@ Widget _home() => AuryelStateScope(
 /// autour de lui ne pourrait persister quoi que ce soit même s'il le voulait.
 Widget _poc() => const MaterialApp(home: WellbeingSagaMapPocScreen());
 
-Future<void> _pumpTall(WidgetTester t, {Size size = const Size(400, 1400)}) async {
+Future<void> _pumpTall(
+  WidgetTester t, {
+  Size size = const Size(400, 1400),
+}) async {
   t.view.physicalSize = size;
   t.view.devicePixelRatio = 1.0;
   addTearDown(t.view.resetPhysicalSize);
@@ -86,40 +89,17 @@ Future<void> _pumpTall(WidgetTester t, {Size size = const Size(400, 1400)}) asyn
 void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
 
-  group('Accueil — accès POC isolé (test Samsung uniquement)', () {
-    testWidgets('tap normal sur le CTA -> écran de PRODUCTION (inchangé)', (
+  group('Accueil — accès missions déplacé vers Étoiles', () {
+    testWidgets('la Home ne rend plus le CTA parcours ni les missions', (
       t,
     ) async {
       await t.pumpWidget(_home());
       await t.pumpAndSettle();
-      final cta = find.text('Suis ton parcours pendant 30 jours');
-      await t.ensureVisible(cta);
-      await t.pumpAndSettle();
-      await t.tap(cta);
-      await t.pumpAndSettle();
-      expect(find.byType(WellbeingJourneyScreen), findsOneWidget);
+      expect(find.text('Suis ton parcours pendant 30 jours'), findsNothing);
+      expect(find.text('TES MISSIONS DU JOUR'), findsNothing);
+      expect(find.byType(WellbeingJourneyScreen), findsNothing);
       expect(find.byType(WellbeingSagaMapPocScreen), findsNothing);
     });
-
-    testWidgets(
-      'appui long -> ouvre le POC saga_map (accès test, pas kDebugMode)',
-      (t) async {
-        expect(
-          kAuryelPocTempSamsungTestAccessEnabled,
-          isTrue,
-          reason:
-              'Accès temporaire attendu actif pour CE build de test Samsung.',
-        );
-        await t.pumpWidget(_home());
-        await t.pumpAndSettle();
-        final cta = find.text('Suis ton parcours pendant 30 jours');
-        await t.ensureVisible(cta);
-        await t.pumpAndSettle();
-        await t.longPress(cta);
-        await _settle(t);
-        expect(find.byType(WellbeingSagaMapPocScreen), findsOneWidget);
-      },
-    );
   });
 
   group('POC — les 30 étapes', () {
@@ -150,7 +130,10 @@ void main() {
       // La caméra s'ouvre centrée sur le jour actuel (12) : le jour 1 est
       // au-dessus du viewport. On fait défiler vers le haut du monde pour
       // l'atteindre, comme le ferait une utilisatrice.
-      await t.drag(find.byKey(const Key('poc-map-viewer')), const Offset(0, 5000));
+      await t.drag(
+        find.byKey(const Key('poc-map-viewer')),
+        const Offset(0, 5000),
+      );
       await _settle(t);
       await t.tap(find.byKey(const Key('poc-node-0'))); // jour 1
       await _settle(t);

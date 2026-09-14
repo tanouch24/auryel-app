@@ -166,6 +166,7 @@ void main() {
     await t.pumpWidget(_host());
     await t.pump(const Duration(seconds: 1));
 
+    await t.ensureVisible(find.text(_shareBtn));
     await t.tap(find.text(_shareBtn));
     await t.pump();
     await t.pump(const Duration(milliseconds: 400));
@@ -213,6 +214,7 @@ void main() {
     await t.pumpWidget(_host());
     await t.pump(const Duration(seconds: 1));
 
+    await t.ensureVisible(find.text(_shareBtn));
     await t.tap(find.text(_shareBtn));
     await t.pump();
     await t.pump(const Duration(milliseconds: 400));
@@ -269,6 +271,7 @@ void main() {
     expect(heartOutline, findsOneWidget);
     expect(heartFilled, findsNothing);
 
+    await t.ensureVisible(heartOutline);
     await t.tap(heartOutline);
     await t.pump();
     await t.pump(const Duration(milliseconds: 50));
@@ -324,6 +327,7 @@ void main() {
   ) async {
     await t.pumpWidget(_host());
     await t.pump(const Duration(seconds: 1));
+    await t.ensureVisible(find.text(_shareBtn));
     await t.tap(find.text(_shareBtn));
     await t.pump();
     await t.pump(const Duration(milliseconds: 400));

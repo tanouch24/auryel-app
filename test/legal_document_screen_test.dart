@@ -87,7 +87,7 @@ void main() {
 
     // Premium : nature non contractuelle des récompenses, fonctions V1 exclues.
     final premium = flat(kPremiumTermsInAppText);
-    expect(premium, contains('8 heures de consultation par mois'));
+    expect(premium, contains('4 heures de consultation par mois'));
     expect(premium, contains('le prix du magasin fait foi'));
     expect(premium, contains('ne sont pas disponibles à ce jour'));
     expect(premium, contains('bonus non contractuels'));
@@ -99,10 +99,14 @@ void main() {
     expect(privacy, contains('Firebase Cloud Messaging'));
     expect(privacy, contains('Meta Platforms, Inc.'));
     expect(privacy, contains("n'est pas pré-coché et reste révocable"));
-    expect(privacy,
-        contains("Aucune mesure publicitaire sans votre consentement explicite"));
-    expect(privacy,
-        contains("identifiant publicitaire de l'appareil n'est pas collecté"));
+    expect(
+      privacy,
+      contains("Aucune mesure publicitaire sans votre consentement explicite"),
+    );
+    expect(
+      privacy,
+      contains("identifiant publicitaire de l'appareil n'est pas collecté"),
+    );
 
     // Identité éditeur.
     expect(kPublisherIdentitySummary, contains('3E Technology Ltd'));

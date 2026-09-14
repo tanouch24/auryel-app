@@ -277,15 +277,15 @@ void main() {
   });
 
   testWidgets(
-    'G — Premium non abonné : 8 h / mois + 7,99 €/mois + S\'abonner',
+    'G — Premium non abonné : 4 h / mois + 4,99 €/mois + S\'abonner',
     (t) async {
       await t.pumpWidget(
         _dash(consultation: _consController(isPremium: false)),
       );
       await t.pump();
       expect(find.text('Auryel Premium'), findsOneWidget);
-      expect(find.text('8 h de consultation par mois'), findsOneWidget);
-      expect(find.text('7,99 €/mois'), findsOneWidget);
+      expect(find.text('4 h de consultation par mois'), findsOneWidget);
+      expect(find.text('4,99 €/mois'), findsOneWidget);
       expect(find.text('S’abonner'), findsOneWidget);
     },
   );

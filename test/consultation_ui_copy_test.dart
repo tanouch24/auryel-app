@@ -113,7 +113,7 @@ void main() {
   // -------------------------------------------------------------------------
   group('Accueil — bloc consultation', () {
     testWidgets(
-      'A. bienvenue disponible (20 min, Migration v48) -> "20 min"',
+      'A. bienvenue disponible (20 min, Migration v48) -> "20 minutes offertes"',
       (t) async {
         final rig = _rig(
           (_) async => _json({
@@ -127,16 +127,13 @@ void main() {
         await t.pumpAndSettle();
         expect(find.textContaining('2 h'), findsNothing);
         expect(find.textContaining('consultations'), findsNothing);
-        // Bloc compact « TEMPS DISPONIBLE » : label + valeur brute + CTA.
-        expect(find.text('TEMPS DISPONIBLE'), findsOneWidget);
-        expect(find.text('20 min'), findsOneWidget);
+        expect(find.text('TON TEMPS DE CONSULTATION'), findsOneWidget);
+        expect(find.text('20 minutes offertes'), findsOneWidget);
         expect(find.text('Commencer une consultation'), findsOneWidget);
       },
     );
 
-    testWidgets('B/E. Premium avec temps -> "7 h 42 min disponibles"', (
-      t,
-    ) async {
+    testWidgets('B/E. Premium avec temps -> "7 h 42 min restantes"', (t) async {
       final rig = _rig(
         (_) async => _json({
           'consultation': null,
@@ -150,12 +147,13 @@ void main() {
       expect(find.text('Commencer une consultation'), findsOneWidget);
       expect(find.textContaining('/8'), findsNothing);
       expect(find.textContaining('consultations restantes'), findsNothing);
-      // Bloc compact « TEMPS DISPONIBLE » + valeur brute « 7 h 42 min ».
-      expect(find.text('TEMPS DISPONIBLE'), findsOneWidget);
-      expect(find.text('7 h 42 min'), findsOneWidget);
+      expect(find.text('TON TEMPS DE CONSULTATION'), findsOneWidget);
+      expect(find.text('7 h 42 min restantes'), findsOneWidget);
     });
 
-    testWidgets('J. 0 temps -> "S’abonner pour consulter"', (t) async {
+    testWidgets('J. 0 temps -> solutions Premium affichées sous le compteur', (
+      t,
+    ) async {
       final rig = _rig(
         (_) async => _json({
           'consultation': null,
@@ -166,10 +164,12 @@ void main() {
       await rig.controller.refresh();
       await _pumpHome(t, rig);
       await t.pumpAndSettle();
-      expect(find.text('S’abonner'), findsOneWidget);
-      // Bloc compact « TEMPS DISPONIBLE » = « 0 min ».
-      expect(find.text('TEMPS DISPONIBLE'), findsOneWidget);
-      expect(find.text('0 min'), findsOneWidget);
+      expect(find.text('Temps de consultation épuisé'), findsOneWidget);
+      expect(
+        find.text('Découvre les solutions ci-dessous pour continuer.'),
+        findsOneWidget,
+      );
+      expect(find.text('Auryel Premium'), findsOneWidget);
     });
 
     testWidgets('reprise -> "Consultation en cours" + "X disponibles"', (
@@ -199,11 +199,8 @@ void main() {
       // (l'ancien « Reprendre » qui ouvrait un ChatScreen est supprimé).
       expect(find.text('Consultation en cours'), findsOneWidget);
       expect(find.text('Reprendre'), findsNothing);
-      expect(
-        find.textContaining('Consultation en cours avec Séléna'),
-        findsOneWidget,
-      );
-      expect(find.text('3 h 20 min'), findsOneWidget);
+      expect(find.text('Temps réel communiqué par le serveur'), findsOneWidget);
+      expect(find.text('3 h 20 min restantes'), findsOneWidget);
     });
   });
 
