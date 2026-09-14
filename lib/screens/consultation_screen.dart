@@ -31,10 +31,15 @@ import 'onboarding/email_auth_screen.dart';
 ///  - le temps disponible vient du serveur (`ConsultationController`), aucun
 ///    recalcul local.
 class ConsultationScreen extends StatefulWidget {
-  const ConsultationScreen({super.key, this.audioOverride});
+  const ConsultationScreen({
+    super.key,
+    this.audioOverride,
+    this.pendingContext,
+  });
 
   /// Transmis au sélecteur de conseillers (aucun canal plateforme en test).
   final AdvisorAudio? audioOverride;
+  final String? pendingContext;
 
   @override
   State<ConsultationScreen> createState() => _ConsultationScreenState();
@@ -76,7 +81,10 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
   ConsultationController? get _controller =>
       ConsultationScope.maybeReadOf(context);
 
-  Future<void> _openThread(ConsultationSummaryDto summary) async {
+  Future<void> _openThread(
+    ConsultationSummaryDto summary, {
+    String? initialMessage,
+  }) async {
     final advisor = advisorByGuideKey(summary.advisorId);
     if (advisor == null) {
       // Aucun repli vers Séléna / kAdvisors.first : on n'ouvre pas un mauvais
@@ -86,8 +94,11 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
     }
     await Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (_) =>
-            ChatScreen(consultationId: summary.id, advisor: advisor),
+        builder: (_) => ChatScreen(
+          consultationId: summary.id,
+          advisor: advisor,
+          initialMessage: initialMessage,
+        ),
       ),
     );
     // Retour du chat -> on revient sur la LISTE et on rafraîchit l'aperçu.
@@ -118,7 +129,7 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
     // nouveau, jamais `changeAdvisor`).
     final known = existing[picked.guideKey];
     if (known != null) {
-      await _openThread(known);
+      await _openThread(known, initialMessage: widget.pendingContext);
       return;
     }
     if (controller == null) return;
@@ -132,7 +143,11 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
       setState(() => _busy = false);
       await Navigator.of(context).push(
         MaterialPageRoute(
-          builder: (_) => ChatScreen(consultationId: dto.id, advisor: picked),
+          builder: (_) => ChatScreen(
+            consultationId: dto.id,
+            advisor: picked,
+            initialMessage: widget.pendingContext,
+          ),
         ),
       );
       await _refresh();

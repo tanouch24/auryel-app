@@ -11,6 +11,7 @@ import 'package:phosphor_icons/phosphor_icons.dart';
 
 import '../api/rewards_api.dart' show RewardRule;
 import '../api/wellbeing_api.dart' show kWellbeingMissions;
+import '../api/wellbeing_program_api.dart' show WellbeingProgramState;
 import '../data/content_repository.dart';
 import '../data/daily_like_store.dart';
 import '../data/daily_share_tracker.dart';
@@ -22,6 +23,7 @@ import '../state/auth_controller.dart';
 import '../state/consultation_controller.dart';
 import '../state/rewards_controller.dart';
 import '../state/wellbeing_controller.dart';
+import '../state/wellbeing_program_controller.dart';
 import '../theme/auryel_theme.dart';
 import '../widgets/advisors_carousel.dart' show AdvisorInfo, advisorByName;
 import '../widgets/auryel_wordmark.dart';
@@ -31,9 +33,8 @@ import '../widgets/main_nav_scope.dart';
 import 'dashboard_screen.dart';
 import 'premium_screen.dart';
 import 'rewards_wallet_screen.dart';
-import 'wellbeing_journey_screen.dart';
+import 'wellbeing_program_screen.dart';
 import 'tirage_jeu_screen.dart';
-import 'dev/wellbeing_saga_map_poc.dart';
 
 /// Reset DEBUG uniquement (geste caché — appui long sur l'icône profil,
 /// visible seulement en `kDebugMode`).
@@ -618,31 +619,37 @@ class _WellbeingJourneyCta extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final program = WellbeingProgramScope.maybeOf(context);
+    if (program == null) return _card(context, null);
+    return AnimatedBuilder(
+      animation: program,
+      builder: (context, _) => _card(context, program.state),
+    );
+  }
+
+  Widget _card(BuildContext context, WellbeingProgramState? state) {
+    final today = state?.today;
+    final title = state?.completed == true
+        ? '30 jours terminés ✓'
+        : state?.started == true
+        ? 'Jour ${today?.dayNumber ?? 1}/30 · ${today?.completedCount ?? 0}/5 aujourd’hui'
+        : '30 jours pour prendre soin de moi';
+    final cta = state?.completed == true
+        ? 'Voir mon parcours'
+        : state?.started == true
+        ? 'Continuer mon programme →'
+        : 'Découvrir mon programme →';
     return Semantics(
       button: true,
-      label: 'Suis ton parcours pendant 30 jours',
+      label: 'Mon programme Bien-être',
       child: Material(
         color: Colors.transparent,
         borderRadius: BorderRadius.circular(18),
         child: InkWell(
           borderRadius: BorderRadius.circular(18),
           onTap: () => Navigator.of(context).push(
-            MaterialPageRoute(builder: (_) => const WellbeingJourneyScreen()),
+            MaterialPageRoute(builder: (_) => const WellbeingProgramScreen()),
           ),
-          // ACCÈS TEMPORAIRE — CE BUILD DE TEST SAMSUNG UNIQUEMENT.
-          // Appui long : ouvre le POC carte d'aventure `saga_map`, isolé de
-          // la navigation de production (le tap normal ci-dessus reste
-          // inchangé). Gardé par `kAuryelPocTempSamsungTestAccessEnabled`
-          // (voir wellbeing_saga_map_poc.dart) plutôt que par `kDebugMode`
-          // pour rester ouvrable dans CE build release de test — à repasser
-          // à `false`/`kDebugMode` avant toute release de production réelle.
-          onLongPress: kAuryelPocTempSamsungTestAccessEnabled
-              ? () => Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (_) => const WellbeingSagaMapPocScreen(),
-                  ),
-                )
-              : null,
           child: Container(
             padding: const EdgeInsets.fromLTRB(16, 14, 14, 14),
             decoration: BoxDecoration(
@@ -679,7 +686,7 @@ class _WellbeingJourneyCta extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        'Suis ton parcours pendant 30 jours',
+                        'Mon programme Bien-être',
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
                         style: AuryelText.display(
@@ -690,8 +697,7 @@ class _WellbeingJourneyCta extends StatelessWidget {
                       ),
                       const SizedBox(height: 3),
                       Text(
-                        'Avance à ton rythme. Chaque journée complétée '
-                        'construit ton parcours.',
+                        '$title\n$cta',
                         maxLines: 3,
                         overflow: TextOverflow.ellipsis,
                         style: AuryelText.body(

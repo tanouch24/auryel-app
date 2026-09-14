@@ -28,7 +28,7 @@ import 'package:auryel/screens/dashboard_screen.dart';
 import 'package:auryel/screens/home_screen.dart';
 import 'package:auryel/screens/rewards_wallet_screen.dart';
 import 'package:auryel/screens/support_screen.dart';
-import 'package:auryel/screens/wellbeing_journey_screen.dart';
+import 'package:auryel/screens/wellbeing_program_screen.dart';
 import 'package:auryel/state/auryel_state.dart';
 import 'package:auryel/state/auth_controller.dart';
 import 'package:auryel/state/consultation_controller.dart';
@@ -509,18 +509,19 @@ void main() {
     },
   );
 
-  testWidgets('J7 — point d’entrée « Suivre mon parcours bien-être » ouvre '
-      'l’écran du parcours', (t) async {
+  testWidgets('Programme Bien-être — point d’entrée ouvre le programme', (
+    t,
+  ) async {
     await t.pumpWidget(_dash());
     await t.pump();
 
-    expect(find.text('Suivre mon parcours bien-être'), findsOneWidget);
-    await t.ensureVisible(find.text('Suivre mon parcours bien-être'));
-    await t.tap(find.text('Suivre mon parcours bien-être'));
+    expect(find.text('Ouvrir mon programme Bien-être'), findsOneWidget);
+    await t.ensureVisible(find.text('Ouvrir mon programme Bien-être'));
+    await t.tap(find.text('Ouvrir mon programme Bien-être'));
     await t.pumpAndSettle();
 
-    expect(find.byType(WellbeingJourneyScreen), findsOneWidget);
-    expect(find.text('Mon parcours bien-être'), findsOneWidget);
+    expect(find.byType(WellbeingProgramScreen), findsOneWidget);
+    expect(find.text('Mon programme Bien-être'), findsOneWidget);
   });
 
   testWidgets('CORRECTIF NAVIGATION — « Voir mes Étoiles » ouvre l’écran '

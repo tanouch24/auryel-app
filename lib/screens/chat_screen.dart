@@ -36,6 +36,7 @@ class ChatScreen extends StatefulWidget {
     required this.advisor,
     this.consultationId,
     this.tirageId,
+    this.initialMessage,
     this.aiReportApi,
   });
 
@@ -61,6 +62,11 @@ class ChatScreen extends StatefulWidget {
   /// tant qu'il n'a pas obtenu un 200 ; ni le passage ici ni le clic du CTA
   /// « En parler avec … » n'ouvrent une consultation ou ne consomment de crédit.
   final String? tirageId;
+
+  /// Contexte préparé par un écran qui souhaite en parler au conseiller.
+  /// Il reste un brouillon : aucune consultation ni consommation n’a lieu
+  /// avant l’envoi explicite du premier message.
+  final String? initialMessage;
 
   /// Exposé pour les tests : formatage de `seconds_remaining`.
   static String debugFormatRemaining(int seconds) =>
@@ -130,6 +136,7 @@ class _ChatScreenState extends State<ChatScreen> {
   void initState() {
     super.initState();
     _pendingTirageId = widget.tirageId;
+    _input.text = widget.initialMessage?.trim() ?? '';
   }
 
   @override

@@ -16,6 +16,7 @@ import 'api/support_api.dart';
 import 'api/rewards_api.dart';
 import 'api/tirage_api.dart';
 import 'api/wellbeing_api.dart';
+import 'api/wellbeing_program_api.dart';
 import 'data/auth_repository.dart';
 import 'data/content_repository.dart';
 import 'data/iap_gateway.dart';
@@ -37,6 +38,7 @@ import 'state/consultation_controller.dart';
 import 'state/purchase_controller.dart';
 import 'state/rewards_controller.dart';
 import 'state/wellbeing_controller.dart';
+import 'state/wellbeing_program_controller.dart';
 import 'theme/auryel_theme.dart';
 
 void main() async {
@@ -63,6 +65,7 @@ void main() async {
   final tirageApi = TirageApi(apiClient);
   final contentApi = ContentApi(apiClient);
   final wellbeingApi = WellbeingApi(apiClient);
+  final wellbeingProgramApi = WellbeingProgramApi(apiClient);
   final auth = AuthController(
     repository: AuthRepository(
       api: AuthApi(apiClient),
@@ -105,6 +108,10 @@ void main() async {
   // (deux systèmes de suivi indépendants qui pouvaient diverger).
   final wellbeing = WellbeingController(
     api: wellbeingApi,
+    tokenProvider: auth.currentToken,
+  );
+  final wellbeingProgram = WellbeingProgramController(
+    api: wellbeingProgramApi,
     tokenProvider: auth.currentToken,
   );
   // GROS CHANTIER AURYEL (Prompt 2/5) — ÉTOILES : instance UNIQUE et PARTAGÉE
@@ -152,7 +159,10 @@ void main() async {
   );
   auth.attachPushUnregister(notifications.unregisterCurrent);
   auth.addListener(() {
-    if (auth.isSignedIn) unawaited(notifications.onSignedIn());
+    if (auth.isSignedIn) {
+      unawaited(notifications.onSignedIn());
+      unawaited(wellbeingProgram.refresh());
+    }
   });
   unawaited(notifications.start());
 
@@ -162,6 +172,7 @@ void main() async {
       auth: auth,
       consultation: consultation,
       wellbeing: wellbeing,
+      wellbeingProgram: wellbeingProgram,
       rewards: rewards,
       purchase: purchase,
       notifications: notifications,
@@ -179,6 +190,7 @@ class AuryelApp extends StatefulWidget {
     required this.auth,
     required this.consultation,
     this.wellbeing,
+    this.wellbeingProgram,
     this.rewards,
     this.purchase,
     this.notifications,
@@ -197,6 +209,7 @@ class AuryelApp extends StatefulWidget {
   /// au parcours bien-être — ces écrans retombent alors sur leur ancien
   /// comportement (contrôleur local / repli local).
   final WellbeingController? wellbeing;
+  final WellbeingProgramController? wellbeingProgram;
 
   /// GROS CHANTIER AURYEL (Prompt 2/5) — optionnel : quand fourni (cas réel
   /// de `main()`), l'arbre est enveloppé d'un [RewardsScope] PARTAGÉ par le
@@ -265,6 +278,7 @@ class _AuryelAppState extends State<AuryelApp> with WidgetsBindingObserver {
     if (state == AppLifecycleState.resumed && widget.auth.isSignedIn) {
       widget.consultation.refreshAll();
       widget.wellbeing?.refresh();
+      widget.wellbeingProgram?.refresh();
       widget.rewards?.refresh();
     }
   }
@@ -312,6 +326,10 @@ class _AuryelAppState extends State<AuryelApp> with WidgetsBindingObserver {
     final wellbeing = widget.wellbeing;
     if (wellbeing != null) {
       tree = WellbeingScope(controller: wellbeing, child: tree);
+    }
+    final wellbeingProgram = widget.wellbeingProgram;
+    if (wellbeingProgram != null) {
+      tree = WellbeingProgramScope(controller: wellbeingProgram, child: tree);
     }
     final rewards = widget.rewards;
     if (rewards != null) {

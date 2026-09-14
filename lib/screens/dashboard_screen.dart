@@ -29,7 +29,7 @@ import '../widgets/gold_button.dart';
 import 'advisor_chooser_screen.dart';
 import 'auryel_experience_screen.dart';
 import 'bibliotheque_screen.dart';
-import 'wellbeing_journey_screen.dart';
+import 'wellbeing_program_screen.dart';
 import 'legal_document_screen.dart';
 import 'notification_settings_screen.dart';
 import 'onboarding/email_auth_screen.dart';
@@ -453,14 +453,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 ),
                 const SizedBox(height: 16),
                 _Section(
-                  title: 'Parcours bien-être',
+                  title: 'Programme Bien-être',
                   icon: PhosphorIconsRegular.path,
                   child: _LinkRow(
-                    label: 'Suivre mon parcours bien-être',
+                    label: 'Ouvrir mon programme Bien-être',
                     icon: PhosphorIconsRegular.mountains,
                     onTap: () => Navigator.of(context).push(
                       MaterialPageRoute(
-                        builder: (_) => const WellbeingJourneyScreen(),
+                        builder: (_) => const WellbeingProgramScreen(),
                       ),
                     ),
                   ),
