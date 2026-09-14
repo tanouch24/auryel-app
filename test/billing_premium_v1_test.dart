@@ -324,7 +324,7 @@ void main() {
         expect(find.text('Gérer mon abonnement'), findsNothing);
         // disclosure obligatoire présente
         expect(
-          find.textContaining('renouvelé automatiquement'),
+          find.textContaining('renouvellement automatique'),
           findsOneWidget,
         );
         expect(find.textContaining('Google Play'), findsWidgets);

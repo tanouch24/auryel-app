@@ -190,9 +190,11 @@ void main() {
     await _pump(t, rig.controller);
     await t.pump();
 
-    expect(find.text('Auryel Premium'), findsOneWidget);
-    expect(find.text('Ton cadeau de bienvenue'), findsOneWidget);
-    expect(find.text('20 minutes de consultation offertes'), findsOneWidget);
+    expect(find.byKey(const Key('premium-plan')), findsOneWidget);
+    expect(
+      find.text('20 minutes de consultation offertes à ton arrivée'),
+      findsOneWidget,
+    );
     expect(find.text('Auryel Gratuit'), findsOneWidget);
     expect(find.text('0 €'), findsOneWidget);
     expect(find.text('4 h de consultation par mois'), findsOneWidget);

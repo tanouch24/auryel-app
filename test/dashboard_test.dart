@@ -29,7 +29,6 @@ import 'package:auryel/screens/home_screen.dart';
 import 'package:auryel/screens/rewards_wallet_screen.dart';
 import 'package:auryel/screens/support_screen.dart';
 import 'package:auryel/screens/wellbeing_journey_screen.dart';
-import 'package:auryel/widgets/daily_message_sheet.dart';
 import 'package:auryel/state/auryel_state.dart';
 import 'package:auryel/state/auth_controller.dart';
 import 'package:auryel/state/consultation_controller.dart';
@@ -318,13 +317,9 @@ void main() {
 
     expect(find.text('MON PARCOURS'), findsOneWidget);
     expect(find.text('2 messages aimés'), findsOneWidget);
-    expect(find.text('3 jours de partage'), findsOneWidget);
-    expect(find.text('MES RÉCOMPENSES'), findsOneWidget);
-    expect(find.text('Ta pensée du jour'), findsOneWidget);
-    expect(
-      find.text('Partage la publication du jour avec tes contacts.'),
-      findsOneWidget,
-    );
+    expect(find.text('3 jours de partage'), findsNothing);
+    expect(find.text('MES RÉCOMPENSES'), findsNothing);
+    expect(find.text('Ta pensée du jour'), findsNothing);
     // CORRECTIF PRODUIT — ancienne promesse retirée (univers Étoiles) ; sans
     // RewardsScope câblé (comme ici), CTA neutre, aucun montant inventé.
     expect(
@@ -332,11 +327,7 @@ void main() {
       findsNothing,
     );
     expect(find.text('3 / 30 jours'), findsNothing);
-    expect(
-      find.text('Un geste simple, sans rien promettre en plus.'),
-      findsOneWidget,
-    );
-    expect(find.text('Partager ma pensée du jour'), findsOneWidget);
+    expect(find.text('Partager ma pensée du jour'), findsNothing);
   });
 
   testWidgets('CORRECTIF PRODUIT — règle share_completed connue -> Dashboard '
@@ -370,7 +361,7 @@ void main() {
     await t.pump();
     await t.pump(const Duration(milliseconds: 50));
 
-    expect(find.text('Chaque partage crédite +15 ⭐.'), findsOneWidget);
+    expect(find.text('Chaque partage crédite +15 ⭐.'), findsNothing);
   });
 
   testWidgets('M/P — aucune heure attribuée, suppression = 2 confirmations', (
@@ -383,7 +374,7 @@ void main() {
     // crédit local. L'ancien hedge « en cours d'activation » a été retiré (J2).
     expect(
       find.textContaining('crédit de tes Étoiles est géré par nos serveurs'),
-      findsOneWidget,
+      findsNothing,
     );
     expect(find.textContaining('en cours d’activation'), findsNothing);
 
@@ -551,13 +542,8 @@ void main() {
     await t.pumpWidget(_dash(auth: auth));
     await t.pump();
 
-    await t.ensureVisible(find.text('Voir mes Étoiles'));
-    await t.tap(find.text('Voir mes Étoiles'));
-    await t.pumpAndSettle();
-
-    expect(find.byType(RewardsWalletScreen), findsOneWidget);
-    expect(find.text('Mes Étoiles'), findsOneWidget);
-    expect(find.text('7'), findsOneWidget);
+    expect(find.text('Voir mes Étoiles'), findsNothing);
+    expect(find.byType(RewardsWalletScreen), findsNothing);
   });
 
   testWidgets('B10.1 A — « Voir mes tirages » ouvre la Bibliothèque AVEC une '
@@ -778,12 +764,7 @@ void main() {
     await t.pumpWidget(_dash(consultation: c));
     await t.pumpAndSettle();
 
-    await t.ensureVisible(find.text('Partager ma pensée du jour'));
-    await t.tap(find.text('Partager ma pensée du jour'));
-    await t.pumpAndSettle();
-
-    expect(find.byType(DailyMessageSheet), findsOneWidget); // aperçu simplifié
-    expect(find.text('Partager'), findsOneWidget);
+    expect(find.text('Partager ma pensée du jour'), findsNothing);
     expect(c.remaining.inSeconds, before); // aucune heure créditée
     expect(c.time?.purchasedRemainingSeconds ?? 0, 0);
   });
@@ -805,7 +786,7 @@ void main() {
     await t.pump();
     await t.pump(const Duration(milliseconds: 50));
 
-    expect(find.text('30 jours de partage'), findsOneWidget);
+    expect(find.text('30 jours de partage'), findsNothing);
     expect(find.text('30 / 30 jours'), findsNothing);
     expect(t.takeException(), isNull);
   });

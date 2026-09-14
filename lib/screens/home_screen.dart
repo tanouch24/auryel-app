@@ -131,7 +131,7 @@ class HomeScreen extends StatelessWidget {
                       delay: 200.ms,
                       duration: 500.ms,
                     ),
-                    const SizedBox(height: 14),
+                    const SizedBox(height: 10),
                     _DailyThoughtZone(repository: thoughtRepository)
                         .animate()
                         .fadeIn(delay: 260.ms, duration: 500.ms),
@@ -150,15 +150,17 @@ class HomeScreen extends StatelessWidget {
                               ))
                         .animate()
                         .fadeIn(delay: 340.ms, duration: 500.ms),
-                    const SizedBox(height: 14),
+                    const SizedBox(height: 10),
                     (consultation == null
                             ? const _ConsultationOffers(isPremium: false)
                             : ListenableBuilder(
                                 listenable: consultation,
-                                builder: (context, _) => _ConsultationOffers(
-                                  isPremium:
-                                      consultation.quota?.isPremium ?? false,
-                                ),
+                                builder: (context, _) =>
+                                    consultation.quota?.isPremium == true
+                                    ? const SizedBox.shrink()
+                                    : const _ConsultationOffers(
+                                        isPremium: false,
+                                      ),
                               ))
                         .animate()
                         .fadeIn(delay: 400.ms, duration: 500.ms),
@@ -834,8 +836,6 @@ class _DailyThoughtZoneState extends State<_DailyThoughtZone>
         ),
         const SizedBox(height: 12),
         _ShareRewardBlock(onShare: _openPreview),
-        const SizedBox(height: 2),
-        const _DailyLikeButton(),
       ],
     );
   }
@@ -890,7 +890,7 @@ class _ShareRewardBlock extends StatelessWidget {
             height: 1.3,
           ),
         ),
-        const SizedBox(height: 10),
+        const SizedBox(height: 8),
         AuryelGoldButton(label: 'Partager maintenant', onTap: onShare),
       ],
     );

@@ -132,7 +132,7 @@ class _Body extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           Text(
-            'Auryel Premium',
+            'Choisis ton expérience Auryel',
             style: AuryelText.display(
               fontSize: 30,
               fontWeight: FontWeight.w600,
@@ -149,10 +149,10 @@ class _Body extends StatelessWidget {
             )
           else ...[
             const _WelcomeBlock(),
-            const SizedBox(height: 16),
-            const _FreeOfferBlock(),
-            const SizedBox(height: 16),
+            const SizedBox(height: 10),
             _OfferBlock(priceLabel: _priceLabel, controller: controller),
+            const SizedBox(height: 10),
+            const _FreeOfferBlock(),
           ],
           const SizedBox(height: 24),
           _ExtraHourBlock(controller: controller),
@@ -171,7 +171,7 @@ class _WelcomeBlock extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       key: const Key('premium-welcome-gift'),
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         gradient: LinearGradient(
           colors: [
@@ -188,7 +188,7 @@ class _WelcomeBlock extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Ton cadeau de bienvenue',
+            '20 minutes de consultation offertes à ton arrivée',
             style: AuryelText.display(
               fontSize: 18,
               fontWeight: FontWeight.w600,
@@ -196,7 +196,7 @@ class _WelcomeBlock extends StatelessWidget {
           ),
           const SizedBox(height: 5),
           Text(
-            '20 minutes de consultation offertes',
+            'Un cadeau commun à tous les nouveaux comptes',
             style: AuryelText.body(
               fontSize: 14,
               fontWeight: FontWeight.w600,
@@ -219,11 +219,8 @@ class _FreeOfferBlock extends StatelessWidget {
       title: 'Auryel Gratuit',
       price: '0 €',
       lines: const [
-        '20 minutes de consultation offertes à la première utilisation',
-        'Application avec publicité',
-        'Possibilité de gagner des Étoiles',
-        'Étoiles transformables en minutes',
-        'Accès aux contenus gratuits existants',
+        'Avec publicité',
+        'Gagne des Étoiles pour obtenir des minutes de consultation',
       ],
       child: OutlinedButton(
         onPressed: () => Navigator.of(context).maybePop(),
@@ -250,7 +247,7 @@ class _PlanCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: AuryelColors.surface.withValues(alpha: 0.72),
         borderRadius: BorderRadius.circular(18),
@@ -275,12 +272,11 @@ class _PlanCard extends StatelessWidget {
               color: AuryelColors.goldLight,
             ),
           ),
-          const SizedBox(height: 14),
+          const SizedBox(height: 8),
           for (final line in lines) ...[
             _OfferLine(line),
-            const SizedBox(height: 8),
+            const SizedBox(height: 4),
           ],
-          const SizedBox(height: 6),
           SizedBox(width: double.infinity, child: child),
         ],
       ),
@@ -303,48 +299,67 @@ class _LegalFooter extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Divider(height: 1, color: AuryelColors.warmBorder),
-        const SizedBox(height: 12),
-        Text(
-          'Abonnement mensuel à renouvellement automatique via Google Play ou '
-          'l’App Store. Le prix est celui indiqué par le Store avant l’achat. '
-          '4 h de consultation par mois, messages illimités pendant le temps '
-          'disponible. Résiliation à tout moment depuis le Store. Restauration '
-          'des achats disponible ci-dessus. Détails dans les Conditions '
-          'Premium.',
-          style: AuryelText.body(
-            fontSize: 10.5,
-            height: 1.5,
-            color: AuryelColors.textMuted,
+    return Container(
+      key: const Key('premium-legal-footer'),
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AuryelColors.surface.withValues(alpha: 0.72),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(
+          color: AuryelColors.goldLight.withValues(alpha: 0.65),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Auryel Premium',
+            style: AuryelText.display(
+              fontSize: 19,
+              fontWeight: FontWeight.w600,
+            ),
           ),
-        ),
-        const SizedBox(height: 10),
-        Wrap(
-          spacing: 16,
-          runSpacing: 4,
-          children: [
-            _DocLink(
-              label: 'Conditions Premium',
-              onTap: () => _openDoc(
-                context,
-                'Conditions Auryel Premium',
-                kPremiumTermsInAppText,
-              ),
+          const SizedBox(height: 3),
+          const Divider(height: 1, color: AuryelColors.warmBorder),
+          const SizedBox(height: 12),
+          Text(
+            'Abonnement mensuel à renouvellement automatique via Google Play ou '
+            'l’App Store. Le prix est celui indiqué par le Store avant l’achat. '
+            '4 h de consultation par mois, messages illimités pendant le temps '
+            'disponible. Résiliation à tout moment depuis le Store. Restauration '
+            'des achats disponible ci-dessus. Détails dans les Conditions '
+            'Premium.',
+            style: AuryelText.body(
+              fontSize: 10.5,
+              height: 1.5,
+              color: AuryelColors.textMuted,
             ),
-            _DocLink(
-              label: 'Politique de confidentialité',
-              onTap: () => _openDoc(
-                context,
-                'Politique de confidentialité',
-                kPrivacyPolicyInAppText,
+          ),
+          const SizedBox(height: 10),
+          Wrap(
+            spacing: 16,
+            runSpacing: 4,
+            children: [
+              _DocLink(
+                label: 'Conditions Premium',
+                onTap: () => _openDoc(
+                  context,
+                  'Conditions Auryel Premium',
+                  kPremiumTermsInAppText,
+                ),
               ),
-            ),
-          ],
-        ),
-      ],
+              _DocLink(
+                label: 'Politique de confidentialité',
+                onTap: () => _openDoc(
+                  context,
+                  'Politique de confidentialité',
+                  kPrivacyPolicyInAppText,
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
     );
   }
 }
@@ -456,61 +471,25 @@ class _OfferBlock extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final s = controller.state;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const _OfferLine(
-          '20 minutes offertes également à la première utilisation',
-        ),
-        const SizedBox(height: 10),
-        const _OfferLine('4 h de consultation par mois'),
-        const SizedBox(height: 10),
-        const _OfferLine('Sans publicité'),
-        const SizedBox(height: 10),
-        const _OfferLine('Messages illimités pendant le temps disponible'),
-        const SizedBox(height: 22),
-        Text(
-          priceLabel,
-          style: AuryelText.body(
-            fontSize: 15,
-            fontWeight: FontWeight.w600,
-            color: AuryelColors.goldLight,
-          ),
-        ),
-        const SizedBox(height: 24),
-        _StatusArea(state: s, errorCode: controller.errorCode),
-        const SizedBox(height: 20),
-        _PrimaryAction(controller: controller),
-        const SizedBox(height: 14),
-        Center(
-          child: TextButton(
+    return _PlanCard(
+      key: const Key('premium-plan'),
+      title: 'Auryel Premium',
+      price: priceLabel,
+      lines: const ['4 h de consultation par mois', 'Sans publicité'],
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          _StatusArea(state: s, errorCode: controller.errorCode),
+          const SizedBox(height: 6),
+          _PrimaryAction(controller: controller),
+          TextButton(
             onPressed: controller.canRestore
                 ? controller.restorePurchases
                 : null,
-            child: Text(
-              'Restaurer mes achats',
-              style: AuryelText.body(
-                fontWeight: FontWeight.w600,
-                color: controller.canRestore
-                    ? AuryelColors.goldLight
-                    : AuryelColors.textMuted,
-              ),
-            ),
+            child: const Text('Restaurer mes achats'),
           ),
-        ),
-        const SizedBox(height: 16),
-        Text(
-          'Abonnement mensuel, renouvelé automatiquement via Google Play. '
-          'Résiliable à tout moment depuis Google Play → Abonnements. '
-          'Le paiement se fait uniquement via ton compte Google Play — aucun '
-          'paiement sur un autre site.',
-          style: AuryelText.body(
-            fontSize: 11,
-            height: 1.4,
-            color: AuryelColors.textMuted,
-          ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }

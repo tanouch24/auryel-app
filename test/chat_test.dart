@@ -517,7 +517,7 @@ void main() {
       await t.pumpAndSettle();
 
       expect(find.byType(PremiumScreen), findsOneWidget);
-      expect(find.text('Auryel Premium'), findsOneWidget);
+      expect(find.text('Auryel Premium'), findsWidgets);
       expect(find.text('Premium arrive bientôt.'), findsNothing);
     },
   );

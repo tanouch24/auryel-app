@@ -9,7 +9,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:auryel/api/api_client.dart';
 import 'package:auryel/api/rewards_api.dart';
-import 'package:auryel/data/daily_like_store.dart';
 import 'package:auryel/data/daily_thought.dart';
 import 'package:auryel/data/onboarding_record.dart';
 import 'package:auryel/data/onboarding_repository.dart';
@@ -254,9 +253,7 @@ void main() {
     },
   );
 
-  testWidgets('D. cœur « j\'aime » discret présent, togglable et persistant', (
-    t,
-  ) async {
+  testWidgets('D. cœur « j\'aime » absent de l\'accueil', (t) async {
     final heartOutline = find.byWidgetPredicate(
       (w) => w is PhosphorIcon && w.icon == PhosphorIconsRegular.heart,
     );
@@ -267,19 +264,9 @@ void main() {
     await t.pumpWidget(_host());
     await t.pump(const Duration(seconds: 1));
 
-    // présent, non aimé au départ (cœur contour)
-    expect(heartOutline, findsOneWidget);
+    // Le geste de réaction appartient aux autres espaces de contenu.
+    expect(heartOutline, findsNothing);
     expect(heartFilled, findsNothing);
-
-    await t.ensureVisible(heartOutline);
-    await t.tap(heartOutline);
-    await t.pump();
-    await t.pump(const Duration(milliseconds: 50));
-
-    // l'état a basculé (cœur plein)…
-    expect(heartFilled, findsOneWidget);
-    // …et il est persisté localement (aucun backend)
-    expect(await DailyLikeStore().isLikedToday(), isTrue);
   });
 
   testWidgets('A. les conseillers ne sont plus présentés sur l\'Accueil '

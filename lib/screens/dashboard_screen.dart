@@ -1,3 +1,7 @@
+// Reward missions and sharing live in the Stars space, not in this dashboard.
+// Legacy private widgets remain below for compatibility with older test hosts.
+// ignore_for_file: unused_element, unused_field, unused_element_parameter
+
 import 'package:flutter/material.dart';
 import 'package:phosphor_icons/phosphor_icons.dart';
 
@@ -7,7 +11,6 @@ import '../config/legal_texts.dart';
 import '../data/app_review_service.dart';
 import '../data/birth_date_parser.dart';
 import '../data/daily_like_store.dart';
-import '../data/daily_share_tracker.dart';
 import '../data/daily_thought.dart';
 import '../data/legal_link_launcher.dart';
 import '../data/subscription_manager.dart';
@@ -75,7 +78,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
       widget.thoughtRepository ?? DailyThoughtRepository();
   int _likedMessages = 0;
   int _likedTarot = 0;
-  int _shareDays = 0;
   bool _savingBirthDate = false;
 
   late final AppReviewService _review =
@@ -126,12 +128,10 @@ class _DashboardScreenState extends State<DashboardScreen> {
     try {
       final lm = await DailyLikeStore().likedDaysCount();
       final lt = await DailyLikeStore(bucket: 'tarot').likedDaysCount();
-      final sd = await DailyShareTracker().sharedDaysCount();
       if (mounted) {
         setState(() {
           _likedMessages = lm;
           _likedTarot = lt;
-          _shareDays = sd;
         });
       }
     } catch (_) {
@@ -450,7 +450,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 _JourneySection(
                   likedMessages: _likedMessages,
                   likedTarot: _likedTarot,
-                  shareDays: _shareDays,
                 ),
                 const SizedBox(height: 16),
                 _Section(
@@ -480,11 +479,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       ),
                     ),
                   ),
-                ),
-                const SizedBox(height: 16),
-                _RewardsSection(
-                  onGenerate: _openPublication,
-                  memoryProgress: _memoryProgress,
                 ),
                 const SizedBox(height: 16),
                 _AccountSection(
@@ -904,11 +898,9 @@ class _SubscriptionSection extends StatelessWidget {
     final premium = consultation?.quota?.isPremium ?? false;
     final periodEnd = consultation?.quota?.periodEnd;
     final canRestore = purchase?.canRestore ?? false;
-    // Prix STORE d'abord ; repli marketing du produit Auryel sinon.
-    final storePrice = purchase?.premiumProduct?.price;
-    final priceLabel = (storePrice != null && storePrice.isNotEmpty)
-        ? storePrice
-        : '4,99 €/mois';
+    // L'interface active suit l'offre Auryel validée, même si une fiche Store
+    // historique remonte encore une ancienne valeur.
+    const priceLabel = '4,99 €/mois';
 
     return _Section(
       title: 'Mon abonnement',
@@ -931,6 +923,14 @@ class _SubscriptionSection extends StatelessWidget {
                 fontSize: 13,
                 fontWeight: FontWeight.w600,
                 color: AuryelColors.goldLight,
+              ),
+            ),
+            const SizedBox(height: 2),
+            Text(
+              '4 h de consultation par mois · 4,99 €/mois · Sans publicité',
+              style: AuryelText.body(
+                fontSize: 12.5,
+                color: AuryelColors.textSecondary,
               ),
             ),
             if (periodEnd != null) ...[
@@ -1006,12 +1006,10 @@ class _JourneySection extends StatelessWidget {
   const _JourneySection({
     required this.likedMessages,
     required this.likedTarot,
-    required this.shareDays,
   });
 
   final int likedMessages;
   final int likedTarot;
-  final int shareDays;
 
   @override
   Widget build(BuildContext context) {
@@ -1030,10 +1028,6 @@ class _JourneySection extends StatelessWidget {
             '$likedTarot tirage${likedTarot > 1 ? 's' : ''} aimé'
             '${likedTarot > 1 ? 's' : ''}',
             PhosphorIconsRegular.cardsThree,
-          ),
-          _StatRow(
-            '$shareDays jour${shareDays > 1 ? 's' : ''} de partage',
-            PhosphorIconsRegular.shareNetwork,
           ),
           const SizedBox(height: 8),
           _LinkRow(

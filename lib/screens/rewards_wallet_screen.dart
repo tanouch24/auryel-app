@@ -179,8 +179,13 @@ class _RewardsWalletScreenState extends State<RewardsWalletScreen>
                       _SpendSection(controller: c),
                       const SizedBox(height: 16),
                       _StreakSection(controller: c),
-                      const SizedBox(height: 16),
-                      const _PremiumReminder(),
+                      if (ConsultationScope.maybeReadOf(context)
+                              ?.quota
+                              ?.isPremium !=
+                          true) ...[
+                        const SizedBox(height: 16),
+                        const _PremiumReminder(),
+                      ],
                       const SizedBox(height: 16),
                       _HistorySection(controller: c, formatDate: _formatDate),
                     ],

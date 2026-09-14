@@ -694,7 +694,7 @@ void main() {
       await _pumpWithin(t, rig, const HomeScreen());
       await t.pumpAndSettle();
       expect(find.text('Temps de consultation épuisé'), findsOneWidget);
-      expect(find.byKey(const Key('home-premium-active')), findsOneWidget);
+      expect(find.byKey(const Key('home-premium-active')), findsNothing);
     });
 
     testWidgets('J6-F2 §21 : tap CTA -> demande l\'onglet Consultation, jamais '
