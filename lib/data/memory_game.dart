@@ -8,30 +8,29 @@ import 'tarot_deck.dart';
 /// Niveaux du Jeu Auryel (jeu de paires).
 ///
 /// [apiDifficulty] mappe l'enum sur les chaînes du backend (easy/medium/hard).
-/// [rewardThresholdSeconds] / [rewardMinutes] sont les VALEURS D'AFFICHAGE de la
-/// règle de récompense (« réussir en moins de N s pour gagner M min de
-/// consultation ») — la décision réelle est prise UNIQUEMENT par le serveur.
+/// [rewardThresholdSeconds] est la VALEUR D'AFFICHAGE du seuil de jeu
+/// (« réussir en moins de N s ») — la décision réelle (et le montant
+/// d'Étoiles, désormais IDENTIQUE pour les 3 niveaux — GROS CHANTIER AURYEL
+/// Prompt 3/5, règle `mini_game_completed`) est prise UNIQUEMENT par le
+/// serveur.
 enum GameDifficulty {
   facile(
     cardCount: 8,
     label: 'Facile',
     apiDifficulty: 'easy',
     rewardThresholdSeconds: 20,
-    rewardMinutes: 5,
   ),
   moyen(
     cardCount: 12,
     label: 'Moyen',
     apiDifficulty: 'medium',
     rewardThresholdSeconds: 40,
-    rewardMinutes: 10,
   ),
   intense(
     cardCount: 16,
     label: 'Difficile',
     apiDifficulty: 'hard',
     rewardThresholdSeconds: 80,
-    rewardMinutes: 15,
   );
 
   const GameDifficulty({
@@ -39,14 +38,12 @@ enum GameDifficulty {
     required this.label,
     required this.apiDifficulty,
     required this.rewardThresholdSeconds,
-    required this.rewardMinutes,
   });
 
   final int cardCount;
   final String label;
   final String apiDifficulty;
   final int rewardThresholdSeconds;
-  final int rewardMinutes;
 
   int get pairCount => cardCount ~/ 2;
 

@@ -41,9 +41,18 @@ class MemoryRewardsController extends ChangeNotifier {
   /// Dernier échec réseau / API. Non bloquant : le jeu reste jouable.
   Object? get error => _error;
 
-  /// Éligibilité connue d'une difficulté (chaîne API : easy|medium|hard).
-  MemoryDifficultyProgress? eligibilityFor(String apiDifficulty) =>
-      _progress?.forDifficulty(apiDifficulty);
+  /// GROS CHANTIER AURYEL (Prompt 3/5) — éligibilité PARTAGÉE par toute la
+  /// catégorie mini-jeux (Memory / Suite intuitive / Carte cachée) : `true`
+  /// tant qu'aucune n'a encore été récompensée aujourd'hui. `null` tant que
+  /// la progression n'est pas encore chargée (jamais un faux « verrouillé »
+  /// par défaut).
+  bool? get eligibleToday => _progress?.eligibleToday;
+
+  /// Montant Étoiles de la règle `mini_game_completed`, résolu serveur.
+  int get starsReward => _progress?.starsReward ?? 0;
+
+  /// ISO-8601 du prochain reset (minuit Europe/Paris), `null` si éligible.
+  String? get nextResetAt => _progress?.nextResetAt;
 
   /// `GET /api/app/memory/progress`. Ne récompense jamais. Conserve la dernière
   /// progression connue en cas d'échec.

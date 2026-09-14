@@ -23,7 +23,7 @@ class MemoryGameSession {
     required this.gameId,
     required this.difficulty,
     required this.thresholdSeconds,
-    required this.rewardSeconds,
+    required this.starsReward,
     required this.pairCount,
     required this.startedAt,
     required this.expiresAt,
@@ -35,9 +35,11 @@ class MemoryGameSession {
   /// Réussir en STRICTEMENT moins de [thresholdSeconds] pour la récompense.
   final int thresholdSeconds;
 
-  /// Secondes de consultation créditées si la partie est gagnée sous le seuil
-  /// ET la difficulté éligible (300 / 600 / 900).
-  final int rewardSeconds;
+  /// GROS CHANTIER AURYEL (Prompt 3/5) — Étoiles créditées si la partie est
+  /// gagnée sous le seuil ET la catégorie mini-jeux encore éligible
+  /// aujourd'hui (RÉSOLU côté serveur — `reward_rules.mini_game_completed`,
+  /// jamais codé en dur, jamais figé par difficulté).
+  final int starsReward;
   final int pairCount;
   final String? startedAt;
   final String? expiresAt;
@@ -47,7 +49,7 @@ class MemoryGameSession {
         gameId: (json['game_id'] ?? '').toString(),
         difficulty: (json['difficulty'] ?? '').toString(),
         thresholdSeconds: _asInt(json['threshold_seconds']),
-        rewardSeconds: _asInt(json['reward_seconds']),
+        starsReward: _asInt(json['stars_reward']),
         pairCount: _asInt(json['pair_count']),
         startedAt: _asStrOrNull(json['started_at']),
         expiresAt: _asStrOrNull(json['expires_at']),
@@ -55,9 +57,11 @@ class MemoryGameSession {
 }
 
 /// Résultat serveur d'une partie terminée. `outcome` porte la raison :
-///   'rewarded'             -> [rewardCredited] true, [creditedSeconds] > 0
+///   'rewarded'             -> [rewardCredited] true, [starsAwarded] > 0
 ///   'time_limit_exceeded'  -> gagné mais trop lent, aucun crédit
-///   'cooldown_active'      -> difficulté déjà récompensée sur la fenêtre 7 j
+///   'daily_limit_reached'  -> catégorie mini-jeux déjà récompensée AUJOURD'HUI
+///                             (plafond PARTAGÉ avec Suite intuitive / Carte
+///                             cachée — plus une fenêtre 7 j par difficulté)
 ///   'implausible_time'     -> partie physiquement impossible, ignorée
 ///   'expired'              -> game_id expiré
 class MemoryCompleteResult {
@@ -66,10 +70,9 @@ class MemoryCompleteResult {
     required this.difficulty,
     required this.elapsedSeconds,
     required this.rewardCredited,
-    required this.creditedSeconds,
-    required this.rewardSeconds,
+    required this.starsAwarded,
+    required this.starsReward,
     required this.outcome,
-    required this.nextEligibleAt,
     required this.alreadyFinalized,
   });
 
@@ -81,16 +84,13 @@ class MemoryCompleteResult {
 
   /// `true` UNIQUEMENT si CET appel vient d'accorder le crédit.
   final bool rewardCredited;
-  final int creditedSeconds;
-  final int rewardSeconds;
+  final int starsAwarded;
+  final int starsReward;
   final String outcome;
-
-  /// ISO-8601 : quand cette difficulté redeviendra éligible (cooldown / crédit).
-  final String? nextEligibleAt;
   final bool alreadyFinalized;
 
   bool get isTimeExceeded => outcome == 'time_limit_exceeded';
-  bool get isCooldown => outcome == 'cooldown_active';
+  bool get isDailyLimitReached => outcome == 'daily_limit_reached';
   bool get isExpired => outcome == 'expired' || status == 'expired';
 
   factory MemoryCompleteResult.fromJson(Map<String, dynamic> json) =>
@@ -99,102 +99,82 @@ class MemoryCompleteResult {
         difficulty: (json['difficulty'] ?? '').toString(),
         elapsedSeconds: _asInt(json['elapsed_seconds']),
         rewardCredited: json['reward_credited'] == true,
-        creditedSeconds: _asInt(json['credited_seconds']),
-        rewardSeconds: _asInt(json['reward_seconds']),
+        starsAwarded: _asInt(json['stars_awarded']),
+        starsReward: _asInt(json['stars_reward']),
         outcome: (json['outcome'] ?? '').toString(),
-        nextEligibleAt: _asStrOrNull(json['next_eligible_at']),
         alreadyFinalized: json['already_finalized'] == true,
       );
 }
 
-/// Éligibilité d'une difficulté sur la fenêtre glissante de 7 jours.
-class MemoryDifficultyProgress {
-  const MemoryDifficultyProgress({
+/// Un niveau de jeu (paramètres de JEU — inchangés par le Prompt 3/5, la
+/// récompense étant désormais commune aux 3 difficultés).
+class MemoryDifficultyInfo {
+  const MemoryDifficultyInfo({
     required this.difficulty,
     required this.thresholdSeconds,
-    required this.rewardSeconds,
-    required this.eligibleNow,
-    required this.lastRewardAt,
-    required this.nextEligibleAt,
-    required this.remainingSeconds,
+    required this.pairCount,
   });
 
   final String difficulty;
   final int thresholdSeconds;
-  final int rewardSeconds;
-  final bool eligibleNow;
-  final String? lastRewardAt;
-  final String? nextEligibleAt;
+  final int pairCount;
 
-  /// Secondes restantes avant nouvelle éligibilité (0 si éligible).
-  final int remainingSeconds;
-
-  factory MemoryDifficultyProgress.fromJson(Map<String, dynamic> json) =>
-      MemoryDifficultyProgress(
+  factory MemoryDifficultyInfo.fromJson(Map<String, dynamic> json) =>
+      MemoryDifficultyInfo(
         difficulty: (json['difficulty'] ?? '').toString(),
         thresholdSeconds: _asInt(json['threshold_seconds']),
-        rewardSeconds: _asInt(json['reward_seconds']),
-        eligibleNow: json['eligible_now'] == true,
-        lastRewardAt: _asStrOrNull(json['last_reward_at']),
-        nextEligibleAt: _asStrOrNull(json['next_eligible_at']),
-        remainingSeconds: _asInt(json['remaining_seconds']),
+        pairCount: _asInt(json['pair_count']),
       );
 }
 
-/// Progression Memory — RÉPONSE SERVEUR, source de vérité. Aucun compteur local
-/// ne fait autorité : l'état survit à la fermeture de l'app, à la déconnexion
-/// et au changement d'appareil.
+/// Progression Memory — RÉPONSE SERVEUR, source de vérité. GROS CHANTIER
+/// AURYEL (Prompt 3/5) : l'éligibilité est désormais PARTAGÉE par toute la
+/// catégorie mini-jeux (Memory / Suite intuitive / Carte cachée), plus de
+/// fenêtre 7 j indépendante par difficulté.
 class MemoryProgress {
   const MemoryProgress({
-    required this.windowDays,
-    required this.maxWindowSeconds,
+    required this.eligibleToday,
+    required this.starsReward,
+    required this.nextResetAt,
     required this.difficulties,
   });
 
-  final int windowDays;
+  /// `true` si AUCUN mini-jeu de la catégorie n'a encore été récompensé
+  /// aujourd'hui (jour Europe/Paris, décidé serveur).
+  final bool eligibleToday;
+  final int starsReward;
 
-  /// Total maximal crédité sur la fenêtre (1800 s = 30 min).
-  final int maxWindowSeconds;
-  final List<MemoryDifficultyProgress> difficulties;
-
-  MemoryDifficultyProgress? forDifficulty(String apiDifficulty) {
-    for (final d in difficulties) {
-      if (d.difficulty == apiDifficulty) return d;
-    }
-    return null;
-  }
+  /// ISO-8601 : minuit Europe/Paris du lendemain, UNIQUEMENT si
+  /// [eligibleToday] est faux.
+  final String? nextResetAt;
+  final List<MemoryDifficultyInfo> difficulties;
 
   factory MemoryProgress.fromJson(Map<String, dynamic> json) {
     final raw = json['difficulties'];
     final list = raw is List
         ? raw
               .whereType<Map<String, dynamic>>()
-              .map(MemoryDifficultyProgress.fromJson)
+              .map(MemoryDifficultyInfo.fromJson)
               .toList(growable: false)
-        : const <MemoryDifficultyProgress>[];
+        : const <MemoryDifficultyInfo>[];
     return MemoryProgress(
-      windowDays: () {
-        final n = _asInt(json['window_days']);
-        return n > 0 ? n : 7;
-      }(),
-      maxWindowSeconds: () {
-        final n = _asInt(json['max_window_seconds']);
-        return n > 0 ? n : 1800;
-      }(),
+      eligibleToday: json['eligible_today'] == true,
+      starsReward: _asInt(json['stars_reward']),
+      nextResetAt: _asStrOrNull(json['next_reset_at']),
       difficulties: list,
     );
   }
 }
 
-/// Jeu Memory + récompenses de temps côté app. Réutilise l'[ApiClient] commun —
+/// Jeu Memory + récompenses Étoiles côté app. Réutilise l'[ApiClient] commun —
 /// aucun second client HTTP.
 ///
 ///   POST /api/app/memory/start    (Bearer) { difficulty } -> MemoryGameSession
 ///     À appeler AVANT de lancer réellement la partie.
 ///   POST /api/app/memory/complete (Bearer) { game_id }     -> MemoryCompleteResult
 ///     À appeler à la fin RÉELLE du jeu. Le body ne contient QUE `game_id` :
-///     la décision de récompense (chrono, seuil, éligibilité 7 j) est prise
-///     UNIQUEMENT par le serveur.
+///     la décision de récompense (chrono, seuil, éligibilité du jour) est
+///     prise UNIQUEMENT par le serveur.
 ///   GET  /api/app/memory/progress (Bearer)                 -> MemoryProgress
 ///     Lecture seule. Ne récompense jamais.
 ///

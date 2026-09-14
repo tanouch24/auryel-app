@@ -145,7 +145,7 @@ void main() {
       await tester.tap(_tab('Tirage & Jeu'));
       await tester.pumpAndSettle();
       expect(find.byType(TirageJeuScreen), findsOneWidget);
-      expect(find.text('Le Jeu Auryel'), findsOneWidget);
+      expect(find.text('Mini-jeux Auryel'), findsOneWidget);
       expect(find.byType(TirageScreen), findsNothing);
 
       // Consultation (J6-F2 : LISTE des discussions en cours).

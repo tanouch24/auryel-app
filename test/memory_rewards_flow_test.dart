@@ -43,7 +43,7 @@ class _FakeServer {
                 'game_id': 'game-$startCalls',
                 'difficulty': b['difficulty'],
                 'threshold_seconds': 20,
-                'reward_seconds': 300,
+                'stars_reward': 15,
                 'pair_count': 4,
               });
             }
@@ -55,8 +55,8 @@ class _FakeServer {
             }
             return _json(progressBody ??
                 const {
-                  'window_days': 7,
-                  'max_window_seconds': 1800,
+                  'eligible_today': true,
+                  'stars_reward': 15,
                   'difficulties': [],
                 });
           }),
@@ -121,15 +121,15 @@ void main() {
     expect(s.lastStartDifficulty, 'easy');
   });
 
-  testWidgets('victoire sous le seuil -> « Bravo » + minutes gagnées', (t) async {
+  testWidgets('victoire sous le seuil -> « Bravo » + Étoiles gagnées', (t) async {
     final s = _FakeServer()
       ..onComplete = (_) => {
             'status': 'completed',
             'difficulty': 'easy',
             'elapsed_seconds': 12,
             'reward_credited': true,
-            'credited_seconds': 300,
-            'reward_seconds': 300,
+            'stars_awarded': 15,
+            'stars_reward': 15,
             'outcome': 'rewarded',
           };
     await t.pumpWidget(_host(_controller(s)));
@@ -139,8 +139,8 @@ void main() {
 
     expect(s.completeCalls, 1);
     expect(find.text('Bravo'), findsOneWidget);
-    expect(find.text('Tu as gagné 5 minutes de consultation.'), findsOneWidget);
-    expect(find.textContaining('temps disponible a été mis à jour'),
+    expect(find.text('Tu as gagné 15 ⭐.'), findsOneWidget);
+    expect(find.textContaining('solde d’Étoiles a été mis à jour'),
         findsOneWidget);
     expect(find.text('Rejouer'), findsOneWidget);
     expect(find.text('Changer de niveau'), findsOneWidget);
@@ -157,7 +157,8 @@ void main() {
             'difficulty': 'easy',
             'elapsed_seconds': 30,
             'reward_credited': false,
-            'credited_seconds': 0,
+            'stars_awarded': 0,
+            'stars_reward': 15,
             'outcome': 'time_limit_exceeded',
           };
     await t.pumpWidget(_host(_controller(s)));
@@ -167,23 +168,23 @@ void main() {
 
     expect(find.text('Partie terminée'), findsOneWidget);
     expect(
-      find.text(
-          'Termine en moins de 20 secondes pour gagner 5 minutes de consultation.'),
+      find.text('Termine en moins de 20 secondes pour gagner 15 ⭐.'),
       findsOneWidget,
     );
     expect(find.text('Rejouer'), findsOneWidget);
   });
 
-  testWidgets('récompense déjà obtenue (cooldown) -> message + délai', (t) async {
-    final future = DateTime.now().add(const Duration(days: 3, hours: 2));
+  testWidgets(
+      'récompense déjà obtenue aujourd’hui -> message, aucun cooldown 7 j',
+      (t) async {
     final s = _FakeServer()
       ..onComplete = (_) => {
             'status': 'completed',
             'difficulty': 'easy',
             'reward_credited': false,
-            'credited_seconds': 0,
-            'outcome': 'cooldown_active',
-            'next_eligible_at': future.toIso8601String(),
+            'stars_awarded': 0,
+            'stars_reward': 15,
+            'outcome': 'daily_limit_reached',
           };
     await t.pumpWidget(_host(_controller(s)));
     await t.pumpAndSettle();
@@ -191,9 +192,10 @@ void main() {
     await _winCurrentGame(t);
 
     expect(find.text('Partie terminée'), findsOneWidget);
-    expect(find.text('Tu as déjà obtenu la récompense de ce niveau.'),
+    expect(find.text('Tu as déjà obtenu la récompense mini-jeu du jour.'),
         findsOneWidget);
-    expect(find.textContaining('À nouveau disponible dans'), findsOneWidget);
+    expect(find.text('Reviens demain pour une nouvelle récompense.'),
+        findsOneWidget);
   });
 
   testWidgets('échec réseau sur complete -> fin neutre, jeu rejouable',
@@ -213,35 +215,31 @@ void main() {
     expect(_state(t).debugGame.isWon, isFalse);
   });
 
-  testWidgets('menu : règle 20/40/80 · 5/10/15 + niveau non éligible marqué',
+  testWidgets(
+      'menu : seuils 20/40/80 + Étoiles PARTAGÉES + niveau non éligible marqué',
       (t) async {
-    final future = DateTime.now().add(const Duration(days: 4));
+    final future = DateTime.now().add(const Duration(days: 1));
     final s = _FakeServer(
       progressBody: {
-        'window_days': 7,
-        'max_window_seconds': 1800,
+        'eligible_today': false,
+        'stars_reward': 15,
+        'next_reset_at': future.toIso8601String(),
         'difficulties': [
-          {
-            'difficulty': 'easy',
-            'threshold_seconds': 20,
-            'reward_seconds': 300,
-            'eligible_now': false,
-            'next_eligible_at': future.toIso8601String(),
-            'remaining_seconds': 345600,
-          },
-          {'difficulty': 'medium', 'eligible_now': true, 'reward_seconds': 600},
-          {'difficulty': 'hard', 'eligible_now': true, 'reward_seconds': 900},
+          {'difficulty': 'easy', 'threshold_seconds': 20, 'pair_count': 4},
+          {'difficulty': 'medium', 'threshold_seconds': 40, 'pair_count': 6},
+          {'difficulty': 'hard', 'threshold_seconds': 80, 'pair_count': 8},
         ],
       },
     );
     await t.pumpWidget(_host(_controller(s)));
     await t.pumpAndSettle();
 
-    expect(find.text('Moins de 20 sec · gagne 5 min'), findsOneWidget);
-    expect(find.text('Moins de 40 sec · gagne 10 min'), findsOneWidget);
-    expect(find.text('Moins de 80 sec · gagne 15 min'), findsOneWidget);
-    expect(find.textContaining('Récompense déjà obtenue'), findsOneWidget);
-    // Le niveau reste jouable malgré le cooldown.
+    expect(find.text('Moins de 20 sec · +15 ⭐'), findsOneWidget);
+    expect(find.text('Moins de 40 sec · +15 ⭐'), findsOneWidget);
+    expect(find.text('Moins de 80 sec · +15 ⭐'), findsOneWidget);
+    // Plafond PARTAGÉ : les 3 niveaux affichent le MÊME statut verrouillé.
+    expect(find.textContaining('Récompense déjà obtenue'), findsNWidgets(3));
+    // Le niveau reste jouable malgré le plafond du jour.
     await _startLevel(t, 'Facile');
     expect(_state(t).debugGame.hasStarted, isTrue);
   });
@@ -253,17 +251,14 @@ void main() {
       addTearDown(t.view.reset);
 
       final s = _FakeServer(progressBody: {
-        'window_days': 7,
-        'max_window_seconds': 1800,
+        'eligible_today': false,
+        'stars_reward': 15,
+        'next_reset_at':
+            DateTime.now().add(const Duration(days: 1)).toIso8601String(),
         'difficulties': [
-          {
-            'difficulty': 'easy',
-            'eligible_now': false,
-            'next_eligible_at':
-                DateTime.now().add(const Duration(days: 6)).toIso8601String(),
-          },
-          {'difficulty': 'medium', 'eligible_now': true},
-          {'difficulty': 'hard', 'eligible_now': true},
+          {'difficulty': 'easy', 'threshold_seconds': 20, 'pair_count': 4},
+          {'difficulty': 'medium', 'threshold_seconds': 40, 'pair_count': 6},
+          {'difficulty': 'hard', 'threshold_seconds': 80, 'pair_count': 8},
         ],
       });
       await t.pumpWidget(_host(_controller(s)));

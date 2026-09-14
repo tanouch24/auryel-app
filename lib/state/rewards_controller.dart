@@ -3,11 +3,22 @@
 // ignore_for_file: prefer_initializing_formals
 
 import 'dart:async';
+import 'dart:math';
 
 import 'package:flutter/widgets.dart';
 
 import '../api/api_client.dart';
 import '../api/rewards_api.dart';
+
+/// Clé d'idempotence pour UNE tentative d'achat (ex. Consultation Express).
+/// GÉNÉRÉE UNE FOIS par l'écran appelant puis réutilisée TELLE QUELLE tant
+/// que la tentative n'a pas définitivement abouti (succès OU annulation
+/// explicite) — un retry réseau / double tap avec la MÊME clé ne peut
+/// jamais produire un 2e débit (idempotence garantie côté serveur).
+String generateIdempotencyKey(String prefix) {
+  final rand = Random.secure().nextInt(1 << 31);
+  return '$prefix:${DateTime.now().toUtc().microsecondsSinceEpoch}:$rand';
+}
 
 /// État du wallet Étoiles Auryel pour tout l'arbre — le header Accueil
 /// (« Mon compte » / « ⭐ solde ») et l'écran « Mes Étoiles » lisent et
@@ -41,6 +52,8 @@ class RewardsController extends ChangeNotifier {
   RewardStreak get streak => _wallet?.streak ?? RewardStreak.zero;
   List<RewardTransaction> get recentTransactions =>
       _wallet?.recentTransactions ?? const <RewardTransaction>[];
+  List<ExpressProduct> get expressProducts =>
+      _wallet?.expressProducts ?? const <ExpressProduct>[];
 
   /// Chargement initial (aucune donnée encore).
   bool get loading => _loading && _wallet == null;
@@ -112,6 +125,50 @@ class RewardsController extends ChangeNotifier {
             rules: current.rules,
             streak: current.streak,
             recentTransactions: current.recentTransactions,
+            expressProducts: current.expressProducts,
+          );
+          _notify();
+        }
+      }
+      unawaited(refresh());
+      return result;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// GROS CHANTIER AURYEL (Prompt 3/5) — CONSULTATION EXPRESS : débloque du
+  /// temps de consultation contre des Étoiles. `idempotencyKey` DOIT être
+  /// STABLE pour une même tentative d'achat — c'est L'APPELANT (l'écran) qui
+  /// la génère UNE fois et la réutilise telle quelle sur un retry (double
+  /// tap, timeout, réponse perdue) : voir [generateIdempotencyKey].
+  /// `success=false` (ex. solde insuffisant) n'est PAS une erreur — le solde
+  /// n'est modifié QUE si `success=true`. Retourne `null` sur échec réseau
+  /// (absorbé, jamais bloquant pour l'écran appelant).
+  Future<ExpressConsultationResult?> purchaseExpressConsultation({
+    required String productKey,
+    required String idempotencyKey,
+  }) async {
+    if (_disposed) return null;
+    final token = await _token();
+    if (token == null || token.isEmpty || _disposed) return null;
+
+    try {
+      final result = await _api.purchaseExpressConsultation(
+        bearer: token,
+        productKey: productKey,
+        idempotencyKey: idempotencyKey,
+      );
+      if (result.success) {
+        // Solde optimiste immédiat, CONFIRMÉ juste après par [refresh].
+        final current = _wallet;
+        if (current != null) {
+          _wallet = RewardWallet(
+            starsBalance: result.starsBalance,
+            rules: current.rules,
+            streak: current.streak,
+            recentTransactions: current.recentTransactions,
+            expressProducts: current.expressProducts,
           );
           _notify();
         }

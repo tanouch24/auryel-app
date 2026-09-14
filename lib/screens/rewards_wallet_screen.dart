@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:phosphor_icons/phosphor_icons.dart';
 
+import '../api/rewards_api.dart';
 import '../state/auth_controller.dart';
+import '../state/consultation_controller.dart';
 import '../state/rewards_controller.dart';
 import '../theme/auryel_theme.dart';
 
@@ -18,14 +20,26 @@ const Map<String, String> _kRuleLabels = {
   'meditation_completed': 'Méditation',
   'share_completed': 'Partager Auryel',
   'streak_7_days': '7 jours consécutifs',
+  'mini_game_completed': 'Mini-jeu du jour',
 };
 
 String _ruleLabel(String ruleKey) =>
     _kRuleLabels[ruleKey] ?? ruleKey.replaceAll('_', ' ');
 
-/// « Mes Étoiles » — GROS CHANTIER AURYEL (Prompt 2/5). Le SERVEUR est
-/// l'unique autorité : cet écran n'AFFICHE que `GET /api/app/rewards/wallet`.
-/// Acquisition uniquement dans ce lot — pas de bouton de dépense (Prompt 3/5).
+/// GROS CHANTIER AURYEL (Prompt 3/5) — libellés des produits « temps contre
+/// Étoiles ». Coût/durée eux-mêmes JAMAIS codés en dur (résolus depuis
+/// `ExpressProduct`) ; seul le TITRE est une copy locale.
+const Map<String, String> _kExpressProductLabels = {
+  'express_consultation_10min': 'Consultation express',
+};
+
+String _expressProductLabel(String productKey) =>
+    _kExpressProductLabels[productKey] ?? productKey.replaceAll('_', ' ');
+
+/// « Mes Étoiles » — GROS CHANTIER AURYEL (Prompt 2/5 & 3/5). Le SERVEUR est
+/// l'unique autorité : cet écran n'AFFICHE que `GET /api/app/rewards/wallet`
+/// et ne dépense qu'au travers de `purchase_express_consultation` (Prompt
+/// 3/5) — jamais de montant/coût/durée choisi côté client.
 class RewardsWalletScreen extends StatefulWidget {
   const RewardsWalletScreen({super.key, this.controller});
 
@@ -134,6 +148,8 @@ class _RewardsWalletScreenState extends State<RewardsWalletScreen>
                       ),
                       const SizedBox(height: 22),
                       _RulesSection(controller: c),
+                      const SizedBox(height: 16),
+                      _SpendSection(controller: c),
                       const SizedBox(height: 16),
                       _StreakSection(controller: c),
                       const SizedBox(height: 16),
@@ -339,6 +355,352 @@ class _RulesSection extends StatelessWidget {
       },
     );
   }
+}
+
+/// GROS CHANTIER AURYEL (Prompt 3/5) — « UTILISER MES ÉTOILES » : dépenser
+/// des Étoiles contre du temps de consultation. Coût/durée TOUJOURS résolus
+/// serveur (`ExpressProduct`, depuis le MÊME wallet que le reste de l'écran)
+/// — jamais un montant choisi côté client. Pas d'achat accidentel en un seul
+/// tap : le tap ouvre une confirmation, jamais un achat direct.
+class _SpendSection extends StatelessWidget {
+  const _SpendSection({required this.controller});
+
+  final RewardsController controller;
+
+  @override
+  Widget build(BuildContext context) {
+    return ListenableBuilder(
+      listenable: controller,
+      builder: (context, _) {
+        final products = controller.expressProducts;
+        if (products.isEmpty) return const SizedBox.shrink();
+        final balance = controller.starsBalance;
+        return _SectionCard(
+          title: 'Utiliser mes Étoiles',
+          icon: PhosphorIconsRegular.sparkle,
+          child: Column(
+            children: [
+              for (final product in products) ...[
+                _ExpressProductCard(
+                  product: product,
+                  starsBalance: balance,
+                  onUnlock: () =>
+                      _showExpressConfirmSheet(context, controller, product),
+                ),
+                if (product != products.last) const SizedBox(height: 10),
+              ],
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _ExpressProductCard extends StatelessWidget {
+  const _ExpressProductCard({
+    required this.product,
+    required this.starsBalance,
+    required this.onUnlock,
+  });
+
+  final ExpressProduct product;
+  final int starsBalance;
+  final VoidCallback onUnlock;
+
+  @override
+  Widget build(BuildContext context) {
+    final minutes = (product.secondsGranted / 60).round();
+    final canAfford = starsBalance >= product.starsCost;
+    final missing = product.starsCost - starsBalance;
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AuryelColors.backgroundDeep.withValues(alpha: 0.3),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: AuryelColors.warmBorder),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            _expressProductLabel(product.productKey),
+            style: AuryelText.body(
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+              color: AuryelColors.textCream,
+            ),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            '$minutes min de consultation',
+            style: AuryelText.body(fontSize: 12, color: AuryelColors.textMuted),
+          ),
+          const SizedBox(height: 10),
+          Row(
+            children: [
+              Text(
+                '${product.starsCost} ⭐',
+                style: AuryelText.display(
+                  fontSize: 18,
+                  fontWeight: FontWeight.w700,
+                  color: AuryelColors.goldLight,
+                ),
+              ),
+              const Spacer(),
+              ElevatedButton(
+                onPressed: canAfford ? onUnlock : null,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AuryelColors.gold,
+                  foregroundColor: AuryelColors.backgroundDeep,
+                  disabledBackgroundColor: AuryelColors.warmBorder,
+                  disabledForegroundColor: AuryelColors.textMuted,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 10,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                ),
+                child: Text(
+                  'Débloquer $minutes min',
+                  style: AuryelText.body(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          if (!canAfford) ...[
+            const SizedBox(height: 6),
+            Text(
+              'Il te manque $missing ⭐',
+              style: AuryelText.body(
+                fontSize: 11.5,
+                color: AuryelColors.textMuted,
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+/// Bottom sheet de confirmation — jamais un achat en un seul tap. Affiche le
+/// solde actuel et le solde APRÈS achat, tous deux calculés depuis les
+/// valeurs serveur déjà connues (jamais recalculées ni devinées ailleurs).
+Future<void> _showExpressConfirmSheet(
+  BuildContext pageContext,
+  RewardsController controller,
+  ExpressProduct product,
+) async {
+  final minutes = (product.secondsGranted / 60).round();
+  final startingBalance = controller.starsBalance;
+  String? idempotencyKey;
+
+  // Résultat récupéré PENDANT que la sheet est encore montée (pour
+  // `Navigator.pop`), puis traité APRÈS sa fermeture avec `pageContext` —
+  // jamais le contexte de la sheet une fois celle-ci fermée (unmounted).
+  ExpressConsultationResult? outcome;
+  var busy = false;
+  String? error;
+
+  await showModalBottomSheet<void>(
+    context: pageContext,
+    backgroundColor: Colors.transparent,
+    isScrollControlled: true,
+    builder: (sheetContext) => StatefulBuilder(
+      builder: (context, setState) {
+        Future<void> confirm() async {
+          setState(() => busy = true);
+          idempotencyKey ??= generateIdempotencyKey('express');
+          final result = await controller.purchaseExpressConsultation(
+            productKey: product.productKey,
+            idempotencyKey: idempotencyKey!,
+          );
+          if (!context.mounted) return;
+          if (result == null) {
+            setState(() {
+              busy = false;
+              error = 'Connexion impossible — réessaie.';
+            });
+            return;
+          }
+          if (result.success) {
+            outcome = result;
+            Navigator.of(sheetContext).pop();
+            return;
+          }
+          setState(() {
+            busy = false;
+            error = result.isInsufficientBalance
+                ? 'Solde insuffisant.'
+                : 'Débloquer ce temps n’a pas fonctionné — réessaie plus tard.';
+          });
+        }
+
+        return SafeArea(
+          child: Container(
+            padding: const EdgeInsets.fromLTRB(24, 20, 24, 24),
+            decoration: const BoxDecoration(
+              color: AuryelColors.surface,
+              borderRadius: BorderRadius.vertical(top: Radius.circular(22)),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(
+                  'Débloquer $minutes minutes de consultation pour '
+                  '${product.starsCost} ⭐ ?',
+                  textAlign: TextAlign.center,
+                  style: AuryelText.display(
+                    fontSize: 17,
+                    fontWeight: FontWeight.w600,
+                    color: AuryelColors.textCream,
+                  ),
+                ),
+                const SizedBox(height: 18),
+                _ConfirmBalanceRow(
+                  label: 'Solde actuel',
+                  value: '$startingBalance ⭐',
+                ),
+                const SizedBox(height: 6),
+                _ConfirmBalanceRow(
+                  label: 'Solde après achat',
+                  value: '${startingBalance - product.starsCost} ⭐',
+                  emphasize: true,
+                ),
+                if (error != null) ...[
+                  const SizedBox(height: 14),
+                  Text(
+                    error!,
+                    textAlign: TextAlign.center,
+                    style: AuryelText.body(
+                      fontSize: 12.5,
+                      color: AuryelColors.textMuted,
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 20),
+                ElevatedButton(
+                  onPressed: busy ? null : confirm,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AuryelColors.gold,
+                    foregroundColor: AuryelColors.backgroundDeep,
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(999),
+                    ),
+                  ),
+                  child: busy
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Text('Confirmer'),
+                ),
+                const SizedBox(height: 8),
+                TextButton(
+                  onPressed: busy ? null : () => Navigator.of(sheetContext).pop(),
+                  child: Text(
+                    'Annuler',
+                    style: AuryelText.body(color: AuryelColors.textMuted),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    ),
+  );
+
+  // La sheet est fermée ICI : on retombe sur `pageContext` (celui de l'écran
+  // appelant), jamais le contexte de la sheet (unmounted dès sa fermeture).
+  final result = outcome;
+  if (result == null || !pageContext.mounted) return;
+  ConsultationScope.maybeReadOf(pageContext)?.refresh();
+  _showExpressSuccessDialog(pageContext, minutes, result.starsBalance);
+}
+
+class _ConfirmBalanceRow extends StatelessWidget {
+  const _ConfirmBalanceRow({
+    required this.label,
+    required this.value,
+    this.emphasize = false,
+  });
+
+  final String label;
+  final String value;
+  final bool emphasize;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(
+          label,
+          style: AuryelText.body(fontSize: 13, color: AuryelColors.textSecondary),
+        ),
+        Text(
+          value,
+          style: AuryelText.body(
+            fontSize: 13,
+            fontWeight: emphasize ? FontWeight.w700 : FontWeight.w500,
+            color: emphasize ? AuryelColors.goldLight : AuryelColors.textCream,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Feedback bref après succès — pas de modal envahissante, pas de confettis.
+void _showExpressSuccessDialog(BuildContext context, int minutes, int newBalance) {
+  showDialog<void>(
+    context: context,
+    builder: (dialogContext) => AlertDialog(
+      backgroundColor: AuryelColors.surface,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
+      title: Text(
+        '+$minutes min de consultation',
+        style: AuryelText.display(
+          fontSize: 17,
+          fontWeight: FontWeight.w600,
+          color: AuryelColors.textCream,
+        ),
+      ),
+      content: Text(
+        'Nouveau solde : $newBalance ⭐',
+        style: AuryelText.body(color: AuryelColors.textSecondary),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(dialogContext).pop(),
+          child: Text(
+            'Fermer',
+            style: AuryelText.body(color: AuryelColors.textMuted),
+          ),
+        ),
+        TextButton(
+          onPressed: () {
+            Navigator.of(dialogContext).pop();
+            // Retour à l'écran précédent (Accueil/Dashboard), où le CTA de
+            // consultation habituel reflète déjà le nouveau temps disponible
+            // — aucun flux de conseiller parallèle recréé ici.
+            Navigator.of(context).maybePop();
+          },
+          child: const Text('Parler à mon conseiller'),
+        ),
+      ],
+    ),
+  );
 }
 
 class _StreakSection extends StatelessWidget {

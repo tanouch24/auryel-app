@@ -5,6 +5,7 @@ import '../api/ai_report_api.dart';
 import '../api/api_client.dart';
 import '../api/consultation_api.dart';
 import '../api/memory_api.dart';
+import '../api/mini_game_api.dart';
 import '../api/support_api.dart';
 import '../api/profile_api.dart';
 import '../api/rewards_api.dart';
@@ -102,6 +103,7 @@ class AuthController extends ChangeNotifier {
     RewardsApi? rewardsApi,
     WellbeingApi? wellbeingApi,
     MemoryApi? memoryApi,
+    MiniGameApi? miniGameApi,
     SupportApi? supportApi,
     LocalUserData? localUserData,
     InstallationIdStore? installationIdStore,
@@ -116,6 +118,7 @@ class AuthController extends ChangeNotifier {
        _rewardsApi = rewardsApi,
        _wellbeingApi = wellbeingApi,
        _memoryApi = memoryApi,
+       _miniGameApi = miniGameApi,
        _supportApi = supportApi,
        _localUserData = localUserData ?? LocalUserData(),
        _installationIdStore = installationIdStore;
@@ -129,6 +132,7 @@ class AuthController extends ChangeNotifier {
   final RewardsApi? _rewardsApi;
   final WellbeingApi? _wellbeingApi;
   final MemoryApi? _memoryApi;
+  final MiniGameApi? _miniGameApi;
   final SupportApi? _supportApi;
   final LocalUserData _localUserData;
   final InstallationIdStore? _installationIdStore;
@@ -177,6 +181,11 @@ class AuthController extends ChangeNotifier {
   /// Jeu Auryel (Memory) + récompenses de temps de consultation. `null` si non
   /// câblé (tests hérités) — le jeu reste jouable, sans récompense.
   MemoryApi? get memoryApi => _memoryApi;
+
+  /// Suite intuitive / Carte cachée (Prompt 3/5) — session serveur générique,
+  /// même règle de récompense partagée que Memory. `null` si non câblé (tests
+  /// hérités) — le jeu reste jouable, sans récompense.
+  MiniGameApi? get miniGameApi => _miniGameApi;
 
   /// « Signaler un problème » (POST /api/app/support). `null` si non câblé.
   SupportApi? get supportApi => _supportApi;

@@ -128,6 +128,27 @@ class RewardTransaction {
   }
 }
 
+/// GROS CHANTIER AURYEL (Prompt 3/5) — un produit du catalogue « temps
+/// contre Étoiles » (ex. Consultation Express). Coût/durée TOUJOURS résolus
+/// serveur (`express_products`) — jamais codés en dur côté Flutter.
+class ExpressProduct {
+  const ExpressProduct({
+    required this.productKey,
+    required this.starsCost,
+    required this.secondsGranted,
+  });
+
+  final String productKey;
+  final int starsCost;
+  final int secondsGranted;
+
+  factory ExpressProduct.fromJson(Map<String, dynamic> json) => ExpressProduct(
+    productKey: (json['product_key'] ?? '').toString(),
+    starsCost: _asInt(json['stars_cost']),
+    secondsGranted: _asInt(json['seconds_granted']),
+  );
+}
+
 /// Wallet Étoiles complet — RÉPONSE SERVEUR de `GET /api/app/rewards/wallet`,
 /// source de vérité UNIQUE partagée par le header Accueil et l'écran Wallet.
 class RewardWallet {
@@ -136,15 +157,19 @@ class RewardWallet {
     required this.rules,
     required this.streak,
     required this.recentTransactions,
+    this.expressProducts = const [],
   });
 
   final int starsBalance;
 
   /// UNIQUEMENT les règles actives — une action future désactivée
-  /// (`mini_game_completed`, `rewarded_ad_completed`) n'apparaît jamais ici.
+  /// (`rewarded_ad_completed`) n'apparaît jamais ici.
   final List<RewardRule> rules;
   final RewardStreak streak;
   final List<RewardTransaction> recentTransactions;
+
+  /// UNIQUEMENT les produits express ACTIFS.
+  final List<ExpressProduct> expressProducts;
 
   factory RewardWallet.fromJson(Map<String, dynamic> json) {
     final rawRules = json['rules'];
@@ -165,11 +190,19 @@ class RewardWallet {
               .map(RewardTransaction.fromJson)
               .toList(growable: false)
         : const <RewardTransaction>[];
+    final rawExpress = json['express_products'];
+    final express = rawExpress is List
+        ? rawExpress
+              .whereType<Map<String, dynamic>>()
+              .map(ExpressProduct.fromJson)
+              .toList(growable: false)
+        : const <ExpressProduct>[];
     return RewardWallet(
       starsBalance: _asInt(json['stars_balance']),
       rules: rules,
       streak: streak,
       recentTransactions: tx,
+      expressProducts: express,
     );
   }
 
@@ -178,6 +211,7 @@ class RewardWallet {
     rules: [],
     streak: RewardStreak.zero,
     recentTransactions: [],
+    expressProducts: [],
   );
 }
 
@@ -205,6 +239,43 @@ class RewardClaimResult {
       );
 }
 
+// ===========================================================================
+// GROS CHANTIER AURYEL (Prompt 3/5) — CONSULTATION EXPRESS : dépenser des
+// Étoiles contre du temps de consultation. Coût/durée TOUJOURS résolus par
+// le serveur — [ExpressConsultationResult] est la réponse BRUTE, jamais
+// recalculée côté client.
+// ===========================================================================
+
+/// Résultat d'un `POST /api/app/rewards/express-consultation`.
+/// `success=false` n'est PAS une erreur réseau (ex. solde insuffisant) : le
+/// serveur répond 200 avec une raison métier.
+class ExpressConsultationResult {
+  const ExpressConsultationResult({
+    required this.success,
+    required this.reason,
+    required this.starsSpent,
+    required this.starsBalance,
+    required this.secondsGranted,
+  });
+
+  final bool success;
+  final String? reason;
+  final int starsSpent;
+  final int starsBalance;
+  final int secondsGranted;
+
+  bool get isInsufficientBalance => reason == 'insufficient_balance';
+
+  factory ExpressConsultationResult.fromJson(Map<String, dynamic> json) =>
+      ExpressConsultationResult(
+        success: json['success'] == true,
+        reason: json['reason']?.toString(),
+        starsSpent: _asInt(json['stars_spent']),
+        starsBalance: _asInt(json['stars_balance']),
+        secondsGranted: _asInt(json['seconds_granted']),
+      );
+}
+
 /// Récompenses côté app. Réutilise l'[ApiClient] commun — aucun second client.
 ///
 ///   POST /api/app/rewards/daily-share    (Bearer) -> ShareProgress
@@ -218,6 +289,11 @@ class RewardClaimResult {
 ///     Réclame UNE action SANS preuve serveur indépendante (whitelist stricte
 ///     côté serveur — aujourd'hui `wake_completed` uniquement). AUCUN montant
 ///     n'est jamais envoyé : le serveur résout tout depuis `reward_rules`.
+///   POST /api/app/rewards/express-consultation (Bearer) { product_key,
+///        idempotency_key } -> ExpressConsultationResult
+///     Débloque du temps de consultation contre des Étoiles (GROS CHANTIER
+///     AURYEL Prompt 3/5). Coût/durée résolus par `express_products` côté
+///     serveur — jamais fournis par Flutter.
 class RewardsApi {
   RewardsApi(this._client);
 
@@ -256,5 +332,21 @@ class RewardsApi {
       'action_key': actionKey,
     }, bearer: bearer);
     return RewardClaimResult.fromJson(json);
+  }
+
+  /// `POST /api/app/rewards/express-consultation { product_key,
+  /// idempotency_key }`. `idempotencyKey` DOIT être stable pour UNE même
+  /// tentative d'achat (générée une fois côté appelant, réutilisée telle
+  /// quelle sur un retry) — jamais un montant/coût/durée envoyé ici.
+  Future<ExpressConsultationResult> purchaseExpressConsultation({
+    required String bearer,
+    required String productKey,
+    required String idempotencyKey,
+  }) async {
+    final json = await _client.postJson('/api/app/rewards/express-consultation', {
+      'product_key': productKey,
+      'idempotency_key': idempotencyKey,
+    }, bearer: bearer);
+    return ExpressConsultationResult.fromJson(json);
   }
 }

@@ -222,7 +222,7 @@ void main() {
         findsOneWidget,
       );
       expect(find.text('TIRAGE'), findsOneWidget);
-      expect(find.text('JEU AURYEL'), findsOneWidget);
+      expect(find.text('DÉFI DU JOUR'), findsOneWidget);
       // Le parcours bien-être n'est PLUS présenté dans Tirage & Jeu.
       expect(find.text('BIEN-ÊTRE'), findsNothing);
       expect(find.text('Jour après jour'), findsNothing);
@@ -252,14 +252,16 @@ void main() {
       expect(find.byType(TirageScreen), findsOneWidget);
     });
 
-    testWidgets('TJ3 — l\'entrée JEU AURYEL ouvre le vrai jeu (menu jouable), '
-        'sans aucune récompense de temps', (t) async {
+    testWidgets('TJ3 — l\'entrée DÉFI DU JOUR ouvre le Jeu Auryel (menu '
+        'jouable), sans aucune récompense de temps', (t) async {
       await t.pumpWidget(_shell());
       await t.pumpAndSettle();
       await t.tap(_tab('Tirage & Jeu'));
       await t.pumpAndSettle();
 
-      await t.tap(find.text('Jouer'));
+      await t.tap(find.text('Relever le défi'));
+      await t.pumpAndSettle();
+      await t.tap(find.text('Le Jeu Auryel'));
       await t.pumpAndSettle();
 
       expect(find.byType(JeuAuryelScreen), findsOneWidget);

@@ -23,10 +23,11 @@ ApiClient _client(Future<http.Response> Function(http.Request) handler) =>
 
 void main() {
   // =========================================================================
-  // Mapping enum <-> API
+  // Mapping enum <-> API — GROS CHANTIER AURYEL (Prompt 3/5) : la récompense
+  // (Étoiles) est désormais RÉSOLUE PAR LE SERVEUR, identique pour les 3
+  // niveaux — seul le seuil de temps reste une valeur d'affichage locale.
   // =========================================================================
-  test('GameDifficulty <-> chaîne API + valeurs d\'affichage 20/40/80 · 5/10/15',
-      () {
+  test('GameDifficulty <-> chaîne API + seuils de jeu 20/40/80', () {
     expect(GameDifficulty.facile.apiDifficulty, 'easy');
     expect(GameDifficulty.moyen.apiDifficulty, 'medium');
     expect(GameDifficulty.intense.apiDifficulty, 'hard');
@@ -35,9 +36,6 @@ void main() {
     expect(GameDifficulty.facile.rewardThresholdSeconds, 20);
     expect(GameDifficulty.moyen.rewardThresholdSeconds, 40);
     expect(GameDifficulty.intense.rewardThresholdSeconds, 80);
-    expect(GameDifficulty.facile.rewardMinutes, 5);
-    expect(GameDifficulty.moyen.rewardMinutes, 10);
-    expect(GameDifficulty.intense.rewardMinutes, 15);
 
     expect(GameDifficulty.fromApi('hard'), GameDifficulty.intense);
     expect(GameDifficulty.fromApi('nope'), isNull);
@@ -52,7 +50,7 @@ void main() {
         'game_id': 'g-1',
         'difficulty': 'medium',
         'threshold_seconds': 40,
-        'reward_seconds': 600,
+        'stars_reward': 15,
         'pair_count': 6,
         'started_at': '2026-09-15T12:00:00+00:00',
         'expires_at': '2026-09-15T12:10:00+00:00',
@@ -60,7 +58,7 @@ void main() {
       expect(s.gameId, 'g-1');
       expect(s.difficulty, 'medium');
       expect(s.thresholdSeconds, 40);
-      expect(s.rewardSeconds, 600);
+      expect(s.starsReward, 15);
       expect(s.pairCount, 6);
       expect(s.expiresAt, '2026-09-15T12:10:00+00:00');
     });
@@ -71,26 +69,24 @@ void main() {
         'difficulty': 'easy',
         'elapsed_seconds': 12,
         'reward_credited': true,
-        'credited_seconds': 300,
-        'reward_seconds': 300,
+        'stars_awarded': 15,
+        'stars_reward': 15,
         'outcome': 'rewarded',
-        'next_eligible_at': '2026-09-22T12:00:00+00:00',
       });
       expect(r.rewardCredited, isTrue);
-      expect(r.creditedSeconds, 300);
+      expect(r.starsAwarded, 15);
       expect(r.outcome, 'rewarded');
       expect(r.isTimeExceeded, isFalse);
-      expect(r.isCooldown, isFalse);
-      expect(r.nextEligibleAt, '2026-09-22T12:00:00+00:00');
+      expect(r.isDailyLimitReached, isFalse);
     });
 
-    test('MemoryCompleteResult : temps dépassé / cooldown / expiré', () {
+    test('MemoryCompleteResult : temps dépassé / plafond quotidien / expiré', () {
       final t = MemoryCompleteResult.fromJson(const {
         'status': 'completed',
         'difficulty': 'medium',
         'elapsed_seconds': 55,
         'reward_credited': false,
-        'credited_seconds': 0,
+        'stars_awarded': 0,
         'outcome': 'time_limit_exceeded',
       });
       expect(t.isTimeExceeded, isTrue);
@@ -99,10 +95,9 @@ void main() {
       final c = MemoryCompleteResult.fromJson(const {
         'status': 'completed',
         'reward_credited': false,
-        'outcome': 'cooldown_active',
-        'next_eligible_at': '2026-09-20T12:00:00+00:00',
+        'outcome': 'daily_limit_reached',
       });
-      expect(c.isCooldown, isTrue);
+      expect(c.isDailyLimitReached, isTrue);
 
       final e = MemoryCompleteResult.fromJson(const {
         'status': 'expired',
@@ -112,38 +107,28 @@ void main() {
       expect(e.isExpired, isTrue);
     });
 
-    test('MemoryProgress.fromJson + forDifficulty + valeurs par défaut', () {
+    test('MemoryProgress.fromJson + valeurs par défaut (plafond PARTAGÉ, plus '
+        'de fenêtre par difficulté)', () {
       final p = MemoryProgress.fromJson(const {
-        'window_days': 7,
-        'max_window_seconds': 1800,
+        'eligible_today': false,
+        'stars_reward': 15,
+        'next_reset_at': '2026-09-16T00:00:00+00:00',
         'difficulties': [
-          {
-            'difficulty': 'easy',
-            'threshold_seconds': 20,
-            'reward_seconds': 300,
-            'eligible_now': false,
-            'last_reward_at': '2026-09-14T12:00:00+00:00',
-            'next_eligible_at': '2026-09-21T12:00:00+00:00',
-            'remaining_seconds': 400000,
-          },
-          {
-            'difficulty': 'medium',
-            'threshold_seconds': 40,
-            'reward_seconds': 600,
-            'eligible_now': true,
-            'remaining_seconds': 0,
-          },
+          {'difficulty': 'easy', 'threshold_seconds': 20, 'pair_count': 4},
+          {'difficulty': 'medium', 'threshold_seconds': 40, 'pair_count': 6},
         ],
       });
-      expect(p.windowDays, 7);
-      expect(p.maxWindowSeconds, 1800);
-      expect(p.forDifficulty('easy')!.eligibleNow, isFalse);
-      expect(p.forDifficulty('medium')!.eligibleNow, isTrue);
-      expect(p.forDifficulty('hard'), isNull);
+      expect(p.eligibleToday, isFalse);
+      expect(p.starsReward, 15);
+      expect(p.nextResetAt, '2026-09-16T00:00:00+00:00');
+      expect(p.difficulties, hasLength(2));
+      expect(p.difficulties.first.difficulty, 'easy');
+      expect(p.difficulties.first.pairCount, 4);
 
       final empty = MemoryProgress.fromJson(const {});
-      expect(empty.windowDays, 7);
-      expect(empty.maxWindowSeconds, 1800);
+      expect(empty.eligibleToday, isFalse);
+      expect(empty.starsReward, 0);
+      expect(empty.nextResetAt, isNull);
       expect(empty.difficulties, isEmpty);
     });
   });
@@ -162,7 +147,7 @@ void main() {
           'game_id': 'g-9',
           'difficulty': 'hard',
           'threshold_seconds': 80,
-          'reward_seconds': 900,
+          'stars_reward': 15,
           'pair_count': 8,
         });
       }));
@@ -172,7 +157,7 @@ void main() {
       expect(seen!.headers['Authorization'], 'Bearer tok');
       expect(body, {'difficulty': 'hard'});
       expect(s.gameId, 'g-9');
-      expect(s.rewardSeconds, 900);
+      expect(s.starsReward, 15);
     });
 
     test('complete : POST { game_id } UNIQUEMENT — aucun elapsed_seconds', () async {
@@ -186,7 +171,7 @@ void main() {
           'difficulty': 'easy',
           'elapsed_seconds': 15,
           'reward_credited': true,
-          'credited_seconds': 300,
+          'stars_awarded': 15,
           'outcome': 'rewarded',
         });
       }));
@@ -194,7 +179,7 @@ void main() {
       expect(seen!.url.path, '/api/app/memory/complete');
       expect(body, {'game_id': 'g-1'});
       expect(body!.containsKey('elapsed_seconds'), isFalse);
-      expect(body!.containsKey('reward_seconds'), isFalse);
+      expect(body!.containsKey('stars_awarded'), isFalse);
       expect(r.rewardCredited, isTrue);
     });
 
@@ -203,8 +188,9 @@ void main() {
       final api = MemoryApi(_client((req) async {
         seen = req;
         return _json({
-          'window_days': 7,
-          'max_window_seconds': 1800,
+          'eligible_today': true,
+          'stars_reward': 15,
+          'next_reset_at': null,
           'difficulties': const [],
         });
       }));
@@ -231,29 +217,31 @@ void main() {
         }
         return _json(progress ??
             const {
-              'window_days': 7,
-              'max_window_seconds': 1800,
+              'eligible_today': true,
+              'stars_reward': 15,
               'difficulties': [],
             });
       }));
     }
 
-    test('refresh charge la progression ; eligibilityFor', () async {
+    test('refresh charge la progression PARTAGÉE (eligibleToday/starsReward)',
+        () async {
       final c = MemoryRewardsController(
         api: apiThatReturns(progress: const {
-          'window_days': 7,
-          'max_window_seconds': 1800,
+          'eligible_today': false,
+          'stars_reward': 15,
+          'next_reset_at': '2026-09-16T00:00:00+00:00',
           'difficulties': [
-            {'difficulty': 'easy', 'eligible_now': true, 'reward_seconds': 300},
-            {'difficulty': 'hard', 'eligible_now': false, 'reward_seconds': 900},
+            {'difficulty': 'easy', 'threshold_seconds': 20, 'pair_count': 4},
           ],
         }),
         tokenProvider: () async => 'tok',
       );
       await c.refresh();
       expect(c.loading, isFalse);
-      expect(c.eligibilityFor('easy')!.eligibleNow, isTrue);
-      expect(c.eligibilityFor('hard')!.eligibleNow, isFalse);
+      expect(c.eligibleToday, isFalse);
+      expect(c.starsReward, 15);
+      expect(c.nextResetAt, '2026-09-16T00:00:00+00:00');
       expect(c.error, isNull);
     });
 
@@ -278,14 +266,14 @@ void main() {
           'status': 'completed',
           'difficulty': 'easy',
           'reward_credited': true,
-          'credited_seconds': 300,
+          'stars_awarded': 15,
           'outcome': 'rewarded',
         }),
         tokenProvider: () async => 'tok',
       );
       final r = await c.completeGame('g-1');
       expect(r!.rewardCredited, isTrue);
-      expect(r.creditedSeconds, 300);
+      expect(r.starsAwarded, 15);
     });
 
     test('completeGame : erreur réseau -> null, non bloquant', () async {

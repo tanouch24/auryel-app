@@ -10,6 +10,7 @@ import 'api/billing_api.dart';
 import 'api/consultation_api.dart';
 import 'api/content_api.dart';
 import 'api/memory_api.dart';
+import 'api/mini_game_api.dart';
 import 'api/profile_api.dart';
 import 'api/support_api.dart';
 import 'api/rewards_api.dart';
@@ -75,6 +76,7 @@ void main() async {
     rewardsApi: RewardsApi(apiClient),
     wellbeingApi: wellbeingApi,
     memoryApi: MemoryApi(apiClient),
+    miniGameApi: MiniGameApi(apiClient),
     supportApi: SupportApi(apiClient),
     // Signal anti-abus « heure gratuite » (identifiant d'INSTALLATION, pas de
     // compte). Généré LAZY au 1er `auth.installationId()` ; rien n'est envoyé

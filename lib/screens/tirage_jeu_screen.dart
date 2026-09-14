@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:phosphor_icons/phosphor_icons.dart';
 
 import '../theme/auryel_theme.dart';
-import 'jeu_auryel_screen.dart';
+import 'daily_challenge_screen.dart';
 import 'tirage_screen.dart';
 
 /// Hub du 2ᵉ onglet « Tirage & Jeu » — CONSACRÉ au tirage / aux expériences de
@@ -62,15 +62,15 @@ class TirageJeuScreen extends StatelessWidget {
               ),
               const SizedBox(height: 14),
               _HubCard(
-                overline: 'JEU AURYEL',
+                overline: 'DÉFI DU JOUR',
                 icon: PhosphorIconsRegular.puzzlePiece,
-                title: 'Le Jeu Auryel',
+                title: 'Mini-jeux Auryel',
                 body:
-                    'Un jeu de mémoire pour ralentir et revenir à toi. Trois '
-                    'niveaux, parties illimitées.',
-                ctaLabel: 'Jouer',
+                    'Trois petits jeux pour ralentir et revenir à toi. '
+                    'Termine-en un aujourd’hui pour ta récompense.',
+                ctaLabel: 'Relever le défi',
                 onTap: () => Navigator.of(context).push(
-                  MaterialPageRoute(builder: (_) => const JeuAuryelScreen()),
+                  MaterialPageRoute(builder: (_) => const DailyChallengeScreen()),
                 ),
               ),
             ],

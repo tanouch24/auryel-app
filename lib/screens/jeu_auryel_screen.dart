@@ -8,8 +8,8 @@ import '../api/memory_api.dart';
 import '../data/memory_game.dart';
 import '../data/memory_stats.dart';
 import '../state/auth_controller.dart';
-import '../state/consultation_controller.dart';
 import '../state/memory_rewards_controller.dart';
+import '../state/rewards_controller.dart';
 import '../theme/auryel_theme.dart';
 
 /// Jeu Auryel — jeu de paires (Memory). Le joueur retourne deux cartes ; si
@@ -18,10 +18,13 @@ import '../theme/auryel_theme.dart';
 ///
 /// 3 niveaux (8 / 12 / 16 cartes), parties illimitées. Une partie est OUVERTE
 /// puis FERMÉE côté serveur (`/api/app/memory/start` + `/complete`) : le SERVEUR
-/// est l'unique autorité pour la récompense en temps de consultation (chrono,
-/// seuil « moins de 20 / 40 / 80 s », éligibilité 1 fois par difficulté sur 7
-/// jours). Le chrono affiché ici est purement indicatif. Si le backend n'est
-/// pas câblé / joignable, le jeu reste entièrement jouable, sans récompense.
+/// est l'unique autorité pour la récompense (chrono, seuil « moins de
+/// 20 / 40 / 80 s »). GROS CHANTIER AURYEL (Prompt 3/5) : la récompense est
+/// désormais des ÉTOILES (règle `mini_game_completed`), avec un plafond
+/// PARTAGÉ par toute la catégorie mini-jeux (Memory / Suite intuitive /
+/// Carte cachée) — une seule récompense par jour, tous jeux confondus. Le
+/// chrono affiché ici est purement indicatif. Si le backend n'est pas câblé
+/// / joignable, le jeu reste entièrement jouable, sans récompense.
 class JeuAuryelScreen extends StatefulWidget {
   const JeuAuryelScreen({
     super.key,
@@ -172,8 +175,10 @@ class _JeuAuryelScreenState extends State<JeuAuryelScreen> {
       _rewardError = res == null;
     });
     if (res != null && res.rewardCredited) {
-      // Le temps disponible doit refléter le crédit immédiatement.
-      ConsultationScope.maybeReadOf(context)?.refresh();
+      // GROS CHANTIER AURYEL (Prompt 3/5) — la récompense Memory est
+      // désormais des Étoiles (plus du temps) : le header Accueil doit
+      // refléter le nouveau solde immédiatement.
+      RewardsScope.maybeReadOf(context)?.refresh();
     }
   }
 
@@ -292,8 +297,8 @@ class _JeuAuryelScreenState extends State<JeuAuryelScreen> {
           ),
           const SizedBox(height: 8),
           Text(
-            'Retrouve les paires cachées. Termine vite pour gagner du temps '
-            'de consultation.',
+            'Retrouve les paires cachées. Termine vite pour gagner des '
+            'Étoiles.',
             textAlign: TextAlign.center,
             style: AuryelText.body(
               fontSize: 12.5,
@@ -303,8 +308,7 @@ class _JeuAuryelScreenState extends State<JeuAuryelScreen> {
           ),
           const SizedBox(height: 10),
           Text(
-            'Jusqu’à 30 min de consultation tous les 7 jours — une récompense '
-            'par niveau.',
+            'Une récompense mini-jeu par jour, tous jeux confondus.',
             textAlign: TextAlign.center,
             style: AuryelText.body(
               fontSize: 11,
@@ -328,7 +332,9 @@ class _JeuAuryelScreenState extends State<JeuAuryelScreen> {
             _DifficultyCard(
               difficulty: d,
               selected: _selected == d,
-              eligibility: progress?.forDifficulty(d.apiDifficulty),
+              eligibleToday: progress?.eligibleToday,
+              starsReward: progress?.starsReward ?? 0,
+              nextResetAt: progress?.nextResetAt,
               onTap: () => setState(() => _selected = d),
             ),
             const SizedBox(height: 10),
@@ -417,24 +423,31 @@ class _DifficultyCard extends StatelessWidget {
     required this.difficulty,
     required this.selected,
     required this.onTap,
-    this.eligibility,
+    this.eligibleToday,
+    this.starsReward = 0,
+    this.nextResetAt,
   });
 
   final GameDifficulty difficulty;
   final bool selected;
   final VoidCallback onTap;
-  final MemoryDifficultyProgress? eligibility;
+
+  /// GROS CHANTIER AURYEL (Prompt 3/5) — PARTAGÉ par les 3 difficultés (une
+  /// seule récompense mini-jeux par jour, toute la catégorie confondue) :
+  /// `null` tant que la progression n'est pas encore chargée.
+  final bool? eligibleToday;
+  final int starsReward;
+  final String? nextResetAt;
 
   @override
   Widget build(BuildContext context) {
-    final elig = eligibility;
-    final locked = elig != null && !elig.eligibleNow;
-    final rewardLine =
-        'Moins de ${difficulty.rewardThresholdSeconds} sec · '
-        'gagne ${difficulty.rewardMinutes} min';
+    final locked = eligibleToday == false;
+    final rewardLine = starsReward > 0
+        ? 'Moins de ${difficulty.rewardThresholdSeconds} sec · +$starsReward ⭐'
+        : 'Moins de ${difficulty.rewardThresholdSeconds} sec';
     final statusLine = locked
-        ? _lockedLabel(elig.nextEligibleAt)
-        : (elig != null ? 'Récompense disponible' : null);
+        ? _lockedLabel(nextResetAt)
+        : (eligibleToday == true ? 'Récompense disponible aujourd’hui' : null);
 
     return Semantics(
       button: true,
@@ -901,7 +914,6 @@ class _RewardOutcomeOverlay extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final minutes = difficulty.rewardMinutes;
     final threshold = difficulty.rewardThresholdSeconds;
 
     late final IconData icon;
@@ -922,23 +934,20 @@ class _RewardOutcomeOverlay extends StatelessWidget {
     } else if (result!.rewardCredited) {
       icon = PhosphorIconsFill.sparkle;
       title = 'Bravo';
-      body = 'Tu as gagné $minutes minutes de consultation.';
-      note = 'Ton temps disponible a été mis à jour.';
+      body = 'Tu as gagné ${result!.starsAwarded} ⭐.';
+      note = 'Ton solde d’Étoiles a été mis à jour.';
     } else if (result!.isTimeExceeded) {
       icon = PhosphorIconsRegular.timer;
       title = 'Partie terminée';
       body =
-          'Termine en moins de $threshold secondes pour gagner $minutes '
-          'minutes de consultation.';
+          'Termine en moins de $threshold secondes pour gagner '
+          '${result!.starsReward} ⭐.';
       note = 'Temps  $time';
-    } else if (result!.isCooldown) {
+    } else if (result!.isDailyLimitReached) {
       icon = PhosphorIconsRegular.checkCircle;
       title = 'Partie terminée';
-      body = 'Tu as déjà obtenu la récompense de ce niveau.';
-      final until = _humanizeUntil(result!.nextEligibleAt);
-      note = until == null
-          ? null
-          : 'À nouveau disponible dans $until.';
+      body = 'Tu as déjà obtenu la récompense mini-jeu du jour.';
+      note = 'Reviens demain pour une nouvelle récompense.';
     } else if (result!.isExpired) {
       icon = PhosphorIconsRegular.hourglass;
       title = 'Partie terminée';

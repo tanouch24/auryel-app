@@ -4,7 +4,6 @@ import 'package:phosphor_icons/phosphor_icons.dart';
 import '../api/memory_api.dart';
 import '../config/legal_texts.dart';
 import '../data/app_review_service.dart';
-import '../data/memory_game.dart';
 import '../data/birth_date_parser.dart';
 import '../data/daily_like_store.dart';
 import '../data/daily_share_tracker.dart';
@@ -1221,10 +1220,13 @@ class _RewardsSection extends StatelessWidget {
   }
 }
 
-/// Bloc « Le Jeu Auryel » de la section récompenses : la règle (jusqu'à 30 min
-/// / 7 jours) + l'état d'éligibilité par niveau. Indépendant du partage (30 j =
-/// 1 h) et du parcours bien-être (30 journées = 15 min). La source de vérité
-/// est le serveur : [progress] est `null` tant qu'il n'a pas répondu.
+/// Bloc « Le Jeu Auryel » de la section récompenses. GROS CHANTIER AURYEL
+/// (Prompt 3/5) : la récompense mini-jeux est désormais des ÉTOILES, avec un
+/// plafond PARTAGÉ par toute la catégorie (Memory / Suite intuitive / Carte
+/// cachée) — une seule récompense par jour, tous jeux confondus, plus une
+/// fenêtre 7 j indépendante par niveau. Indépendant du partage (30 j = 1 h)
+/// et du parcours bien-être (30 journées = 15 min). La source de vérité est
+/// le serveur : [progress] est `null` tant qu'il n'a pas répondu.
 class _MemoryRewardBlock extends StatelessWidget {
   const _MemoryRewardBlock({this.progress});
 
@@ -1243,6 +1245,16 @@ class _MemoryRewardBlock extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final p = progress;
+    final stars = p?.starsReward ?? 0;
+    final status = p == null
+        ? null
+        : (p.eligibleToday
+              ? 'disponible aujourd’hui'
+              : () {
+                  final until = _humanizeUntil(p.nextResetAt);
+                  return until == null ? 'déjà obtenue' : 'à nouveau dans $until';
+                }());
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -1252,8 +1264,7 @@ class _MemoryRewardBlock extends StatelessWidget {
         ),
         const SizedBox(height: 4),
         Text(
-          'Jusqu’à 30 min de consultation tous les 7 jours — une récompense '
-          'par niveau.',
+          'Une récompense mini-jeu par jour, tous jeux confondus.',
           style: AuryelText.body(
             fontSize: 11.5,
             height: 1.4,
@@ -1262,21 +1273,35 @@ class _MemoryRewardBlock extends StatelessWidget {
           ),
         ),
         const SizedBox(height: 8),
-        for (final d in GameDifficulty.values)
-          Padding(
-            padding: const EdgeInsets.only(bottom: 4),
-            child: _MemoryRewardRow(
-              label: d.label,
-              minutes: d.rewardMinutes,
-              status: () {
-                final p = progress?.forDifficulty(d.apiDifficulty);
-                if (p == null) return null;
-                if (p.eligibleNow) return 'disponible';
-                final until = _humanizeUntil(p.nextEligibleAt);
-                return until == null ? 'déjà obtenue' : 'à nouveau dans $until';
-              }(),
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                stars > 0 ? 'Termine une partie — +$stars ⭐' : 'Termine une partie',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: AuryelText.body(
+                  fontSize: 11.5,
+                  color: AuryelColors.textSecondary,
+                ),
+              ),
             ),
-          ),
+            if (status != null) ...[
+              const SizedBox(width: 8),
+              Text(
+                status,
+                textAlign: TextAlign.right,
+                style: AuryelText.body(
+                  fontSize: 10.5,
+                  fontWeight: FontWeight.w600,
+                  color: status == 'disponible aujourd’hui'
+                      ? AuryelColors.goldLight
+                      : AuryelColors.textMuted,
+                ),
+              ),
+            ],
+          ],
+        ),
         const SizedBox(height: 4),
         Text(
           'Les seuils de temps et le crédit sont gérés par nos serveurs.',
@@ -1286,51 +1311,6 @@ class _MemoryRewardBlock extends StatelessWidget {
             color: AuryelColors.textMuted,
           ),
         ),
-      ],
-    );
-  }
-}
-
-class _MemoryRewardRow extends StatelessWidget {
-  const _MemoryRewardRow({
-    required this.label,
-    required this.minutes,
-    required this.status,
-  });
-
-  final String label;
-  final int minutes;
-  final String? status;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Expanded(
-          child: Text(
-            '$label — +$minutes min',
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: AuryelText.body(
-              fontSize: 11.5,
-              color: AuryelColors.textSecondary,
-            ),
-          ),
-        ),
-        if (status != null) ...[
-          const SizedBox(width: 8),
-          Text(
-            status!,
-            textAlign: TextAlign.right,
-            style: AuryelText.body(
-              fontSize: 10.5,
-              fontWeight: FontWeight.w600,
-              color: status == 'disponible'
-                  ? AuryelColors.goldLight
-                  : AuryelColors.textMuted,
-            ),
-          ),
-        ],
       ],
     );
   }
