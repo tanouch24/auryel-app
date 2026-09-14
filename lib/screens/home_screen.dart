@@ -1018,7 +1018,7 @@ class _TimeAvailableBlock extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = consultation;
-    final value = c?.availableTimeLabel ?? '1 h offerte';
+    final value = c?.availableTimeLabel ?? 'Temps offert disponible';
     final state = c != null ? _derive(c) : ConsultationState.firstFree;
 
     String? activeLine;

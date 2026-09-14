@@ -112,24 +112,27 @@ void main() {
 
   // -------------------------------------------------------------------------
   group('Accueil — bloc consultation', () {
-    testWidgets('A. première heure disponible -> "1 h ... offerte"', (t) async {
-      final rig = _rig(
-        (_) async => _json({
-          'consultation': null,
-          'time': _time(firstFree: 3600),
-          'quota': _quota(isPremium: false, firstFree: true),
-        }),
-      );
-      await rig.controller.refresh();
-      await _pumpHome(t, rig);
-      await t.pumpAndSettle();
-      expect(find.textContaining('2 h'), findsNothing);
-      expect(find.textContaining('consultations'), findsNothing);
-      // Bloc compact « TEMPS DISPONIBLE » : label + valeur brute + CTA.
-      expect(find.text('TEMPS DISPONIBLE'), findsOneWidget);
-      expect(find.text('1 h offerte'), findsOneWidget);
-      expect(find.text('Commencer une consultation'), findsOneWidget);
-    });
+    testWidgets(
+      'A. bienvenue disponible (20 min, Migration v48) -> "20 min"',
+      (t) async {
+        final rig = _rig(
+          (_) async => _json({
+            'consultation': null,
+            'time': _time(firstFree: 1200),
+            'quota': _quota(isPremium: false, firstFree: true),
+          }),
+        );
+        await rig.controller.refresh();
+        await _pumpHome(t, rig);
+        await t.pumpAndSettle();
+        expect(find.textContaining('2 h'), findsNothing);
+        expect(find.textContaining('consultations'), findsNothing);
+        // Bloc compact « TEMPS DISPONIBLE » : label + valeur brute + CTA.
+        expect(find.text('TEMPS DISPONIBLE'), findsOneWidget);
+        expect(find.text('20 min'), findsOneWidget);
+        expect(find.text('Commencer une consultation'), findsOneWidget);
+      },
+    );
 
     testWidgets('B/E. Premium avec temps -> "7 h 42 min disponibles"', (
       t,

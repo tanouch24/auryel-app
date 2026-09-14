@@ -115,23 +115,28 @@ class ConsultationController extends ChangeNotifier {
   /// Libellé UNIQUE du « temps disponible » — MÊME vérité que l'Accueil
   /// (`HomeScreen._timeValueFor(_deriveState(...))`). Le serveur reste
   /// autoritaire : on ne fait que PRÉSENTER, aucun nouveau calcul métier.
-  ///   session active                       -> portefeuille formaté
-  ///   1re heure offerte pas encore consommée -> « 1 h offerte »
-  ///     (le backend ne crédite les 3600 s au portefeuille qu'à l'ouverture de
-  ///      la 1re consultation ; d'ici là `first_free_available` = true et les
-  ///      buckets sont à 0 — l'Accueil affiche déjà « 1 h offerte », pas « 0 min »)
-  ///   portefeuille vide                    -> « 0 min »
-  ///   sinon                                -> portefeuille formaté
+  ///   session active                          -> portefeuille formaté
+  ///   portefeuille réel disponible (`t.hasTime`) -> portefeuille formaté
+  ///     (PRIORITAIRE sur `first_free_available`, qui peut rester vrai par
+  ///      construction même une fois le bucket bienvenue réellement crédité —
+  ///      GROS CHANTIER ÉCONOMIQUE Prompt 1/5 : jamais de durée figée en dur
+  ///      ici, ex-« 1 h offerte » alors que la bienvenue est désormais 20 min
+  ///      (1200 s, Migration v48 backend) et pourrait encore changer)
+  ///   bienvenue pas encore ouverte (`first_free_available`, buckets à 0)
+  ///     -> libellé neutre sans durée (le backend ne crédite le bucket
+  ///        qu'à l'ouverture de la 1re consultation : on ne connaît pas
+  ///        encore le montant réel côté portefeuille)
+  ///   portefeuille vide                       -> « 0 min »
+  ///   sinon (fallback backend ancien, bloc `time` absent) -> idem
   String get availableTimeLabel {
     if (hasActiveSession) return formatTotalTime(_walletSeconds);
-    final q = _quota;
-    if (q?.firstFreeAvailable == true) return '1 h offerte';
     final t = _time;
-    if (t != null) {
-      return t.hasTime ? formatTotalTime(_walletSeconds) : '0 min';
-    }
+    if (t != null && t.hasTime) return formatTotalTime(_walletSeconds);
+    final q = _quota;
+    if (q?.firstFreeAvailable == true) return 'Temps offert disponible';
+    if (t != null) return '0 min';
     // Fallback backend ancien (bloc `time` absent).
-    if (q == null) return '1 h offerte';
+    if (q == null) return 'Temps offert disponible';
     if ((q.isPremium && q.monthlyRemaining > 0) || q.earnedAvailable > 0) {
       return formatTotalTime(_walletSeconds);
     }

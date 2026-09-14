@@ -114,8 +114,10 @@ Map<String, dynamic> _noState({
 }) => {
   'consultation': null,
   'time': _time(
+    // GROS CHANTIER ÉCONOMIQUE (Prompt 1/5) : bienvenue 20 min (1200 s),
+    // au lieu d'1 h — voir Migration v48 backend.
     premium: timeTotal ?? (isPremium ? 28800 : 0),
-    firstFree: firstFree ? 3600 : 0,
+    firstFree: firstFree ? 1200 : 0,
     windowActive: false,
   ),
   'quota': _quota(
@@ -492,11 +494,16 @@ void main() {
       },
     };
 
-    test('availableTimeLabel — 1re heure offerte non consommée (buckets à 0) '
-        '-> « 1 h offerte », pas « 0 min »', () {
+    test('availableTimeLabel — bienvenue pas encore ouverte (buckets à 0) '
+        '-> libellé neutre, jamais « 0 min », jamais une durée figée en dur',
+        () {
+      // GROS CHANTIER ÉCONOMIQUE (Prompt 1/5) : le backend ne crédite le
+      // bucket bienvenue qu'à l'ouverture de la 1re consultation ; d'ici là
+      // on ne connaît pas le montant réel (20 min désormais, Migration v48)
+      // -> jamais de durée figée en dur (ex-« 1 h offerte »).
       expect(
         labelRig(timeQuota(ffAvail: true)).availableTimeLabel,
-        '1 h offerte',
+        'Temps offert disponible',
       );
     });
 
@@ -609,8 +616,8 @@ void main() {
     });
 
     // F5-C — états du bloc consultation dérivés du quota RÉEL (lecture seule).
-    testWidgets('first_free_available -> "Commencer une consultation" + "1 h '
-        'offerte"', (t) async {
+    testWidgets('first_free_available -> "Commencer une consultation" + "20 '
+        'min" (bienvenue réellement créditée, Migration v48)', (t) async {
       final rig = _rig((req) async {
         if (req.url.path == '/api/consultation/state') {
           return _json(_noState(isPremium: false, firstFree: true));
@@ -623,7 +630,7 @@ void main() {
       expect(find.text('Commencer une consultation'), findsOneWidget);
       // Bloc compact « TEMPS DISPONIBLE » : valeur mise en avant.
       expect(find.text('TEMPS DISPONIBLE'), findsOneWidget);
-      expect(find.text('1 h offerte'), findsOneWidget);
+      expect(find.text('20 min'), findsOneWidget);
     });
 
     testWidgets(

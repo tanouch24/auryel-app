@@ -204,15 +204,15 @@ void main() {
     expect(find.text('Temps disponible'), findsOneWidget);
     expect(find.text('8 h 42 min'), findsOneWidget); // total
     // détail par bucket (source ConsultationTimeState, jamais inventé)
-    expect(find.text('Heure offerte'), findsOneWidget);
+    expect(find.text('Bienvenue'), findsOneWidget);
     expect(find.text('Temps Premium'), findsOneWidget);
     expect(find.text('7 h 42 min'), findsOneWidget);
     // pas de fenêtre 5 min / expires
     expect(find.textContaining('expir'), findsNothing);
   });
 
-  testWidgets('14/15 — « Temps gagné » affiché ; total réconcilié avec les '
-      'lignes visibles (ordre first_free -> premium -> gagné -> acheté)', (
+  testWidgets('14/15 — « Bonus » affiché ; total réconcilié avec les '
+      'lignes visibles (ordre first_free -> premium -> bonus -> acheté)', (
     t,
   ) async {
     // 3600 (offerte) + 1800 (premium) + 900 (gagné) + 600 (acheté) = 6900 s
@@ -228,26 +228,26 @@ void main() {
       ),
     );
     await t.pump();
-    expect(find.text('Heure offerte'), findsOneWidget);
+    expect(find.text('Bienvenue'), findsOneWidget);
     expect(find.text('Temps Premium'), findsOneWidget);
-    expect(find.text('Temps gagné'), findsOneWidget);
+    expect(find.text('Bonus'), findsOneWidget);
     expect(find.text('Temps acheté'), findsOneWidget);
     // total = somme des buckets visibles
     expect(find.text('1 h 55 min'), findsOneWidget);
-    // ordre vertical : gagné entre Premium et acheté
+    // ordre vertical : bonus entre Premium et acheté
     final yPremium = t.getTopLeft(find.text('Temps Premium')).dy;
-    final yEarned = t.getTopLeft(find.text('Temps gagné')).dy;
+    final yEarned = t.getTopLeft(find.text('Bonus')).dy;
     final yPurchased = t.getTopLeft(find.text('Temps acheté')).dy;
     expect(yPremium < yEarned, isTrue);
     expect(yEarned < yPurchased, isTrue);
   });
 
-  testWidgets('« Temps gagné » absent quand earned == 0', (t) async {
+  testWidgets('« Bonus » absent quand earned == 0', (t) async {
     await t.pumpWidget(
       _dash(consultation: _consController(firstFree: 3600, premium: 1800)),
     );
     await t.pump();
-    expect(find.text('Temps gagné'), findsNothing);
+    expect(find.text('Bonus'), findsNothing);
   });
 
   testWidgets(
@@ -259,20 +259,21 @@ void main() {
     },
   );
 
-  testWidgets('F bis — compte neuf (1re heure offerte non consommée, buckets à '
-      '0) : Dashboard affiche « 1 h offerte », JAMAIS « 0 min » — même vérité '
-      'que l\'Accueil', (t) async {
+  testWidgets('F bis — compte neuf (bienvenue non encore ouverte, buckets à '
+      '0) : Dashboard affiche un libellé neutre, JAMAIS « 0 min », JAMAIS une '
+      'durée figée en dur — même vérité que l\'Accueil', (t) async {
     // Cas réel du bug : le backend renvoie first_free_available=true mais ne
-    // crédite les 3600 s au portefeuille qu'à l'ouverture de la 1re consult.
+    // crédite le bucket bienvenue (20 min, Migration v48) au portefeuille
+    // qu'à l'ouverture de la 1re consultation.
     final c = _consController(firstFreeAvailable: true); // tous les buckets = 0
     expect(
       c.availableTimeLabel,
-      '1 h offerte',
+      'Temps offert disponible',
     ); // source unique côté controller
     await t.pumpWidget(_dash(consultation: c));
     await t.pump();
     expect(find.text('Temps disponible'), findsOneWidget);
-    expect(find.text('1 h offerte'), findsOneWidget);
+    expect(find.text('Temps offert disponible'), findsOneWidget);
     expect(find.text('0 min'), findsNothing);
   });
 

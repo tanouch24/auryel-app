@@ -224,7 +224,7 @@ class _Body extends StatelessWidget {
     final c = controller;
     final consultations = c?.consultations ?? const <ConsultationSummaryDto>[];
     final loading = (c?.consultationsLoading ?? false) && consultations.isEmpty;
-    final timeLabel = c?.availableTimeLabel ?? '1 h offerte';
+    final timeLabel = c?.availableTimeLabel ?? 'Temps offert disponible';
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,

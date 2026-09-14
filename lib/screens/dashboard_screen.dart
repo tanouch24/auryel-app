@@ -790,8 +790,9 @@ class _TimeSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = consultation;
-    // Même source de vérité que l'Accueil (« 1 h offerte » tant que la 1re
-    // heure gratuite n'est pas consommée) — plus de « 0 min » incohérent.
+    // Même source de vérité que l'Accueil (`availableTimeLabel`) — plus de
+    // « 0 min » incohérent. GROS CHANTIER ÉCONOMIQUE (Prompt 1/5) : vocabulaire
+    // Bienvenue / Premium / Bonus / Acheté, jamais de durée figée en dur.
     final label =
         c?.availableTimeLabel ?? ConsultationController.formatTotalTime(0);
     final t = c?.time;
@@ -822,7 +823,7 @@ class _TimeSection extends StatelessWidget {
             const SizedBox(height: 12),
             if (t.firstFreeRemainingSeconds > 0)
               _TimeRow(
-                'Heure offerte',
+                'Bienvenue',
                 ConsultationController.formatTotalTime(
                   t.firstFreeRemainingSeconds,
                 ),
@@ -838,7 +839,7 @@ class _TimeSection extends StatelessWidget {
             // -> purchased) pour que le total se réconcilie avec les lignes.
             if (t.earnedRemainingSeconds > 0)
               _TimeRow(
-                'Temps gagné',
+                'Bonus',
                 ConsultationController.formatTotalTime(
                   t.earnedRemainingSeconds,
                 ),
