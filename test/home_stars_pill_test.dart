@@ -98,12 +98,31 @@ void main() {
     expect(find.byKey(const Key('home-stars-pill')), findsNothing);
   });
 
+  testWidgets('solde à 0 -> pilule affichée quand même (« 0 ⭐ », jamais '
+      'masquée une fois le 1er chargement abouti)', (t) async {
+    final rewards = _rewards(
+      (_) async =>
+          _json({'stars_balance': 0, 'rules': [], 'recent_transactions': []}),
+    );
+    addTearDown(rewards.dispose);
+    await rewards.refresh();
+    await t.pumpWidget(_host(rewards));
+    await t.pump(const Duration(seconds: 1));
+
+    expect(find.byKey(const Key('home-stars-pill')), findsOneWidget);
+    expect(find.text('0'), findsOneWidget);
+  });
+
   testWidgets('wallet chargé -> affiche le solde RÉEL du serveur', (t) async {
     final rewards = _rewards(
       (_) async => _json({
         'stars_balance': 340,
         'rules': [],
-        'streak': {'current_streak': 0, 'best_streak': 0, 'next_reward_in_days': 7},
+        'streak': {
+          'current_streak': 0,
+          'best_streak': 0,
+          'next_reward_in_days': 7,
+        },
         'recent_transactions': [],
       }),
     );
@@ -143,11 +162,8 @@ void main() {
     t,
   ) async {
     final rewards = _rewards(
-      (_) async => _json({
-        'stars_balance': 50,
-        'rules': [],
-        'recent_transactions': [],
-      }),
+      (_) async =>
+          _json({'stars_balance': 50, 'rules': [], 'recent_transactions': []}),
     );
     addTearDown(rewards.dispose);
     await rewards.refresh();

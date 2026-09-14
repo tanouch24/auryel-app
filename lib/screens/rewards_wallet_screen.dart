@@ -153,10 +153,7 @@ class _RewardsWalletScreenState extends State<RewardsWalletScreen>
                       const SizedBox(height: 16),
                       _StreakSection(controller: c),
                       const SizedBox(height: 16),
-                      _HistorySection(
-                        controller: c,
-                        formatDate: _formatDate,
-                      ),
+                      _HistorySection(controller: c, formatDate: _formatDate),
                     ],
                   ),
                 ),
@@ -215,7 +212,14 @@ class _BalanceBlock extends StatelessWidget {
     return ListenableBuilder(
       listenable: controller,
       builder: (context, _) {
-        final loading = controller.loading;
+        // CORRECTIF — `controller.loading` redevient `false` dès qu'un 1er
+        // `refresh()` ÉCHOUE (ex. backend indisponible), alors que le wallet
+        // n'a JAMAIS été chargé : se fier à `loading` seul affichait alors un
+        // faux « 0 » (repli silencieux de `starsBalance`). On se fie à
+        // `controller.wallet == null` — même principe que la pilule Accueil
+        // (`_StarsPill`) : jamais un solde inventé tant que le serveur n'a
+        // pas répondu au moins une fois avec succès.
+        final hasWallet = controller.wallet != null;
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -233,7 +237,7 @@ class _BalanceBlock extends StatelessWidget {
                 const Text('⭐', style: TextStyle(fontSize: 30)),
                 const SizedBox(width: 10),
                 Text(
-                  loading ? '…' : '${controller.starsBalance}',
+                  hasWallet ? '${controller.starsBalance}' : '…',
                   key: const Key('rewards-wallet-balance'),
                   style: AuryelText.display(
                     fontSize: 32,
@@ -606,7 +610,9 @@ Future<void> _showExpressConfirmSheet(
                 ),
                 const SizedBox(height: 8),
                 TextButton(
-                  onPressed: busy ? null : () => Navigator.of(sheetContext).pop(),
+                  onPressed: busy
+                      ? null
+                      : () => Navigator.of(sheetContext).pop(),
                   child: Text(
                     'Annuler',
                     style: AuryelText.body(color: AuryelColors.textMuted),
@@ -646,7 +652,10 @@ class _ConfirmBalanceRow extends StatelessWidget {
       children: [
         Text(
           label,
-          style: AuryelText.body(fontSize: 13, color: AuryelColors.textSecondary),
+          style: AuryelText.body(
+            fontSize: 13,
+            color: AuryelColors.textSecondary,
+          ),
         ),
         Text(
           value,
@@ -662,7 +671,11 @@ class _ConfirmBalanceRow extends StatelessWidget {
 }
 
 /// Feedback bref après succès — pas de modal envahissante, pas de confettis.
-void _showExpressSuccessDialog(BuildContext context, int minutes, int newBalance) {
+void _showExpressSuccessDialog(
+  BuildContext context,
+  int minutes,
+  int newBalance,
+) {
   showDialog<void>(
     context: context,
     builder: (dialogContext) => AlertDialog(
@@ -746,10 +759,7 @@ class _StreakSection extends StatelessWidget {
 }
 
 class _HistorySection extends StatelessWidget {
-  const _HistorySection({
-    required this.controller,
-    required this.formatDate,
-  });
+  const _HistorySection({required this.controller, required this.formatDate});
 
   final RewardsController controller;
   final String Function(DateTime?) formatDate;

@@ -135,7 +135,8 @@ void main() {
   testWidgets('aucun bouton de dépense dans ce lot (Prompt 2/5 = acquisition '
       'uniquement)', (t) async {
     final rewards = _rewards(
-      (_) async => _json({'stars_balance': 500, 'rules': [], 'recent_transactions': []}),
+      (_) async =>
+          _json({'stars_balance': 500, 'rules': [], 'recent_transactions': []}),
     );
     addTearDown(rewards.dispose);
     await t.pumpWidget(_host(rewards));
@@ -148,7 +149,8 @@ void main() {
 
   testWidgets('historique vide -> message neutre, jamais un crash', (t) async {
     final rewards = _rewards(
-      (_) async => _json({'stars_balance': 0, 'rules': [], 'recent_transactions': []}),
+      (_) async =>
+          _json({'stars_balance': 0, 'rules': [], 'recent_transactions': []}),
     );
     addTearDown(rewards.dispose);
     await t.pumpWidget(_host(rewards));
@@ -171,9 +173,27 @@ void main() {
     expect(find.text('Mes Étoiles'), findsOneWidget);
   });
 
+  testWidgets('CORRECTIF — 1er chargement en échec (ex. endpoint '
+      'indisponible/404) : jamais un faux « 0 », un neutre « … » tant que '
+      'le serveur n\'a pas répondu une seule fois avec succès', (t) async {
+    final rewards = _rewards((_) async => http.Response('not found', 404));
+    addTearDown(rewards.dispose);
+    await t.pumpWidget(_host(rewards));
+    await t.pump();
+    await t.pump();
+
+    expect(t.takeException(), isNull);
+    expect(find.byKey(const Key('rewards-wallet-balance')), findsOneWidget);
+    expect(
+      (t.widget(find.byKey(const Key('rewards-wallet-balance'))) as Text).data,
+      '…',
+    );
+  });
+
   testWidgets('bouton retour présent', (t) async {
     final rewards = _rewards(
-      (_) async => _json({'stars_balance': 0, 'rules': [], 'recent_transactions': []}),
+      (_) async =>
+          _json({'stars_balance': 0, 'rules': [], 'recent_transactions': []}),
     );
     addTearDown(rewards.dispose);
     await t.pumpWidget(

@@ -30,6 +30,7 @@ import 'legal_document_screen.dart';
 import 'notification_settings_screen.dart';
 import 'onboarding/email_auth_screen.dart';
 import 'premium_screen.dart';
+import 'rewards_wallet_screen.dart';
 import 'support_screen.dart';
 
 /// B10 — « Mon espace » : ouvert depuis l'icône profil de l'accueil (jamais un
@@ -455,7 +456,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     ? _SubscriptionSection(
                         consultation: consultation,
                         purchase: purchase,
-                        subscriptionManager: widget.subscriptionManager ??
+                        subscriptionManager:
+                            widget.subscriptionManager ??
                             defaultSubscriptionManager,
                       )
                     : ListenableBuilder(
@@ -463,7 +465,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         builder: (context, _) => _SubscriptionSection(
                           consultation: consultation,
                           purchase: purchase,
-                          subscriptionManager: widget.subscriptionManager ??
+                          subscriptionManager:
+                              widget.subscriptionManager ??
                               defaultSubscriptionManager,
                         ),
                       ),
@@ -1134,6 +1137,22 @@ class _RewardsSection extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
+          // CORRECTIF NAVIGATION — « Mes Étoiles » (solde + « Utiliser mes
+          // Étoiles » + consultation express) n'était accessible QUE via la
+          // pilule ⭐ de l'Accueil, elle-même invisible tant que
+          // [RewardsController.wallet] n'a pas chargé (ex. backend
+          // indisponible) — cf. `home_screen.dart` > `_StarsPill`. Entrée
+          // TOUJOURS visible depuis le Dashboard, indépendante de l'état du
+          // wallet : ne duplique aucun solde, ouvre juste l'écran existant
+          // (qui gère lui-même chargement/erreur).
+          _LinkRow(
+            label: 'Voir mes Étoiles',
+            icon: PhosphorIconsRegular.sparkle,
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const RewardsWalletScreen()),
+            ),
+          ),
+          const SizedBox(height: 12),
           Text(
             'Ta pensée du jour',
             style: AuryelText.display(
@@ -1253,7 +1272,9 @@ class _MemoryRewardBlock extends StatelessWidget {
               ? 'disponible aujourd’hui'
               : () {
                   final until = _humanizeUntil(p.nextResetAt);
-                  return until == null ? 'déjà obtenue' : 'à nouveau dans $until';
+                  return until == null
+                      ? 'déjà obtenue'
+                      : 'à nouveau dans $until';
                 }());
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1277,7 +1298,9 @@ class _MemoryRewardBlock extends StatelessWidget {
           children: [
             Expanded(
               child: Text(
-                stars > 0 ? 'Termine une partie — +$stars ⭐' : 'Termine une partie',
+                stars > 0
+                    ? 'Termine une partie — +$stars ⭐'
+                    : 'Termine une partie',
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: AuryelText.body(

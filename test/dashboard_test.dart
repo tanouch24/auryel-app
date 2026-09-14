@@ -26,6 +26,7 @@ import 'package:auryel/screens/auryel_experience_screen.dart';
 import 'package:auryel/screens/bibliotheque_screen.dart';
 import 'package:auryel/screens/dashboard_screen.dart';
 import 'package:auryel/screens/home_screen.dart';
+import 'package:auryel/screens/rewards_wallet_screen.dart';
 import 'package:auryel/screens/support_screen.dart';
 import 'package:auryel/screens/wellbeing_journey_screen.dart';
 import 'package:auryel/widgets/daily_message_sheet.dart';
@@ -160,28 +161,25 @@ Widget _dash({
 void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
 
-  testWidgets(
-    'A/B — le bouton « Mon compte » de l\'accueil ouvre le Dashboard '
-    '« Mon espace »',
-    (t) async {
-      await t.pumpWidget(
-        AuryelStateScope(
-          state: _state(),
-          child: const MaterialApp(home: HomeScreen()),
-        ),
-      );
-      await t.pump(const Duration(seconds: 1));
+  testWidgets('A/B — le bouton « Mon compte » de l\'accueil ouvre le Dashboard '
+      '« Mon espace »', (t) async {
+    await t.pumpWidget(
+      AuryelStateScope(
+        state: _state(),
+        child: const MaterialApp(home: HomeScreen()),
+      ),
+    );
+    await t.pump(const Duration(seconds: 1));
 
-      final accountButton = find.byKey(const Key('home-my-account-button'));
-      expect(accountButton, findsOneWidget);
-      expect(find.text('Mon compte'), findsOneWidget);
-      await t.tap(accountButton);
-      await t.pumpAndSettle();
+    final accountButton = find.byKey(const Key('home-my-account-button'));
+    expect(accountButton, findsOneWidget);
+    expect(find.text('Mon compte'), findsOneWidget);
+    await t.tap(accountButton);
+    await t.pumpAndSettle();
 
-      expect(find.byType(DashboardScreen), findsOneWidget);
-      expect(find.text('Mon espace'), findsOneWidget);
-    },
-  );
+    expect(find.byType(DashboardScreen), findsOneWidget);
+    expect(find.text('Mon espace'), findsOneWidget);
+  });
 
   testWidgets('C/D — conseiller affiché + CTA « Changer de conseiller »', (
     t,
@@ -536,6 +534,34 @@ void main() {
 
     expect(find.byType(WellbeingJourneyScreen), findsOneWidget);
     expect(find.text('Mon parcours bien-être'), findsOneWidget);
+  });
+
+  testWidgets('CORRECTIF NAVIGATION — « Voir mes Étoiles » ouvre l’écran '
+      '« Mes Étoiles », accessible depuis le Dashboard indépendamment de '
+      'la pilule Accueil (ex. wallet pas encore chargé)', (t) async {
+    final auth = _auth(
+      MockClient(
+        (_) async => http.Response(
+          jsonEncode({
+            'stars_balance': 7,
+            'rules': [],
+            'recent_transactions': [],
+          }),
+          200,
+          headers: {'content-type': 'application/json'},
+        ),
+      ),
+    );
+    await t.pumpWidget(_dash(auth: auth));
+    await t.pump();
+
+    await t.ensureVisible(find.text('Voir mes Étoiles'));
+    await t.tap(find.text('Voir mes Étoiles'));
+    await t.pumpAndSettle();
+
+    expect(find.byType(RewardsWalletScreen), findsOneWidget);
+    expect(find.text('Mes Étoiles'), findsOneWidget);
+    expect(find.text('7'), findsOneWidget);
   });
 
   testWidgets('B10.1 A — « Voir mes tirages » ouvre la Bibliothèque AVEC une '
