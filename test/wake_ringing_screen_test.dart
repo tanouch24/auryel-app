@@ -1,13 +1,20 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'package:auryel/api/api_client.dart';
+import 'package:auryel/api/rewards_api.dart';
 import 'package:auryel/data/wake_message.dart';
 import 'package:auryel/data/wake_message_catalog.dart';
 import 'package:auryel/data/wake_message_selector.dart';
 import 'package:auryel/screens/wake_after_screen.dart';
 import 'package:auryel/screens/wake_ringing_screen.dart';
 import 'package:auryel/services/wake_alarm_channel.dart';
+import 'package:auryel/state/rewards_controller.dart';
 
 class _FakeVoice implements WakeVoicePlayer {
   final List<String> calls = [];
@@ -244,4 +251,135 @@ void main() {
       expect(find.byType(WakeAfterScreen), findsOneWidget);
     },
   );
+
+  // ===========================================================================
+  // GROS CHANTIER AURYEL (Prompt 2/5) — ÉTOILES `wake_completed`.
+  // ===========================================================================
+  group('ÉTOILES wake_completed', () {
+    testWidgets(
+      '« Éteindre » réclame wake_completed (RewardsScope câblé) — jamais sur '
+      '« Répéter »',
+      (t) async {
+        final hits = <String>[];
+        final client = ApiClient(
+          httpClient: MockClient((req) async {
+            hits.add('${req.method} ${req.url.path}');
+            return http.Response(
+              jsonEncode({
+                'awarded': true,
+                'reason': null,
+                'stars_awarded': 5,
+                'new_balance': 5,
+              }),
+              200,
+              headers: {'content-type': 'application/json'},
+            );
+          }),
+          baseUrl: 'http://test.local',
+        );
+        final rewards = RewardsController(
+          api: RewardsApi(client),
+          tokenProvider: () async => 'tok',
+        );
+        addTearDown(rewards.dispose);
+        final voice = _FakeVoice();
+        final channel = _FakeChannel();
+
+        await t.pumpWidget(
+          MaterialApp(
+            home: RewardsScope(
+              controller: rewards,
+              child: WakeRingingScreen(
+                voicePlayer: voice,
+                alarmChannel: channel,
+                messagesOverride: const [WakeMessage(id: 'x', text: 'x')],
+              ),
+            ),
+          ),
+        );
+        await t.pump();
+        await t.pump(const Duration(milliseconds: 50));
+
+        await t.tap(find.bySemanticsLabel('Éteindre le réveil'));
+        for (var i = 0; i < 8; i++) {
+          await t.pump(const Duration(milliseconds: 100));
+        }
+        await t.pump(const Duration(milliseconds: 50));
+
+        expect(
+          hits,
+          contains('POST /api/app/rewards/claim'),
+          reason: 'extinction réelle -> claim(wake_completed) déclenché',
+        );
+      },
+    );
+
+    testWidgets(
+      '« Répéter dans 10 min » NE réclame JAMAIS wake_completed (répéter '
+      'n\'est pas terminer le réveil)',
+      (t) async {
+        final hits = <String>[];
+        final client = ApiClient(
+          httpClient: MockClient((req) async {
+            hits.add('${req.method} ${req.url.path}');
+            return http.Response('{}', 200);
+          }),
+          baseUrl: 'http://test.local',
+        );
+        final rewards = RewardsController(
+          api: RewardsApi(client),
+          tokenProvider: () async => 'tok',
+        );
+        addTearDown(rewards.dispose);
+        final voice = _FakeVoice();
+        final channel = _FakeChannel();
+
+        await t.pumpWidget(
+          RewardsScope(
+            controller: rewards,
+            child: _hostWithBackStack(voice: voice, channel: channel),
+          ),
+        );
+        await t.pumpAndSettle();
+        await t.tap(find.text('ouvrir'));
+        await t.pumpAndSettle();
+
+        await t.tap(find.text('Répéter dans 10 min'));
+        for (var i = 0; i < 8; i++) {
+          await t.pump(const Duration(milliseconds: 100));
+        }
+        await t.pump(const Duration(milliseconds: 50));
+
+        expect(hits, isEmpty, reason: 'jamais de claim sur un simple snooze');
+      },
+    );
+
+    testWidgets(
+      'sans RewardsScope câblé (tests hérités) -> « Éteindre » fonctionne '
+      'quand même normalement (repli silencieux, aucun crash)',
+      (t) async {
+        final voice = _FakeVoice();
+        final channel = _FakeChannel();
+        await t.pumpWidget(
+          MaterialApp(
+            home: WakeRingingScreen(
+              voicePlayer: voice,
+              alarmChannel: channel,
+              messagesOverride: const [WakeMessage(id: 'x', text: 'x')],
+            ),
+          ),
+        );
+        await t.pump();
+        await t.pump(const Duration(milliseconds: 50));
+
+        await t.tap(find.bySemanticsLabel('Éteindre le réveil'));
+        for (var i = 0; i < 8; i++) {
+          await t.pump(const Duration(milliseconds: 100));
+        }
+
+        expect(find.byType(WakeAfterScreen), findsOneWidget);
+        expect(t.takeException(), isNull);
+      },
+    );
+  });
 }

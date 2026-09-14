@@ -34,6 +34,7 @@ import 'state/auryel_state.dart';
 import 'state/auth_controller.dart';
 import 'state/consultation_controller.dart';
 import 'state/purchase_controller.dart';
+import 'state/rewards_controller.dart';
 import 'state/wellbeing_controller.dart';
 import 'theme/auryel_theme.dart';
 
@@ -103,6 +104,14 @@ void main() async {
     api: wellbeingApi,
     tokenProvider: auth.currentToken,
   );
+  // GROS CHANTIER AURYEL (Prompt 2/5) — ÉTOILES : instance UNIQUE et PARTAGÉE
+  // (cf. RewardsScope), même schéma que WellbeingController ci-dessus. Le
+  // header Accueil et l'écran « Mes Étoiles » lisent et notifient le MÊME
+  // contrôleur : jamais deux soldes affichés qui pourraient diverger.
+  final rewards = RewardsController(
+    api: auth.rewardsApi ?? RewardsApi(apiClient),
+    tokenProvider: auth.currentToken,
+  );
   // Contenu distant (pensée du jour + méditations) : serveur -> cache local
   // -> pack embarqué. Ne bloque jamais le démarrage ; sans réseau / session,
   // l'app sert le contenu embarqué comme avant.
@@ -150,6 +159,7 @@ void main() async {
       auth: auth,
       consultation: consultation,
       wellbeing: wellbeing,
+      rewards: rewards,
       purchase: purchase,
       notifications: notifications,
       metaEvents: metaEvents,
@@ -166,6 +176,7 @@ class AuryelApp extends StatefulWidget {
     required this.auth,
     required this.consultation,
     this.wellbeing,
+    this.rewards,
     this.purchase,
     this.notifications,
     this.metaEvents,
@@ -183,6 +194,12 @@ class AuryelApp extends StatefulWidget {
   /// au parcours bien-être — ces écrans retombent alors sur leur ancien
   /// comportement (contrôleur local / repli local).
   final WellbeingController? wellbeing;
+
+  /// GROS CHANTIER AURYEL (Prompt 2/5) — optionnel : quand fourni (cas réel
+  /// de `main()`), l'arbre est enveloppé d'un [RewardsScope] PARTAGÉ par le
+  /// header Accueil et l'écran « Mes Étoiles ». Absent des tests hérités qui
+  /// ne touchent pas aux Étoiles.
+  final RewardsController? rewards;
 
   /// Optionnel : contenu distant (pensée du jour + méditations). Quand fourni,
   /// l'arbre est enveloppé d'un [ContentScope]. Absent des tests hérités ->
@@ -245,6 +262,7 @@ class _AuryelAppState extends State<AuryelApp> with WidgetsBindingObserver {
     if (state == AppLifecycleState.resumed && widget.auth.isSignedIn) {
       widget.consultation.refreshAll();
       widget.wellbeing?.refresh();
+      widget.rewards?.refresh();
     }
   }
 
@@ -291,6 +309,10 @@ class _AuryelAppState extends State<AuryelApp> with WidgetsBindingObserver {
     final wellbeing = widget.wellbeing;
     if (wellbeing != null) {
       tree = WellbeingScope(controller: wellbeing, child: tree);
+    }
+    final rewards = widget.rewards;
+    if (rewards != null) {
+      tree = RewardsScope(controller: rewards, child: tree);
     }
     return AuthScope(
       controller: widget.auth,

@@ -13,6 +13,7 @@ import '../screens/meditation_feed_screen.dart';
 import '../screens/tirage_jeu_screen.dart';
 import '../screens/wake_settings_screen.dart';
 import '../state/auth_controller.dart';
+import '../state/rewards_controller.dart';
 import '../state/wellbeing_controller.dart';
 import '../theme/auryel_theme.dart';
 import 'main_nav_scope.dart';
@@ -80,6 +81,11 @@ class _MainNavShellState extends State<MainNavShell> {
     // jamais fermer/rouvrir l'app.
     if (changed && i == kTabHome) {
       WellbeingScope.maybeReadOf(context)?.refresh();
+      // GROS CHANTIER AURYEL (Prompt 2/5) — même logique pour les Étoiles :
+      // un tirage/une méditation/un partage effectué dans un autre onglet
+      // peut avoir crédité des Étoiles ; le solde du header Accueil doit se
+      // refléter sans jamais fermer/rouvrir l'app.
+      RewardsScope.maybeReadOf(context)?.refresh();
     }
   }
 

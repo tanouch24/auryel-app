@@ -10,6 +10,7 @@ import '../state/auth_controller.dart';
 import '../state/consultation_controller.dart';
 import '../state/profile_restore.dart';
 import '../state/session_profile_gate.dart';
+import '../state/rewards_controller.dart';
 import '../state/wellbeing_controller.dart';
 import '../theme/auryel_theme.dart';
 import 'adult_gate.dart';
@@ -47,6 +48,7 @@ class _SplashScreenState extends State<SplashScreen> {
     final auth = AuthScope.of(context);
     final consultation = ConsultationScope.of(context);
     final wellbeing = WellbeingScope.maybeOf(context);
+    final rewards = RewardsScope.maybeOf(context);
     final introSeenFuture = IntroVideoStore().hasSeen();
     await Future.wait([
       auth.restore(),
@@ -79,6 +81,9 @@ class _SplashScreenState extends State<SplashScreen> {
       // « Mon parcours bien-être » écoutent la MÊME instance partagée
       // (WellbeingScope) et se reconstruisent dès que cette réponse arrive.
       if (wellbeing != null) unawaited(wellbeing.refresh());
+      // GROS CHANTIER AURYEL (Prompt 2/5) — ÉTOILES : même logique non
+      // bloquante, même instance partagée (RewardsScope).
+      if (rewards != null) unawaited(rewards.refresh());
     }
     // MULTI-APPAREIL — au démarrage avec session valide, si le profil local est
     // absent / incomplet / rattaché à un autre compte, on récupère le profil

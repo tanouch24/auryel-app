@@ -10,6 +10,7 @@ import '../data/wake_message.dart';
 import '../data/wake_message_catalog.dart';
 import '../data/wake_message_selector.dart';
 import '../services/wake_alarm_channel.dart';
+import '../state/rewards_controller.dart';
 import '../theme/auryel_theme.dart';
 import 'wake_after_screen.dart';
 
@@ -152,6 +153,15 @@ class _WakeRingingScreenState extends State<WakeRingingScreen> {
     await _voice.stop();
     await _channel.stopRinging();
     if (!mounted) return;
+    // GROS CHANTIER AURYEL (Prompt 2/5) — ÉTOILES `wake_completed` : réclamée
+    // UNIQUEMENT ici, sur l'extinction RÉELLE d'une alarme qui a RÉELLEMENT
+    // sonné — jamais à l'ouverture de l'onglet Réveil, jamais à la simple
+    // configuration d'une alarme (WakeSettingsScreen n'appelle jamais
+    // `claim`), jamais sur `_snooze()` (répéter n'est pas terminer le
+    // réveil). Fire-and-forget, jamais bloquant pour la transition vers
+    // « Belle journée » : aucune erreur réseau ne doit retarder l'écran
+    // suivant.
+    unawaited(RewardsScope.maybeReadOf(context)?.claim('wake_completed'));
     Navigator.of(context).pushReplacement(
       MaterialPageRoute(builder: (_) => const WakeAfterScreen()),
     );

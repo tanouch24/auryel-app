@@ -14,6 +14,7 @@ import '../screens/splash_screen.dart';
 import '../state/auryel_state.dart';
 import '../state/auth_controller.dart';
 import '../state/consultation_controller.dart';
+import '../state/rewards_controller.dart';
 import '../state/wellbeing_controller.dart';
 import '../theme/auryel_theme.dart';
 import '../widgets/advisors_carousel.dart'
@@ -26,6 +27,7 @@ import '../widgets/main_nav_scope.dart';
 import 'dashboard_screen.dart';
 import 'dev/wellbeing_saga_map_poc.dart';
 import 'premium_screen.dart';
+import 'rewards_wallet_screen.dart';
 import 'wellbeing_journey_screen.dart';
 import 'tirage_jeu_screen.dart';
 
@@ -176,66 +178,89 @@ class HomeScreen extends StatelessWidget {
                 padding: const EdgeInsets.only(right: 16, top: 8),
                 child: Align(
                   alignment: Alignment.topRight,
-                  child: GestureDetector(
-                    onLongPress: kDebugMode
-                        ? () => _debugResetOnboarding(context)
-                        : null,
-                    // CORRECTIF UX FINAL — « Mon compte » quitte la barre du
-                    // bas (nav V2) : ce bouton devient le SEUL accès au
-                    // Dashboard depuis l'Accueil. Nettement plus visible
-                    // qu'une simple icône profil (icône + texte, zone
-                    // tactile confortable, rendu premium reconnaissable
-                    // comme une action de navigation, pas un détail discret).
-                    child: Semantics(
-                      button: true,
-                      label: 'Mon compte',
-                      child: Material(
-                        color: Colors.transparent,
-                        borderRadius: BorderRadius.circular(999),
-                        child: InkWell(
-                          key: const Key('home-my-account-button'),
-                          borderRadius: BorderRadius.circular(999),
-                          onTap: () => Navigator.of(context).push(
-                            MaterialPageRoute(
-                              builder: (_) => const DashboardScreen(),
-                            ),
-                          ),
-                          child: Container(
-                            padding: const EdgeInsets.fromLTRB(10, 8, 14, 8),
-                            decoration: BoxDecoration(
+                  // GROS CHANTIER AURYEL (Prompt 2/5) — le solde Étoiles
+                  // rejoint « Mon compte » en haut de l'Accueil : décision
+                  // produit explicite, PAS un bouton caché (zone tactile
+                  // confortable, icône + texte, aussi visible que « Mon
+                  // compte »). `mainAxisSize: min` + un `Wrap` en repli
+                  // (jamais un `Row` qui déborderait sur les très petits
+                  // écrans, ex. Samsung Galaxy A07) : les 2 pilules passent
+                  // sur 2 lignes plutôt que de couper un texte.
+                  child: Wrap(
+                    alignment: WrapAlignment.end,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      GestureDetector(
+                        onLongPress: kDebugMode
+                            ? () => _debugResetOnboarding(context)
+                            : null,
+                        // CORRECTIF UX FINAL — « Mon compte » quitte la barre
+                        // du bas (nav V2) : ce bouton devient le SEUL accès au
+                        // Dashboard depuis l'Accueil. Nettement plus visible
+                        // qu'une simple icône profil (icône + texte, zone
+                        // tactile confortable, rendu premium reconnaissable
+                        // comme une action de navigation, pas un détail
+                        // discret).
+                        child: Semantics(
+                          button: true,
+                          label: 'Mon compte',
+                          child: Material(
+                            color: Colors.transparent,
+                            borderRadius: BorderRadius.circular(999),
+                            child: InkWell(
+                              key: const Key('home-my-account-button'),
                               borderRadius: BorderRadius.circular(999),
-                              color: AuryelColors.surface.withValues(
-                                alpha: 0.75,
-                              ),
-                              border: Border.all(
-                                color: AuryelColors.goldLight.withValues(
-                                  alpha: 0.45,
+                              onTap: () => Navigator.of(context).push(
+                                MaterialPageRoute(
+                                  builder: (_) => const DashboardScreen(),
                                 ),
                               ),
-                            ),
-                            child: Row(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                const PhosphorIcon(
-                                  PhosphorIconsFill.userCircle,
-                                  size: 20,
-                                  color: AuryelColors.goldLight,
+                              child: Container(
+                                padding: const EdgeInsets.fromLTRB(
+                                  10,
+                                  8,
+                                  14,
+                                  8,
                                 ),
-                                const SizedBox(width: 7),
-                                Text(
-                                  'Mon compte',
-                                  style: AuryelText.body(
-                                    fontSize: 12.5,
-                                    fontWeight: FontWeight.w600,
-                                    color: AuryelColors.textCream,
+                                decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(999),
+                                  color: AuryelColors.surface.withValues(
+                                    alpha: 0.75,
+                                  ),
+                                  border: Border.all(
+                                    color: AuryelColors.goldLight.withValues(
+                                      alpha: 0.45,
+                                    ),
                                   ),
                                 ),
-                              ],
+                                child: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    const PhosphorIcon(
+                                      PhosphorIconsFill.userCircle,
+                                      size: 20,
+                                      color: AuryelColors.goldLight,
+                                    ),
+                                    const SizedBox(width: 7),
+                                    Text(
+                                      'Mon compte',
+                                      style: AuryelText.body(
+                                        fontSize: 12.5,
+                                        fontWeight: FontWeight.w600,
+                                        color: AuryelColors.textCream,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
                             ),
                           ),
                         ),
                       ),
-                    ),
+                      const _StarsPill(),
+                    ],
                   ),
                 ),
               ),
@@ -243,6 +268,82 @@ class HomeScreen extends StatelessWidget {
           ).animate().fadeIn(delay: 200.ms, duration: 400.ms),
         ],
       ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// GROS CHANTIER AURYEL (Prompt 2/5) — pilule « ⭐ solde », à côté de « Mon
+// compte ». Le SERVEUR reste l'unique source de vérité : [RewardsScope] est
+// l'instance PARTAGÉE (câblée dans main()) — jamais un solde recalculé ici.
+// Sans scope câblé (tests hérités qui ne montent que HomeScreen) : ne
+// s'affiche pas du tout plutôt qu'un faux « 0 ⭐ ».
+// ---------------------------------------------------------------------------
+
+class _StarsPill extends StatelessWidget {
+  const _StarsPill();
+
+  /// `340` en dessous de 100 000 (jamais coupé) ; compacté seulement à une
+  /// très grande valeur, en gardant 1 décimale (`"1.2M"`) — jamais une simple
+  /// troncature qui perdrait toute précision.
+  static String _format(int stars) {
+    if (stars < 100000) return '$stars';
+    if (stars < 1000000) return '${(stars / 1000).toStringAsFixed(0)}k';
+    return '${(stars / 1000000).toStringAsFixed(1)}M';
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final rewards = RewardsScope.maybeOf(context);
+    if (rewards == null) return const SizedBox.shrink();
+    return ListenableBuilder(
+      listenable: rewards,
+      builder: (context, _) {
+        // Tant que le 1er chargement n'a pas abouti : rien plutôt qu'un
+        // faux « 0 ⭐ » qui donnerait l'impression d'un solde vide.
+        if (rewards.wallet == null) return const SizedBox.shrink();
+        final label = _format(rewards.starsBalance);
+        return Semantics(
+          button: true,
+          label: 'Mes Étoiles, $label',
+          child: Material(
+            color: Colors.transparent,
+            borderRadius: BorderRadius.circular(999),
+            child: InkWell(
+              key: const Key('home-stars-pill'),
+              borderRadius: BorderRadius.circular(999),
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const RewardsWalletScreen()),
+              ),
+              child: Container(
+                padding: const EdgeInsets.fromLTRB(12, 8, 14, 8),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(999),
+                  color: AuryelColors.surface.withValues(alpha: 0.75),
+                  border: Border.all(
+                    color: AuryelColors.goldLight.withValues(alpha: 0.45),
+                  ),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Text('⭐', style: TextStyle(fontSize: 15)),
+                    const SizedBox(width: 6),
+                    Text(
+                      label,
+                      style: AuryelText.body(
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w600,
+                        color: AuryelColors.textCream,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 }
