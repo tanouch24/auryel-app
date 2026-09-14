@@ -102,6 +102,11 @@ class _FakeAudio implements MeditationAudio {
   @override
   bool get isPlaying => _playing;
   @override
+  Future<void> prepare(String source) async {
+    calls.add('prepare:$source');
+  }
+
+  @override
   Future<bool> play(String s) async {
     calls.add('play:$s');
     _playing = true;

@@ -236,7 +236,12 @@ class _RelaxationVideoStageState extends State<RelaxationVideoStage>
         widget.surfaceFactory?.call() ?? VideoPlayerRelaxationSurface();
     _surface = surface;
     _loadedUrl = v.videoUrl;
-    final ok = await surface.load(v.videoUrl);
+    // PRÉCHARGEMENT (feed méditation) — si la surface fournie par
+    // [RelaxationVideoStage.surfaceFactory] est DÉJÀ prête (chargée en avance
+    // pendant que la page précédente jouait), on NE relance PAS un
+    // chargement réseau : la frame déjà décodée est conservée telle quelle,
+    // c'est tout l'intérêt du préchargement (démarrage quasi instantané).
+    final ok = surface.isReady ? true : await surface.load(v.videoUrl);
     if (!mounted) {
       surface.dispose();
       return;

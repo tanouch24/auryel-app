@@ -12,9 +12,19 @@ import 'package:audioplayers/audioplayers.dart';
 /// naturelle. Si le fichier est absent ou la plateforme indisponible, [play]
 /// renvoie `false` et rien d'autre ne se produit (aucune exception remontée).
 abstract class MeditationAudio {
+  /// CORRECTIF « lecture synchronisée » (feed méditation) — prépare [source]
+  /// (charge/définit la source) SANS démarrer la lecture, pour qu'un [play]
+  /// ultérieur sur la MÊME source démarre quasi instantanément (pas de
+  /// nouvelle résolution réseau à ce moment-là). Best-effort : une erreur ici
+  /// n'empêche jamais [play] de fonctionner normalement ensuite (il refera
+  /// alors un chargement complet).
+  Future<void> prepare(String source);
+
   /// Démarre [source] : soit un chemin d'asset relatif à `assets/`, soit une
-  /// URL `http(s)` (catalogue de méditations distant). Renvoie `true` si la
-  /// lecture a réellement pu démarrer (`false` si l'asset/URL est absent ou la
+  /// URL `http(s)` (catalogue de méditations distant). Si [source] a déjà été
+  /// préparée via [prepare], démarre depuis cette préparation (rapide) au
+  /// lieu de relancer un chargement complet. Renvoie `true` si la lecture a
+  /// réellement pu démarrer (`false` si l'asset/URL est absent ou la
   /// plateforme indisponible — aucune exception).
   Future<bool> play(String source);
 
@@ -58,6 +68,11 @@ class AudioPlayersMeditationAudio implements MeditationAudio {
   final StreamController<void> _complete = StreamController.broadcast();
   bool _playing = false;
 
+  /// Source déjà préparée via [prepare] (source définie côté plateforme,
+  /// prête à démarrer) — `null` tant qu'aucune préparation n'est en attente
+  /// de consommation par [play].
+  String? _preparedSource;
+
   @override
   Stream<Duration> get onPosition => _position.stream;
 
@@ -71,19 +86,55 @@ class AudioPlayersMeditationAudio implements MeditationAudio {
   bool get isPlaying => _playing;
 
   @override
+  Future<void> prepare(String source) async {
+    final p = _player;
+    if (p == null || source.isEmpty) return;
+    try {
+      final isUrl =
+          source.startsWith('http://') || source.startsWith('https://');
+      // `setSourceUrl`/`setSourceAsset` DÉFINISSENT la source (le flux
+      // commence à être bufferisé côté plateforme) SANS démarrer la lecture —
+      // idiome documenté par `audioplayers` pour réduire la latence d'un
+      // `resume()` ultérieur. Jamais appelé pendant que CETTE instance joue
+      // déjà autre chose (une instance = un seul slot du feed).
+      if (isUrl) {
+        await p.setSourceUrl(source);
+      } else {
+        await p.setSourceAsset(source);
+      }
+      await p.setVolume(0.9);
+      _preparedSource = source;
+    } catch (_) {
+      // Échec de préparation anticipée -> `play()` refera un chargement
+      // complet le moment venu, jamais bloquant.
+      _preparedSource = null;
+    }
+  }
+
+  @override
   Future<bool> play(String source) async {
     final p = _player;
     if (p == null || source.isEmpty) return false;
     try {
-      await p.stop();
-      await p.setVolume(0.9);
-      final isUrl =
-          source.startsWith('http://') || source.startsWith('https://');
-      await p.play(isUrl ? UrlSource(source) : AssetSource(source));
+      if (_preparedSource == source) {
+        // CORRECTIF « lecture synchronisée » — source déjà préparée par
+        // [prepare] : `resume()` démarre quasi instantanément (aucune
+        // nouvelle résolution réseau à cet instant), c'est tout l'intérêt du
+        // préchargement en avance du feed méditation.
+        await p.resume();
+      } else {
+        await p.stop();
+        await p.setVolume(0.9);
+        final isUrl =
+            source.startsWith('http://') || source.startsWith('https://');
+        await p.play(isUrl ? UrlSource(source) : AssetSource(source));
+      }
+      _preparedSource = null;
       _playing = true;
       return true;
     } catch (_) {
       _playing = false;
+      _preparedSource = null;
       return false; // fichier / URL absent / plateforme absente -> silencieux
     }
   }

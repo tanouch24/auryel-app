@@ -61,6 +61,8 @@ class MeditationScreen extends StatefulWidget {
     this.wellbeingApi,
     this.videoSelector,
     this.videoSurfaceFactory,
+    this.initialVideo,
+    this.videoResolvedExternally = false,
     this.autoplayOnOpen = false,
     this.showCatalogNavigation = true,
   });
@@ -101,6 +103,26 @@ class MeditationScreen extends StatefulWidget {
   /// Test uniquement : fabrique la surface vidéo (aucun canal plateforme).
   final RelaxationVideoSurface Function()? videoSurfaceFactory;
 
+  /// CORRECTIF « lecture synchronisée » — visuel déjà choisi ET préchargé en
+  /// avance par [MeditationFeedScreen] (avec une surface déjà prête fournie
+  /// via [videoSurfaceFactory]) : utilisé directement, sans nouvelle
+  /// sélection interne (qui redéclencherait un chargement réseau et
+  /// annulerait tout l'intérêt du préchargement). `null` -> comportement
+  /// historique : sélection + chargement automatiques via
+  /// [ContentRepository] une fois l'écran monté.
+  final RelaxationVideo? initialVideo;
+
+  /// CORRECTIF « lecture synchronisée » — `true` UNIQUEMENT depuis le feed :
+  /// le choix du visuel (avec ou sans vidéo utilisable au final) a déjà été
+  /// tranché définitivement par [MeditationFeedScreen] (bornée par ses
+  /// propres tentatives). Dans ce cas, cet écran ne relance JAMAIS sa propre
+  /// résolution interne (`_resolveAmbianceVideo`) : un succès tardif de
+  /// celle-ci ferait réapparaître une vidéo plusieurs secondes après que
+  /// l'audio a démarré — exactement le bug corrigé ici. `false` par défaut
+  /// PARTOUT ailleurs (bibliothèque, « Ton Moment du jour ») : comportement
+  /// historique inchangé.
+  final bool videoResolvedExternally;
+
   /// Parcours bien-être : sync serveur de la mission `moment` (aucune trace
   /// serveur propre à la méditation). Injecté en test ; en production, lu via
   /// `AuthScope.of(context).wellbeingApi`. `null` -> sync ignorée (le tracker
@@ -138,9 +160,10 @@ class _MeditationScreenState extends State<MeditationScreen>
   List<RelaxationVideo> _availableVideos = const [];
 
   /// Vidéo d'ambiance choisie pour CETTE séance (une seule, préchargée à la
-  /// demande). `null` = aucune vidéo compatible / catalogue vide -> fond
-  /// statique. N'influe JAMAIS sur l'audio.
-  RelaxationVideo? _video;
+  /// demande, ou fournie déjà prête via [MeditationScreen.initialVideo]).
+  /// `null` = aucune vidéo compatible / catalogue vide -> fond statique.
+  /// N'influe JAMAIS sur l'audio.
+  late RelaxationVideo? _video = widget.initialVideo;
 
   /// Visuels ayant RÉELLEMENT échoué à charger/démarrer cette session — évite
   /// de retenter indéfiniment le même fichier cassé. Voir [_onVideoFailed] :
@@ -232,8 +255,9 @@ class _MeditationScreenState extends State<MeditationScreen>
       final content = ContentScope.maybeOf(context);
       if (content != null) {
         if (widget.item != null) {
-          // Séance fournie par la bibliothèque : on ne résout que le visuel.
-          _resolveAmbianceVideo(content);
+          // Séance fournie par la bibliothèque : on ne résout que le visuel
+          // — SAUF si le feed a déjà tranché (voir `videoResolvedExternally`).
+          if (!widget.videoResolvedExternally) _resolveAmbianceVideo(content);
         } else {
           content
               .momentOfDay(widget.now ?? DateTime.now())
@@ -243,7 +267,9 @@ class _MeditationScreenState extends State<MeditationScreen>
                 }
               })
               .whenComplete(() {
-                if (mounted) _resolveAmbianceVideo(content);
+                if (mounted && !widget.videoResolvedExternally) {
+                  _resolveAmbianceVideo(content);
+                }
               });
         }
         _resolveCatalog(content);

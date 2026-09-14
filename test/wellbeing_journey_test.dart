@@ -122,6 +122,8 @@ class _FakeAudio implements MeditationAudio {
   @override
   bool get isPlaying => true;
   @override
+  Future<void> prepare(String source) async {}
+  @override
   Future<bool> play(String assetPath) async => true;
   @override
   Future<void> pause() async {}

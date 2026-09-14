@@ -37,6 +37,11 @@ class _FakeMeditationAudio implements MeditationAudio {
   bool get isPlaying => _playing;
 
   @override
+  Future<void> prepare(String source) async {
+    calls.add('prepare:$source');
+  }
+
+  @override
   Future<bool> play(String assetPath) async {
     calls.add('play:$assetPath');
     _playing = available;
