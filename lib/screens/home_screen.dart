@@ -5,6 +5,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:phosphor_icons/phosphor_icons.dart';
 
+// Legacy mission widgets remain available to their dedicated flows, but are
+// intentionally not mounted on Home.
+// ignore_for_file: unused_element, unused_element_parameter, unused_shown_name
+
 import '../api/rewards_api.dart' show RewardRule;
 import '../api/wellbeing_api.dart' show kWellbeingMissions;
 import '../data/content_repository.dart';
@@ -18,19 +22,17 @@ import '../state/consultation_controller.dart';
 import '../state/rewards_controller.dart';
 import '../state/wellbeing_controller.dart';
 import '../theme/auryel_theme.dart';
-import '../widgets/advisors_carousel.dart'
-    show AdvisorInfo, advisorByName, advisorByGuideKey;
+import '../widgets/advisors_carousel.dart' show AdvisorInfo, advisorByName;
 import '../widgets/auryel_wordmark.dart';
-import '../widgets/consultation_block.dart' show ConsultationState;
 import '../widgets/daily_message_sheet.dart';
 import '../widgets/gold_button.dart';
 import '../widgets/main_nav_scope.dart';
 import 'dashboard_screen.dart';
-import 'dev/wellbeing_saga_map_poc.dart';
 import 'premium_screen.dart';
 import 'rewards_wallet_screen.dart';
 import 'wellbeing_journey_screen.dart';
 import 'tirage_jeu_screen.dart';
+import 'dev/wellbeing_saga_map_poc.dart';
 
 /// Reset DEBUG uniquement (geste caché — appui long sur l'icône profil,
 /// visible seulement en `kDebugMode`).
@@ -43,15 +45,9 @@ Future<void> _debugResetOnboarding(BuildContext context) async {
   );
 }
 
-/// Accueil « MON AURYEL AUJOURD'HUI » — comprendre sa journée en un coup d'œil,
-/// avec le moins de scroll possible sur ~384 dp.
-///
-/// Ordre : AURYEL / accès Dashboard -> PENSÉE DU JOUR -> TES MISSIONS DU JOUR
-/// -> TEMPS DISPONIBLE -> barre de navigation.
-///
-/// Les conseillers ne sont PLUS présentés ici (ni carrousel, ni « Changer de
-/// conseiller ») : ils reviendront dans l'onglet central CONSULTATION (lot
-/// suivant). Les données/assets/logique conseillers restent intacts.
+/// Accueil commercial Auryel : conseiller, temps disponible, offres puis
+/// contenu quotidien. Les missions restent accessibles depuis le portefeuille
+/// Étoiles, jamais supprimées de l'application.
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key, this.thoughtRepository});
 
@@ -136,34 +132,10 @@ class HomeScreen extends StatelessWidget {
                     ),
                     const SizedBox(height: 14),
 
-                    // 1 — PENSÉE DU JOUR (lot inchangé).
-                    _DailyThoughtZone(repository: thoughtRepository)
+                    _HomeAdvisorCard(advisor: advisor)
                         .animate()
-                        .fadeIn(delay: 380.ms, duration: 500.ms),
-
-                    const SizedBox(height: 16),
-                    _Divider(),
-                    const SizedBox(height: 12),
-
-                    // 2 — TES MISSIONS DU JOUR.
-                    _MissionsSection(repository: thoughtRepository)
-                        .animate()
-                        .fadeIn(delay: 480.ms, duration: 500.ms),
-
+                        .fadeIn(delay: 300.ms, duration: 500.ms),
                     const SizedBox(height: 14),
-
-                    // 2 bis — CTA PARCOURS BIEN-ÊTRE (carte de progression type
-                    // jeu, écran dédié). Volontairement bien visible.
-                    const _WellbeingJourneyCta().animate().fadeIn(
-                      delay: 520.ms,
-                      duration: 500.ms,
-                    ),
-
-                    const SizedBox(height: 14),
-                    _Divider(),
-                    const SizedBox(height: 12),
-
-                    // 3 — TEMPS DISPONIBLE (bloc compact).
                     (consultation == null
                             ? _TimeAvailableBlock(
                                 consultation: null,
@@ -177,7 +149,28 @@ class HomeScreen extends StatelessWidget {
                                 ),
                               ))
                         .animate()
-                        .fadeIn(delay: 560.ms, duration: 500.ms),
+                        .fadeIn(delay: 380.ms, duration: 500.ms),
+                    const SizedBox(height: 14),
+                    const _ConsultationOffers().animate().fadeIn(
+                      delay: 440.ms,
+                      duration: 500.ms,
+                    ),
+                    const SizedBox(height: 18),
+                    _Divider(),
+                    const SizedBox(height: 14),
+                    _DailyThoughtZone(repository: thoughtRepository)
+                        .animate()
+                        .fadeIn(delay: 500.ms, duration: 500.ms),
+                    const SizedBox(height: 14),
+                    /* The old mission tiles deliberately do not belong on the
+                       Home anymore. Their real flows remain in their tabs and
+                       the active reward rules are listed in RewardsWallet. */
+                    /*
+                    const _WellbeingJourneyCta().animate().fadeIn(
+                      delay: 520.ms,
+                      duration: 500.ms,
+                    ),
+                    */
                   ],
                 ),
               ),
@@ -340,6 +333,213 @@ class _StarsPill extends StatelessWidget {
           ),
         );
       },
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+
+class _HomeAdvisorCard extends StatelessWidget {
+  const _HomeAdvisorCard({required this.advisor});
+
+  final AdvisorInfo advisor;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: AuryelColors.surface.withValues(alpha: 0.72),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: AuryelColors.warmBorder),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 50,
+            height: 50,
+            padding: const EdgeInsets.all(2),
+            decoration: const BoxDecoration(
+              shape: BoxShape.circle,
+              gradient: AuryelColors.goldGradient,
+            ),
+            child: ClipOval(
+              child: Image.asset(advisor.assetPath, fit: BoxFit.cover),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'TON CONSEILLER',
+                  style: AuryelText.body(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w600,
+                    color: AuryelColors.gold,
+                    letterSpacing: 1.4,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  advisor.name,
+                  style: AuryelText.display(
+                    fontSize: 17,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  advisor.specialty,
+                  style: AuryelText.body(
+                    fontSize: 11.5,
+                    color: AuryelColors.textMuted,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const PhosphorIcon(
+            PhosphorIconsRegular.arrowRight,
+            size: 17,
+            color: AuryelColors.goldLight,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ConsultationOffers extends StatelessWidget {
+  const _ConsultationOffers();
+
+  void _openPremium(BuildContext context) =>
+      Navigator.of(context)
+          .push(MaterialPageRoute(builder: (_) => const PremiumScreen()));
+
+  void _openWallet(BuildContext context) =>
+      Navigator.of(context)
+          .push(MaterialPageRoute(builder: (_) => const RewardsWalletScreen()));
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Text(
+          'DÉCOUVRE LES OFFRES DE CONSULTATION',
+          style: AuryelText.body(
+            fontSize: 10.5,
+            fontWeight: FontWeight.w600,
+            color: AuryelColors.gold,
+            letterSpacing: 1.6,
+          ),
+        ),
+        const SizedBox(height: 10),
+        _OfferCard(
+          key: const Key('home-premium-offer'),
+          title: 'Auryel Premium',
+          detail: '4 h de consultation par mois',
+          price: '4,99 €/mois',
+          footnote: 'Sans publicité',
+          primary: true,
+          cta: 'Découvrir Premium',
+          onTap: () => _openPremium(context),
+        ),
+        const SizedBox(height: 10),
+        _OfferCard(
+          key: const Key('home-free-offer'),
+          title: 'Gagne des minutes de consultation gratuitement',
+          detail: 'Gagne des Étoiles avec les activités Auryel',
+          price: '400 ⭐ = 10 min  ·  500 ⭐ = 15 min',
+          cta: 'Découvrir comment',
+          onTap: () => _openWallet(context),
+        ),
+      ],
+    );
+  }
+}
+
+class _OfferCard extends StatelessWidget {
+  const _OfferCard({
+    super.key,
+    required this.title,
+    required this.detail,
+    required this.price,
+    required this.cta,
+    required this.onTap,
+    this.footnote,
+    this.primary = false,
+  });
+
+  final String title, detail, price, cta;
+  final String? footnote;
+  final bool primary;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(16, 16, 14, 14),
+      decoration: BoxDecoration(
+        gradient: primary
+            ? LinearGradient(
+                colors: [
+                  AuryelColors.gold.withValues(alpha: 0.24),
+                  AuryelColors.surface.withValues(alpha: 0.9),
+                ],
+              )
+            : null,
+        color: primary ? null : AuryelColors.surface.withValues(alpha: 0.72),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(
+          color: primary
+              ? AuryelColors.goldLight.withValues(alpha: 0.7)
+              : AuryelColors.warmBorder,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            title,
+            style: AuryelText.display(
+              fontSize: 17,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 5),
+          Text(
+            detail,
+            style: AuryelText.body(
+              fontSize: 13,
+              color: AuryelColors.textSecondary,
+            ),
+          ),
+          const SizedBox(height: 5),
+          Text(
+            price,
+            style: AuryelText.body(
+              fontSize: 13,
+              fontWeight: FontWeight.w700,
+              color: AuryelColors.goldLight,
+            ),
+          ),
+          if (footnote != null) ...[
+            const SizedBox(height: 2),
+            Text(
+              footnote!,
+              style: AuryelText.body(
+                fontSize: 12,
+                color: AuryelColors.textMuted,
+              ),
+            ),
+          ],
+          const SizedBox(height: 12),
+          _CompactCta(label: cta, onTap: onTap),
+        ],
+      ),
     );
   }
 }
@@ -1080,69 +1280,41 @@ class _TimeAvailableBlock extends StatelessWidget {
   final ConsultationController? consultation;
   final AdvisorInfo? preferredAdvisor;
 
-  static ConsultationState _derive(ConsultationController c) {
-    if (c.hasActiveSession) return ConsultationState.active;
-    final q = c.quota;
-    if (q?.firstFreeAvailable == true) return ConsultationState.firstFree;
+  String _serverTimeLabel(ConsultationController? c) {
+    if (c == null) return 'Temps offert disponible';
     final t = c.time;
-    if (t != null) {
-      return t.hasTime
-          ? ConsultationState.subscriberAvailable
-          : ConsultationState.locked;
+    if (t != null && t.totalRemainingSeconds > 0) {
+      final total = t.totalRemainingSeconds;
+      final minutes = total ~/ 60;
+      final seconds = total % 60;
+      if (!c.hasActiveSession && total == t.firstFreeRemainingSeconds) {
+        return '$minutes minutes offertes';
+      }
+      if (c.hasActiveSession || seconds > 0) {
+        return '$minutes min ${seconds.toString().padLeft(2, '0')} s restantes';
+      }
+      return '$minutes min restantes';
     }
-    if (q == null) return ConsultationState.firstFree;
-    if (q.isPremium && q.monthlyRemaining > 0) {
-      return ConsultationState.subscriberAvailable;
+    if (t == null && c.quota?.firstFreeAvailable == true) {
+      return '20 minutes offertes';
     }
-    if (q.earnedAvailable > 0) return ConsultationState.subscriberAvailable;
-    return ConsultationState.locked;
-  }
-
-  void _openConsultationTab(BuildContext context) {
-    // J6-F2 §9-§12 — le CTA consultation de l'Accueil ouvre TOUJOURS l'onglet
-    // Consultation (la LISTE) : jamais un ChatScreen, jamais un fil choisi
-    // d'office, jamais `selectedAdvisor`.
-    MainNavScope.maybeOf(context)?.goToTab(kTabConsultation);
-  }
-
-  void _openPremium(BuildContext context) {
-    Navigator.of(context)
-        .push(MaterialPageRoute(builder: (_) => const PremiumScreen()));
+    return 'Temps de consultation épuisé';
   }
 
   @override
   Widget build(BuildContext context) {
     final c = consultation;
-    final value = c?.availableTimeLabel ?? 'Temps offert disponible';
-    final state = c != null ? _derive(c) : ConsultationState.firstFree;
-
-    String? activeLine;
-    String ctaLabel;
-    VoidCallback? onTap;
-
-    // « au moins une consultation existe » : fil listé OU session logique en
-    // cours.
-    final hasThread =
-        c != null && (c.hasConsultations || c.hasResumableConsultation);
-
-    switch (state) {
-      case ConsultationState.active:
-        final session = c!.active!;
-        final adv = advisorByGuideKey(session.advisorId) ?? preferredAdvisor;
-        final name = adv?.name;
-        activeLine = name != null ? 'Consultation en cours avec $name' : null;
-        ctaLabel = 'Consultation en cours';
-        onTap = () => _openConsultationTab(context);
-      case ConsultationState.locked:
-        ctaLabel = 'S’abonner';
-        onTap = () => _openPremium(context);
-      case ConsultationState.firstFree:
-      case ConsultationState.subscriberAvailable:
-        ctaLabel = hasThread
-            ? 'Consultation en cours'
-            : 'Commencer une consultation';
-        onTap = () => _openConsultationTab(context);
-    }
+    final hasTime =
+        c == null ||
+        (c.time?.totalRemainingSeconds ?? 0) > 0 ||
+        (c.time == null && c.quota?.firstFreeAvailable == true);
+    final value = _serverTimeLabel(c);
+    final active = c?.hasActiveSession == true;
+    final ctaLabel = active
+        ? 'Consultation en cours'
+        : hasTime
+        ? 'Commencer une consultation'
+        : 'Découvrir Premium';
 
     return Container(
       padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
@@ -1156,7 +1328,7 @@ class _TimeAvailableBlock extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           Text(
-            'TEMPS DISPONIBLE',
+            'TON TEMPS DE CONSULTATION',
             style: AuryelText.body(
               fontSize: 9.5,
               fontWeight: FontWeight.w600,
@@ -1173,10 +1345,10 @@ class _TimeAvailableBlock extends StatelessWidget {
               color: AuryelColors.textCream,
             ),
           ),
-          if (activeLine != null) ...[
+          if (active) ...[
             const SizedBox(height: 2),
             Text(
-              activeLine,
+              'Temps réel communiqué par le serveur',
               style: AuryelText.body(
                 fontSize: 11,
                 color: AuryelColors.textSecondary,
@@ -1184,7 +1356,22 @@ class _TimeAvailableBlock extends StatelessWidget {
             ),
           ],
           const SizedBox(height: 12),
-          _CompactCta(label: ctaLabel, onTap: onTap),
+          if (!hasTime)
+            Text(
+              'Découvre les solutions ci-dessous pour continuer.',
+              style: AuryelText.body(
+                fontSize: 12,
+                color: AuryelColors.textMuted,
+              ),
+            ),
+          if (hasTime) ...[
+            const SizedBox(height: 12),
+            _CompactCta(
+              label: ctaLabel,
+              onTap: () =>
+                  MainNavScope.maybeOf(context)?.goToTab(kTabConsultation),
+            ),
+          ],
         ],
       ),
     );

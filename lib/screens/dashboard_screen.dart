@@ -904,11 +904,11 @@ class _SubscriptionSection extends StatelessWidget {
     final premium = consultation?.quota?.isPremium ?? false;
     final periodEnd = consultation?.quota?.periodEnd;
     final canRestore = purchase?.canRestore ?? false;
-    // Prix STORE d'abord ; repli marketing « 7,99 €/mois » sinon.
+    // Prix STORE d'abord ; repli marketing du produit Auryel sinon.
     final storePrice = purchase?.premiumProduct?.price;
     final priceLabel = (storePrice != null && storePrice.isNotEmpty)
         ? storePrice
-        : '7,99 €/mois';
+        : '4,99 €/mois';
 
     return _Section(
       title: 'Mon abonnement',
@@ -960,7 +960,7 @@ class _SubscriptionSection extends StatelessWidget {
             ),
           ] else ...[
             Text(
-              '8 h de consultation par mois',
+              '4 h de consultation par mois',
               style: AuryelText.body(
                 fontSize: 12.5,
                 color: AuryelColors.textSecondary,

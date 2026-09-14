@@ -6,6 +6,7 @@ import '../state/auth_controller.dart';
 import '../state/consultation_controller.dart';
 import '../state/rewards_controller.dart';
 import '../theme/auryel_theme.dart';
+import 'premium_screen.dart';
 
 /// Libellés d'affichage des règles Étoiles — le SERVEUR décide QUELLES règles
 /// sont actives et COMBIEN elles rapportent (`RewardRule.starsAmount`) ; ce
@@ -161,6 +162,8 @@ class _RewardsWalletScreenState extends State<RewardsWalletScreen>
                       _BackHeader(),
                       const SizedBox(height: 8),
                       _BalanceBlock(controller: c),
+                      const SizedBox(height: 14),
+                      _NextTierBlock(controller: c),
                       const SizedBox(height: 18),
                       Text(
                         'Tes Étoiles récompensent tes activités dans Auryel.',
@@ -176,6 +179,8 @@ class _RewardsWalletScreenState extends State<RewardsWalletScreen>
                       _SpendSection(controller: c),
                       const SizedBox(height: 16),
                       _StreakSection(controller: c),
+                      const SizedBox(height: 16),
+                      const _PremiumReminder(),
                       const SizedBox(height: 16),
                       _HistorySection(controller: c, formatDate: _formatDate),
                     ],
@@ -276,6 +281,155 @@ class _BalanceBlock extends StatelessWidget {
       },
     );
   }
+}
+
+class _NextTierBlock extends StatelessWidget {
+  const _NextTierBlock({required this.controller});
+
+  final RewardsController controller;
+
+  @override
+  Widget build(BuildContext context) {
+    return ListenableBuilder(
+      listenable: controller,
+      builder: (context, _) {
+        final products = [...controller.expressProducts]
+          ..sort((a, b) => a.starsCost.compareTo(b.starsCost));
+        if (products.isEmpty || controller.wallet == null) {
+          return const SizedBox.shrink();
+        }
+        final balance = controller.starsBalance;
+        final available = products
+            .where((p) => p.starsCost <= balance)
+            .toList();
+        final higher = products.where((p) => p.starsCost > balance).toList();
+        final next = higher.isEmpty ? null : higher.first;
+        if (next == null && available.isEmpty) return const SizedBox.shrink();
+        if (next == null) {
+          final product = available.last;
+          return _WalletInsight(
+            title: '${_minutes(product)} min disponibles',
+            subtitle: 'Tu peux débloquer du temps avec tes Étoiles.',
+          );
+        }
+        final missing = next.starsCost - balance;
+        final title = available.isNotEmpty
+            ? '${_minutes(available.last)} min disponibles\nPlus que $missing ⭐ pour atteindre ${_minutes(next)} min'
+            : 'Plus que $missing ⭐ pour débloquer ${_minutes(next)} min';
+        return _WalletInsight(
+          title: title,
+          subtitle: 'Prochain palier disponible depuis les offres serveur.',
+        );
+      },
+    );
+  }
+
+  static int _minutes(ExpressProduct product) =>
+      (product.secondsGranted / 60).round();
+}
+
+class _WalletInsight extends StatelessWidget {
+  const _WalletInsight({required this.title, required this.subtitle});
+
+  final String title;
+  final String subtitle;
+
+  @override
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.all(14),
+    decoration: BoxDecoration(
+      color: AuryelColors.gold.withValues(alpha: 0.10),
+      borderRadius: BorderRadius.circular(16),
+      border: Border.all(color: AuryelColors.gold.withValues(alpha: 0.35)),
+    ),
+    child: Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const PhosphorIcon(
+          PhosphorIconsRegular.sparkle,
+          color: AuryelColors.goldLight,
+          size: 20,
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style: AuryelText.body(
+                  fontSize: 13.5,
+                  fontWeight: FontWeight.w600,
+                  color: AuryelColors.textCream,
+                  height: 1.35,
+                ),
+              ),
+              const SizedBox(height: 3),
+              Text(
+                subtitle,
+                style: AuryelText.body(
+                  fontSize: 11,
+                  color: AuryelColors.textMuted,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    ),
+  );
+}
+
+class _PremiumReminder extends StatelessWidget {
+  const _PremiumReminder();
+
+  @override
+  Widget build(BuildContext context) => Container(
+    padding: const EdgeInsets.all(14),
+    decoration: BoxDecoration(
+      color: AuryelColors.surface,
+      borderRadius: BorderRadius.circular(16),
+      border: Border.all(color: AuryelColors.warmBorder),
+    ),
+    child: Row(
+      children: [
+        const PhosphorIcon(
+          PhosphorIconsRegular.crown,
+          color: AuryelColors.goldLight,
+          size: 21,
+        ),
+        const SizedBox(width: 10),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Auryel Premium',
+                style: AuryelText.body(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w700,
+                  color: AuryelColors.textCream,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                '4 h/mois  ·  4,99 €/mois  ·  Sans publicité',
+                style: AuryelText.body(
+                  fontSize: 12,
+                  color: AuryelColors.textSecondary,
+                ),
+              ),
+            ],
+          ),
+        ),
+        TextButton(
+          onPressed: () => Navigator.of(context)
+              .push(MaterialPageRoute(builder: (_) => const PremiumScreen())),
+          child: const Text('Découvrir'),
+        ),
+      ],
+    ),
+  );
 }
 
 class _SectionCard extends StatelessWidget {
@@ -408,7 +562,13 @@ class _RulesSection extends StatelessWidget {
         // UNIQUEMENT les règles ACTIVES renvoyées par le serveur — une action
         // future désactivée (mini-jeux, AdMob) n'apparaît jamais ici.
         final rules = controller.rules
-            .where((r) => r.ruleKey != 'streak_7_days')
+            // AdMob is intentionally outside this release. If an older/newer
+            // server happens to expose the rule, do not present a fake action.
+            .where(
+              (r) =>
+                  r.ruleKey != 'streak_7_days' &&
+                  r.ruleKey != 'rewarded_ad_completed',
+            )
             .toList(growable: false);
         return _SectionCard(
           title: 'Comment gagner des Étoiles',

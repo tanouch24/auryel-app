@@ -16,7 +16,7 @@ import 'legal_document_screen.dart';
 /// SOURCE DE VÉRITÉ du droit Premium (`quota.isPremium`) et du temps disponible
 /// (`availableTimeLabel`). Aucun appel direct à `InAppPurchase`, aucun droit
 /// Premium local, aucun prix inventé (`ProductDetails.price` d'abord ;
-/// « 7,99 €/mois » n'est qu'un repli marketing clairement secondaire).
+/// « 4,99 €/mois » n'est qu'un repli marketing clairement secondaire).
 ///
 /// L'app ne résilie jamais elle-même : « Gérer mon abonnement » ouvre la page
 /// officielle Google Play via [SubscriptionManager].
@@ -183,7 +183,7 @@ class _LegalFooter extends StatelessWidget {
         Text(
           'Abonnement mensuel à renouvellement automatique via Google Play ou '
           'l’App Store. Le prix est celui indiqué par le Store avant l’achat. '
-          '8 h de consultation par mois, messages illimités pendant le temps '
+          '4 h de consultation par mois, messages illimités pendant le temps '
           'disponible. Résiliation à tout moment depuis le Store. Restauration '
           'des achats disponible ci-dessus. Détails dans les Conditions '
           'Premium.',
@@ -331,7 +331,7 @@ class _OfferBlock extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const _OfferLine('8 h de consultation par mois'),
+        const _OfferLine('4 h de consultation par mois'),
         const SizedBox(height: 10),
         const _OfferLine('Messages illimités pendant le temps disponible'),
         const SizedBox(height: 22),
@@ -517,7 +517,8 @@ class _ExtraHourBlock extends StatelessWidget {
     return (p != null && p.isNotEmpty) ? p : null;
   }
 
-  ({String message, bool busy})? get _status => switch (controller.extraHourState) {
+  ({String message, bool busy})? get _status => switch (controller
+      .extraHourState) {
     ExtraHourPurchaseState.purchasing => (
       message: 'Ouverture du paiement…',
       busy: true,
@@ -558,7 +559,8 @@ class _ExtraHourBlock extends StatelessWidget {
       busy: false,
     ),
     ExtraHourPurchaseState.unavailable => (
-      message: 'L’achat d’une heure supplémentaire n’est pas disponible pour '
+      message:
+          'L’achat d’une heure supplémentaire n’est pas disponible pour '
           'le moment.',
       busy: false,
     ),
@@ -569,7 +571,8 @@ class _ExtraHourBlock extends StatelessWidget {
   Widget build(BuildContext context) {
     final s = controller.extraHourState;
     final status = _status;
-    final unavailable = s == ExtraHourPurchaseState.unavailable ||
+    final unavailable =
+        s == ExtraHourPurchaseState.unavailable ||
         controller.extraHourProduct == null;
     return Container(
       padding: const EdgeInsets.all(16),
