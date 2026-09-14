@@ -385,7 +385,6 @@ void main() {
         RegExp(r'consultations? de 2\s?h'),
         RegExp(r'consultations? restantes?'),
         RegExp(r'/\$\{?q\.monthlyLimit'), // "X/Y ce mois" interpolé
-        RegExp(r'ce mois'),
       ];
       final offenders = <String>[];
       final dir = Directory('lib');

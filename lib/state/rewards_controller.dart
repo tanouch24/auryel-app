@@ -54,6 +54,9 @@ class RewardsController extends ChangeNotifier {
       _wallet?.recentTransactions ?? const <RewardTransaction>[];
   List<ExpressProduct> get expressProducts =>
       _wallet?.expressProducts ?? const <ExpressProduct>[];
+  int get minutesConvertedThisMonth => _wallet?.minutesConvertedThisMonth ?? 0;
+  int get monthlyMinutesLimit => _wallet?.monthlyMinutesLimit ?? 30;
+  int get monthlyMinutesRemaining => _wallet?.monthlyMinutesRemaining ?? 30;
 
   /// Chargement initial (aucune donnée encore).
   bool get loading => _loading && _wallet == null;
@@ -126,11 +129,14 @@ class RewardsController extends ChangeNotifier {
             streak: current.streak,
             recentTransactions: current.recentTransactions,
             expressProducts: current.expressProducts,
+            minutesConvertedThisMonth: current.minutesConvertedThisMonth,
+            monthlyMinutesLimit: current.monthlyMinutesLimit,
+            monthlyMinutesRemaining: current.monthlyMinutesRemaining,
           );
           _notify();
         }
       }
-      unawaited(refresh());
+      await refresh();
       return result;
     } catch (_) {
       return null;
@@ -169,11 +175,14 @@ class RewardsController extends ChangeNotifier {
             streak: current.streak,
             recentTransactions: current.recentTransactions,
             expressProducts: current.expressProducts,
+            minutesConvertedThisMonth: current.minutesConvertedThisMonth,
+            monthlyMinutesLimit: current.monthlyMinutesLimit,
+            monthlyMinutesRemaining: current.monthlyMinutesRemaining,
           );
           _notify();
         }
       }
-      unawaited(refresh());
+      await refresh();
       return result;
     } catch (_) {
       return null;

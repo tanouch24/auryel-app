@@ -176,6 +176,9 @@ class RewardWallet {
     required this.streak,
     required this.recentTransactions,
     this.expressProducts = const [],
+    this.minutesConvertedThisMonth = 0,
+    this.monthlyMinutesLimit = 30,
+    this.monthlyMinutesRemaining = 30,
   });
 
   final int starsBalance;
@@ -188,6 +191,9 @@ class RewardWallet {
 
   /// UNIQUEMENT les produits express ACTIFS.
   final List<ExpressProduct> expressProducts;
+  final int minutesConvertedThisMonth;
+  final int monthlyMinutesLimit;
+  final int monthlyMinutesRemaining;
 
   factory RewardWallet.fromJson(Map<String, dynamic> json) {
     final rawRules = json['rules'];
@@ -221,6 +227,13 @@ class RewardWallet {
       streak: streak,
       recentTransactions: tx,
       expressProducts: express,
+      minutesConvertedThisMonth: _asInt(json['minutes_converted_this_month']),
+      monthlyMinutesLimit: _asInt(json['monthly_minutes_limit']) == 0
+          ? 30
+          : _asInt(json['monthly_minutes_limit']),
+      monthlyMinutesRemaining: json.containsKey('monthly_minutes_remaining')
+          ? _asInt(json['monthly_minutes_remaining'])
+          : 30,
     );
   }
 
@@ -283,6 +296,8 @@ class ExpressConsultationResult {
   final int secondsGranted;
 
   bool get isInsufficientBalance => reason == 'insufficient_balance';
+  bool get isMonthlyLimitReached =>
+      reason == 'monthly_conversion_limit_reached';
 
   factory ExpressConsultationResult.fromJson(Map<String, dynamic> json) =>
       ExpressConsultationResult(

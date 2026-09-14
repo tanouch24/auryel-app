@@ -12,6 +12,7 @@ import '../data/meditation_item.dart';
 import '../data/relaxation_video.dart';
 import '../data/relaxation_video_selector.dart';
 import '../state/auth_controller.dart';
+import '../state/rewards_controller.dart';
 import '../state/wellbeing_controller.dart';
 import '../theme/auryel_theme.dart';
 import '../widgets/feed_page_scope.dart';
@@ -450,9 +451,14 @@ class _MeditationScreenState extends State<MeditationScreen>
     final api = widget.wellbeingApi ?? auth?.wellbeingApi;
     if (api == null || auth == null) return;
     try {
+      final rewards = RewardsScope.maybeReadOf(context);
       final token = await auth.currentToken();
       if (token == null || token.isEmpty) return;
       await api.recordMission(bearer: token, missionId: 'moment');
+      // Le succès serveur de la méditation est le signal d'un crédit réel.
+      // Recharge le wallet partagé immédiatement : aucun crédit local n'est
+      // fabriqué et la mission est reflétée dès le retour à Mes Étoiles.
+      await rewards?.refresh();
     } catch (_) {
       /* progression serveur non bloquante */
     }

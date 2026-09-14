@@ -180,6 +180,8 @@ class _RewardsWalletScreenState extends State<RewardsWalletScreen>
                       _RulesSection(controller: c),
                       const SizedBox(height: 16),
                       _SpendSection(controller: c),
+                      const SizedBox(height: 14),
+                      _MonthlyConversionCap(controller: c),
                       const SizedBox(height: 16),
                       _StreakSection(controller: c),
                       if (ConsultationScope.maybeReadOf(context)
@@ -386,6 +388,72 @@ class _WalletInsight extends StatelessWidget {
       ],
     ),
   );
+}
+
+class _MonthlyConversionCap extends StatelessWidget {
+  const _MonthlyConversionCap({required this.controller});
+
+  final RewardsController controller;
+
+  @override
+  Widget build(BuildContext context) {
+    return ListenableBuilder(
+      listenable: controller,
+      builder: (context, _) {
+        if (controller.wallet == null) return const SizedBox.shrink();
+        final limit = controller.monthlyMinutesLimit;
+        final used = controller.minutesConvertedThisMonth;
+        final remaining = controller.monthlyMinutesRemaining;
+        final reached = remaining <= 0;
+        return Container(
+          key: const Key('monthly-stars-conversion-cap'),
+          padding: const EdgeInsets.all(14),
+          decoration: BoxDecoration(
+            color: AuryelColors.surface,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: AuryelColors.warmBorder),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Jusqu’à $limit min de consultation par mois',
+                style: AuryelText.body(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: AuryelColors.textCream,
+                ),
+              ),
+              const SizedBox(height: 5),
+              Text(
+                reached
+                    ? 'Limite mensuelle atteinte'
+                    : '$used / $limit min débloquées ce mois · Encore $remaining min disponibles',
+                style: AuryelText.body(
+                  fontSize: 11.5,
+                  color: reached
+                      ? AuryelColors.goldLight
+                      : AuryelColors.textSecondary,
+                ),
+              ),
+              const SizedBox(height: 8),
+              ClipRRect(
+                borderRadius: BorderRadius.circular(99),
+                child: LinearProgressIndicator(
+                  value: (used / limit).clamp(0.0, 1.0).toDouble(),
+                  minHeight: 6,
+                  backgroundColor: AuryelColors.warmBorder,
+                  valueColor: const AlwaysStoppedAnimation<Color>(
+                    AuryelColors.gold,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
 }
 
 class _PremiumReminder extends StatelessWidget {
@@ -670,6 +738,7 @@ class _SpendSection extends StatelessWidget {
                 _ExpressProductCard(
                   product: product,
                   starsBalance: balance,
+                  monthlyMinutesRemaining: controller.monthlyMinutesRemaining,
                   onUnlock: () =>
                       _showExpressConfirmSheet(context, controller, product),
                 ),
@@ -687,17 +756,20 @@ class _ExpressProductCard extends StatelessWidget {
   const _ExpressProductCard({
     required this.product,
     required this.starsBalance,
+    required this.monthlyMinutesRemaining,
     required this.onUnlock,
   });
 
   final ExpressProduct product;
   final int starsBalance;
+  final int monthlyMinutesRemaining;
   final VoidCallback onUnlock;
 
   @override
   Widget build(BuildContext context) {
     final minutes = (product.secondsGranted / 60).round();
     final canAfford = starsBalance >= product.starsCost;
+    final fitsMonthlyCap = minutes <= monthlyMinutesRemaining;
     final missing = product.starsCost - starsBalance;
     return Container(
       padding: const EdgeInsets.all(14),
@@ -735,7 +807,7 @@ class _ExpressProductCard extends StatelessWidget {
               ),
               const Spacer(),
               ElevatedButton(
-                onPressed: canAfford ? onUnlock : null,
+                onPressed: canAfford && fitsMonthlyCap ? onUnlock : null,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AuryelColors.gold,
                   foregroundColor: AuryelColors.backgroundDeep,
@@ -763,6 +835,18 @@ class _ExpressProductCard extends StatelessWidget {
             const SizedBox(height: 6),
             Text(
               'Il te manque $missing ⭐',
+              style: AuryelText.body(
+                fontSize: 11.5,
+                color: AuryelColors.textMuted,
+              ),
+            ),
+          ],
+          if (canAfford && !fitsMonthlyCap) ...[
+            const SizedBox(height: 6),
+            Text(
+              monthlyMinutesRemaining <= 0
+                  ? 'Limite mensuelle atteinte'
+                  : 'Il te reste $monthlyMinutesRemaining min convertibles ce mois.',
               style: AuryelText.body(
                 fontSize: 11.5,
                 color: AuryelColors.textMuted,
@@ -824,6 +908,8 @@ Future<void> _showExpressConfirmSheet(
             busy = false;
             error = result.isInsufficientBalance
                 ? 'Solde insuffisant.'
+                : result.isMonthlyLimitReached
+                ? 'La limite de 30 minutes par mois est atteinte.'
                 : 'Débloquer ce temps n’a pas fonctionné — réessaie plus tard.';
           });
         }

@@ -25,9 +25,14 @@ http.Response _json(Map<String, dynamic> b, [int s = 200]) => http.Response(
 
 Map<String, dynamic> _walletJson({
   int stars = 1000,
+  int minutesConvertedThisMonth = 0,
+  int monthlyMinutesRemaining = 30,
   List<Map<String, dynamic>>? expressProducts,
 }) => {
   'stars_balance': stars,
+  'minutes_converted_this_month': minutesConvertedThisMonth,
+  'monthly_minutes_limit': 30,
+  'monthly_minutes_remaining': monthlyMinutesRemaining,
   'rules': [],
   'streak': {'current_streak': 0, 'best_streak': 0, 'next_reward_in_days': 7},
   'recent_transactions': [],
@@ -102,6 +107,29 @@ void main() {
       find.widgetWithText(ElevatedButton, 'Débloquer 10 min'),
     );
     expect(button.onPressed, isNull, reason: 'bouton désactivé, solde insuffisant');
+  });
+
+  testWidgets('plafond mensuel -> progression réelle et produit bloqué', (t) async {
+    final rewards = _rewards(
+      (_) async => _json(
+        _walletJson(
+          stars: 1000,
+          minutesConvertedThisMonth: 25,
+          monthlyMinutesRemaining: 5,
+        ),
+      ),
+    );
+    addTearDown(rewards.dispose);
+    await t.pumpWidget(_host(rewards));
+    await t.pump();
+    await t.pump();
+
+    expect(find.text('Jusqu’à 30 min de consultation par mois'), findsOneWidget);
+    expect(find.textContaining('Encore 5 min disponibles'), findsOneWidget);
+    final button = t.widget<ElevatedButton>(
+      find.widgetWithText(ElevatedButton, 'Débloquer 10 min'),
+    );
+    expect(button.onPressed, isNull);
   });
 
   testWidgets('tap -> modal de confirmation, PAS un achat direct en un tap', (
