@@ -8,6 +8,8 @@ import 'package:http/testing.dart';
 import 'package:auryel/api/api_client.dart';
 import 'package:auryel/api/rewards_api.dart';
 import 'package:auryel/screens/rewards_wallet_screen.dart';
+import 'package:auryel/screens/daily_challenge_screen.dart';
+import 'package:auryel/screens/meditation_library_screen.dart';
 import 'package:auryel/state/rewards_controller.dart';
 
 // ===========================================================================
@@ -130,6 +132,39 @@ void main() {
 
     expect(find.textContaining('mini_game'), findsNothing);
     expect(find.textContaining('rewarded_ad'), findsNothing);
+  });
+
+  testWidgets('les activités Étoiles ouvrent leurs écrans existants', (
+    t,
+  ) async {
+    final rewards = _rewards(
+      (_) async => _json({
+        'stars_balance': 0,
+        'rules': [
+          {'rule_key': 'mini_game_completed', 'stars_amount': 20},
+          {'rule_key': 'meditation_completed', 'stars_amount': 10},
+        ],
+        'recent_transactions': [],
+      }),
+    );
+    addTearDown(rewards.dispose);
+    await t.pumpWidget(_host(rewards));
+    await t.pump();
+    await t.pump();
+
+    expect(find.text('Mini-jeu du jour'), findsOneWidget);
+    expect(find.text('Méditation'), findsOneWidget);
+    expect(find.text('Ouvrir'), findsNWidgets(2));
+
+    await t.tap(find.text('Ouvrir').first);
+    await t.pumpAndSettle();
+    expect(find.byType(DailyChallengeScreen), findsOneWidget);
+    Navigator.of(t.element(find.byType(DailyChallengeScreen))).pop();
+    await t.pumpAndSettle();
+
+    await t.tap(find.text('Ouvrir').last);
+    await t.pumpAndSettle();
+    expect(find.byType(MeditationLibraryScreen), findsOneWidget);
   });
 
   testWidgets('rappel Premium visible dans le wallet', (t) async {

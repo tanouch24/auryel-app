@@ -6,6 +6,9 @@ import '../state/auth_controller.dart';
 import '../state/consultation_controller.dart';
 import '../state/rewards_controller.dart';
 import '../theme/auryel_theme.dart';
+import 'daily_challenge_screen.dart';
+import 'home_screen.dart';
+import 'meditation_library_screen.dart';
 import 'premium_screen.dart';
 
 /// Libellés d'affichage des règles Étoiles — le SERVEUR décide QUELLES règles
@@ -488,15 +491,16 @@ class _SectionCard extends StatelessWidget {
 /// que « Comment gagner des Étoiles » soit enfin compréhensible d'un coup
 /// d'œil (nom / récompense / description / limite éventuelle).
 class _RuleRow extends StatelessWidget {
-  const _RuleRow({required this.rule});
+  const _RuleRow({required this.rule, this.onTap});
 
   final RewardRule rule;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
     final description = _ruleDescription(rule.ruleKey);
     final limit = _ruleLimitLabel(rule.dailyLimit);
-    return Container(
+    final content = Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
         color: AuryelColors.backgroundDeep.withValues(alpha: 0.3),
@@ -548,9 +552,23 @@ class _RuleRow extends StatelessWidget {
               ),
             ),
           ],
+          if (onTap != null) ...[
+            const SizedBox(height: 6),
+            Align(
+              alignment: Alignment.centerRight,
+              child: TextButton(onPressed: onTap, child: const Text('Ouvrir')),
+            ),
+          ],
         ],
       ),
     );
+    return onTap == null
+        ? content
+        : InkWell(
+            onTap: onTap,
+            borderRadius: BorderRadius.circular(12),
+            child: content,
+          );
   }
 }
 
@@ -558,6 +576,19 @@ class _RulesSection extends StatelessWidget {
   const _RulesSection({required this.controller});
 
   final RewardsController controller;
+
+  void _openActivity(BuildContext context, String ruleKey) {
+    final Widget? destination = switch (ruleKey) {
+      'daily_card_completed' || 'share_completed' => const HomeScreen(),
+      'meditation_completed' => const MeditationLibraryScreen(),
+      'mini_game_completed' => const DailyChallengeScreen(),
+      _ => null,
+    };
+    if (destination != null) {
+      Navigator.of(context)
+          .push(MaterialPageRoute(builder: (_) => destination));
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -589,7 +620,19 @@ class _RulesSection extends StatelessWidget {
               : Column(
                   children: [
                     for (final rule in rules) ...[
-                      _RuleRow(rule: rule),
+                      _RuleRow(
+                        rule: rule,
+                        onTap: switch (rule.ruleKey) {
+                          'daily_card_completed' ||
+                          'share_completed' ||
+                          'meditation_completed' ||
+                          'mini_game_completed' => () => _openActivity(
+                            context,
+                            rule.ruleKey,
+                          ),
+                          _ => null,
+                        },
+                      ),
                       if (rule != rules.last) const SizedBox(height: 12),
                     ],
                   ],
