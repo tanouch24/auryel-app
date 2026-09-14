@@ -21,6 +21,7 @@ import 'package:auryel/screens/onboarding/account_creation_screen.dart';
 import 'package:auryel/screens/onboarding/email_auth_screen.dart';
 import 'package:auryel/state/auryel_state.dart';
 import 'package:auryel/state/auth_controller.dart';
+import 'package:auryel/state/consultation_controller.dart';
 import 'package:auryel/widgets/main_nav_shell.dart';
 
 // ===========================================================================
@@ -38,6 +39,7 @@ http.Response _json(Map<String, dynamic> b, [int s = 200]) => http.Response(
 typedef _Bundle = ({
   AuthRepository repo,
   AuthController auth,
+  ConsultationApi consultationApi,
   InMemoryTokenStore tokens,
   List<String> hitPaths,
 });
@@ -56,12 +58,14 @@ _Bundle _build(
     baseUrl: _base,
   );
   final repo = AuthRepository(api: AuthApi(client), tokenStore: tokens);
+  final consultationApi = ConsultationApi(client);
   return (
     repo: repo,
+    consultationApi: consultationApi,
     auth: AuthController(
       repository: repo,
       profileApi: ProfileApi(client),
-      consultationApi: ConsultationApi(client),
+      consultationApi: consultationApi,
       tirageApi: TirageApi(client),
     ),
     tokens: tokens,
@@ -310,11 +314,40 @@ void main() {
               'prenom': 'Nina',
             });
           }
+          if (req.url.path == '/api/consultation/state') {
+            return _json({
+              'consultation': null,
+              'time': {
+                'first_free_remaining_seconds': 1200,
+                'premium_remaining_seconds': 0,
+                'earned_remaining_seconds': 0,
+                'purchased_remaining_seconds': 0,
+                'total_remaining_seconds': 1200,
+                'window_active': false,
+                'window_expires_at': null,
+              },
+              'quota': {
+                'is_premium': false,
+                'monthly_limit': 4,
+                'monthly_used': 0,
+                'monthly_remaining': 0,
+                'earned_available': 0,
+                'first_free_available': true,
+              },
+            });
+          }
           return _json({}, 404);
         });
         final state = _state();
+        final consultation = ConsultationController(
+          api: b.consultationApi,
+          auth: b.auth,
+        );
         await t.pumpWidget(
-          _wrap(const AccountCreationScreen(), b: b, state: state),
+          ConsultationScope(
+            controller: consultation,
+            child: _wrap(const AccountCreationScreen(), b: b, state: state),
+          ),
         );
         await t.pump();
         await t.enterText(find.byType(TextField).first, 'new@user.co');
@@ -328,6 +361,8 @@ void main() {
         expect(find.byType(MainNavShell), findsNothing);
         expect(await b.tokens.read(), 'tk');
         expect(state.onboardingCompleted, isTrue);
+        expect(consultation.time?.totalRemainingSeconds, 1200);
+        expect(b.hitPaths, contains('GET /api/consultation/state'));
 
         await t.tap(find.text('Découvrir Auryel'));
         await t.pumpAndSettle();

@@ -4,6 +4,7 @@ import '../../api/api_client.dart';
 import '../../data/birth_date_parser.dart';
 import '../../state/auryel_state.dart';
 import '../../state/auth_controller.dart';
+import '../../state/consultation_controller.dart';
 import '../../theme/auryel_theme.dart';
 import '../../widgets/advisors_carousel.dart';
 import '../../widgets/auth_fields.dart';
@@ -152,6 +153,12 @@ class _AccountCreationScreenState extends State<AccountCreationScreen> {
 
     switch (outcome) {
       case ProfileSyncOutcome.ok:
+        // Le parcours d'inscription rejoint directement l'expérience et
+        // contourne le SplashScreen. Synchroniser ici le portefeuille temps
+        // afin que la Home affiche immédiatement la bienvenue serveur
+        // (1200 s pour un compte neuf), au lieu de son état initial à zéro.
+        await ConsultationScope.maybeOf(context)?.refresh();
+        if (!mounted) return;
         // Compte créé + profil synchronisé : on clôt l'onboarding local, puis
         // on présente l'expérience Auryel UNE fois (elle enchaîne ensuite sur
         // l'Accueil via « Découvrir Auryel »).
