@@ -413,15 +413,11 @@ void main() {
     await t.tap(find.text('Commencer'));
     await t.pumpAndSettle();
 
-    // TIMER-D.2 — Premium : titre « disponible épuisé » + sous-texte
-    // « renouvellement », AUCUN prix, AUCUN « Découvrir Premium ».
-    expect(
-      find.text('Ton temps de consultation disponible est épuisé.'),
-      findsOneWidget,
-    );
-    expect(find.textContaining('à la prochaine période'), findsOneWidget);
+    // TIMER-D.2 — Premium : achat prioritaire et missions en alternative.
+    expect(find.text('Ton temps de consultation est terminé.'), findsOneWidget);
+    expect(find.text('Acheter du temps'), findsOneWidget);
+    expect(find.text('Voir mes missions ⭐'), findsOneWidget);
     expect(find.text('Premium — 4,99 €/mois'), findsNothing);
-    expect(find.text('Découvrir Premium'), findsNothing);
     expect(find.textContaining('consultations de 2 h'), findsNothing);
     expect(find.textContaining('4 consultations'), findsNothing);
     expect(find.text('coucou'), findsNothing); // pas de bulle user
@@ -429,7 +425,7 @@ void main() {
   });
 
   testWidgets(
-    '402 time_exhausted (non Premium) -> upsell 4 h/mois + Découvrir Premium',
+    '402 time_exhausted (non Premium) -> upsell 4 h/mois + Acheter du temps',
     (t) async {
       const body = {
         'error': 'time_exhausted',
@@ -452,15 +448,11 @@ void main() {
       await t.pumpAndSettle();
 
       expect(
-        find.text('Ton temps de consultation est épuisé.'),
+        find.text('Ton temps de consultation est terminé.'),
         findsOneWidget,
       );
-      expect(
-        find.textContaining('4 h de consultation par mois'),
-        findsOneWidget,
-      );
-      expect(find.text('Premium — 4,99 €/mois'), findsOneWidget);
-      expect(find.text('Découvrir Premium'), findsOneWidget);
+      expect(find.text('Acheter du temps'), findsOneWidget);
+      expect(find.text('Voir mes missions ⭐'), findsOneWidget);
       expect(find.textContaining('4 consultations'), findsNothing);
       expect(find.textContaining('consultations de 2 h'), findsNothing);
     },
@@ -489,7 +481,7 @@ void main() {
 
       // fallback : variante non-Premium du texte V1.
       expect(
-        find.text('Ton temps de consultation est épuisé.'),
+        find.text('Ton temps de consultation est terminé.'),
         findsOneWidget,
       );
       expect(find.text('coucou'), findsNothing);
@@ -497,30 +489,29 @@ void main() {
     },
   );
 
-  testWidgets(
-    'I — "Découvrir Premium" ouvre PremiumScreen (plus de snackbar)',
-    (t) async {
-      // non-Premium : le CTA « Découvrir Premium » est présent.
-      const body = {
-        'error': 'time_exhausted',
-        'consultation': null,
-        'quota': {'is_premium': false, 'monthly_limit': 8, 'monthly_used': 8},
-      };
-      final e = _env((_) async => _json(body, 402));
-      await _pumpChat(t, auth: e.auth, purchase: _stubPurchase(e.auth));
-      await _type(t, 'coucou');
-      await _tapSend(t);
-      await t.tap(find.text('Commencer'));
-      await t.pumpAndSettle();
+  testWidgets('I — "Acheter du temps" ouvre PremiumScreen (plus de snackbar)', (
+    t,
+  ) async {
+    // non-Premium : le CTA « Acheter du temps » est présent.
+    const body = {
+      'error': 'time_exhausted',
+      'consultation': null,
+      'quota': {'is_premium': false, 'monthly_limit': 8, 'monthly_used': 8},
+    };
+    final e = _env((_) async => _json(body, 402));
+    await _pumpChat(t, auth: e.auth, purchase: _stubPurchase(e.auth));
+    await _type(t, 'coucou');
+    await _tapSend(t);
+    await t.tap(find.text('Commencer'));
+    await t.pumpAndSettle();
 
-      await t.tap(find.text('Découvrir Premium'));
-      await t.pumpAndSettle();
+    await t.tap(find.text('Acheter du temps'));
+    await t.pumpAndSettle();
 
-      expect(find.byType(PremiumScreen), findsOneWidget);
-      expect(find.text('Auryel Premium'), findsWidgets);
-      expect(find.text('Premium arrive bientôt.'), findsNothing);
-    },
-  );
+    expect(find.byType(PremiumScreen), findsOneWidget);
+    expect(find.text('Auryel Premium'), findsWidgets);
+    expect(find.text('Premium arrive bientôt.'), findsNothing);
+  });
 
   testWidgets('401 -> session purgée + retour EmailAuthScreen', (t) async {
     final e = _env((_) async => _json({'error': 'unauthorized'}, 401));

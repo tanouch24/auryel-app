@@ -1,14 +1,17 @@
 import 'package:flutter/widgets.dart';
 
 /// Index des onglets de [MainNavShell] (stables, partagés avec l'Accueil et les
-/// tests). Nav V2 (CORRECTIF « feed méditation + réveil vocal ») : Accueil ·
-/// Tirage & Jeu · CONSULTATION · Méditation · RÉVEIL. « Mon compte » QUITTE la
+/// tests). Navigation : Accueil · Bien-être · CONSULTATION · Méditation ·
+/// RÉVEIL. « Mon compte » QUITTE la
 /// barre du bas : accessible depuis le nouvel en-tête bien visible de
 /// l'Accueil (voir `home_screen.dart`), qui ouvre directement le Dashboard
 /// existant (aucun onglet dédié). (La Boutique n'est plus un onglet V1 — son
 /// code reste dans le repo pour plus tard.)
 const int kTabHome = 0;
-const int kTabTirage = 1; // hub « Tirage & Jeu »
+const int kTabBienEtre = 1;
+// Alias de compatibilité pour les anciens appels internes. Cet index ouvre
+// désormais le Programme Bien-être, jamais l’ancien hub Tirage & Jeu.
+const int kTabTirage = kTabBienEtre;
 const int kTabConsultation = 2;
 const int kTabMeditation = 3;
 const int kTabReveil = 4; // Réveil Auryel

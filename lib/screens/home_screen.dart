@@ -1098,8 +1098,8 @@ class _MissionsSectionState extends State<_MissionsSection>
           tracker: _shareTracker,
         );
       case 'tirage':
-        // Ouvre le hub « Tirage & Jeu » (onglet 1). La mission ne se coche
-        // pas ici : uniquement sur une sauvegarde de tirage réelle.
+        // L’ancien hub reste accessible depuis l’espace Étoiles ; cet ancien
+        // appel de compatibilité ne doit plus être utilisé par la Home.
         _goTab(
           kTabTirage,
           fallback: () => Navigator.of(context)

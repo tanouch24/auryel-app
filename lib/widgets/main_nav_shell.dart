@@ -10,7 +10,7 @@ import '../notifications/notification_service.dart';
 import '../screens/consultation_screen.dart';
 import '../screens/home_screen.dart';
 import '../screens/meditation_feed_screen.dart';
-import '../screens/tirage_jeu_screen.dart';
+import '../screens/wellbeing_program_screen.dart';
 import '../screens/wake_settings_screen.dart';
 import '../state/auth_controller.dart';
 import '../state/rewards_controller.dart';
@@ -22,13 +22,13 @@ export 'main_nav_scope.dart'
     show
         MainNavScope,
         kTabHome,
-        kTabTirage,
+        kTabBienEtre,
         kTabConsultation,
         kTabMeditation,
         kTabReveil;
 
 /// Coquille de navigation V2 (CORRECTIF « feed méditation + réveil vocal ») :
-/// 5 onglets — Accueil · Tirage & Jeu · CONSULTATION · Méditation · RÉVEIL.
+/// 5 onglets — Accueil · Bien-être · CONSULTATION · Méditation · RÉVEIL.
 /// CONSULTATION est AU CENTRE (index 2) et mise en avant visuellement (icône
 /// + relief doré). « Mon compte » QUITTE la barre du bas : accessible depuis
 /// le nouvel en-tête de l'Accueil (voir `home_screen.dart`), qui ouvre le
@@ -50,7 +50,7 @@ class _MainNavShellState extends State<MainNavShell> {
 
   static const _screens = [
     HomeScreen(),
-    TirageJeuScreen(),
+    WellbeingProgramScreen(),
     ConsultationScreen(),
     MeditationFeedScreen(),
     WakeSettingsScreen(),
@@ -99,8 +99,7 @@ class _MainNavShellState extends State<MainNavShell> {
       _openedSub = _notifications!.onMessageOpened.listen(_handlePayload);
       // Tap sur une notif locale affichée au premier plan (même routage).
       final coordinator = NotificationScope.maybeOf(context)?.coordinator;
-      _foregroundTapSub =
-          coordinator?.onNotificationTap.listen(_handlePayload);
+      _foregroundTapSub = coordinator?.onNotificationTap.listen(_handlePayload);
       // Notification ayant lancé l'app depuis un état terminé — traitée
       // maintenant que la navigation est prête (consommation unique).
       final initial = _notifications!.takeInitialPayload();
@@ -166,9 +165,9 @@ class _AuryelTabBar extends StatelessWidget {
       activeIcon: PhosphorIconsFill.house,
     ),
     (
-      label: 'Tirage & Jeu',
-      icon: PhosphorIconsRegular.cardsThree,
-      activeIcon: PhosphorIconsFill.cardsThree,
+      label: 'Bien-être',
+      icon: PhosphorIconsRegular.path,
+      activeIcon: PhosphorIconsFill.path,
     ),
     (
       label: 'Consultation',
@@ -256,7 +255,7 @@ class _AuryelTabBar extends StatelessWidget {
                         SizedBox(height: centre ? 2 : 4),
                         Padding(
                           padding: const EdgeInsets.symmetric(horizontal: 3),
-                          // FittedBox : le libellé long (« Tirage & Jeu »)
+                          // FittedBox : le libellé reste lisible sur 360 dp.
                           // se réduit au lieu d'être coupé ou de déborder à
                           // 360 dp.
                           child: FittedBox(

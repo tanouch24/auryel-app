@@ -417,6 +417,8 @@ void main() {
     expect(chat.consultationId, 'c-open-selena');
     expect(chat.advisor.name, 'Séléna');
     expect(chat.tirageId, 'tir-abc-123');
+    expect(chat.initialMessage, contains('NOM-'));
+    expect(chat.initialMessage, contains(_serverCombined));
     expect(
       (tester.state(find.byType(ChatScreen)) as dynamic).debugPendingTirageId,
       'tir-abc-123',
@@ -427,41 +429,45 @@ void main() {
     );
   });
 
-  testWidgets('H-B bis/§2. PREUVE bout-en-bout : « En parler à mon conseiller » '
-      '-> le tirage_id part RÉELLEMENT avec le 1er message (le conseiller '
-      'reçoit le contexte du tirage sans qu\'on le lui redemande)', (
-    tester,
-  ) async {
-    final e = multiEnv();
-    await pumpToTalk(tester, e);
+  testWidgets(
+    'H-B bis/§2. PREUVE bout-en-bout : « En parler à mon conseiller » '
+    '-> le tirage_id part RÉELLEMENT avec le 1er message (le conseiller '
+    'reçoit le contexte du tirage sans qu\'on le lui redemande)',
+    (tester) async {
+      final e = multiEnv();
+      await pumpToTalk(tester, e);
 
-    await tester.tap(find.text('En parler à mon conseiller'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Parler avec Séléna'));
-    await tester.pumpAndSettle();
-    await tester.pump(const Duration(milliseconds: 200));
-    await tester.pumpAndSettle();
-
-    await tester.enterText(find.byType(TextField), 'et cette carte du milieu ?');
-    await tester.pump();
-    await tester.tap(find.byIcon(Icons.send_rounded));
-    await tester.pumpAndSettle();
-    if (find.text('Commencer').evaluate().isNotEmpty) {
-      await tester.tap(find.text('Commencer'));
+      await tester.tap(find.text('En parler à mon conseiller'));
       await tester.pumpAndSettle();
-    }
+      await tester.tap(find.text('Parler avec Séléna'));
+      await tester.pumpAndSettle();
+      await tester.pump(const Duration(milliseconds: 200));
+      await tester.pumpAndSettle();
 
-    expect(e.msgBodies, isNotEmpty);
-    expect(e.msgBodies.first['tirage_id'], 'tir-abc-123');
-    expect(e.msgBodies.first['message'], 'et cette carte du milieu ?');
+      await tester.enterText(
+        find.byType(TextField),
+        'et cette carte du milieu ?',
+      );
+      await tester.pump();
+      await tester.tap(find.byIcon(Icons.send_rounded));
+      await tester.pumpAndSettle();
+      if (find.text('Commencer').evaluate().isNotEmpty) {
+        await tester.tap(find.text('Commencer'));
+        await tester.pumpAndSettle();
+      }
 
-    await tester.enterText(find.byType(TextField), 'ok merci');
-    await tester.pump();
-    await tester.tap(find.byIcon(Icons.send_rounded));
-    await tester.pumpAndSettle();
-    expect(e.msgBodies.length, 2);
-    expect(e.msgBodies[1].containsKey('tirage_id'), isFalse);
-  });
+      expect(e.msgBodies, isNotEmpty);
+      expect(e.msgBodies.first['tirage_id'], 'tir-abc-123');
+      expect(e.msgBodies.first['message'], 'et cette carte du milieu ?');
+
+      await tester.enterText(find.byType(TextField), 'ok merci');
+      await tester.pump();
+      await tester.tap(find.byIcon(Icons.send_rounded));
+      await tester.pumpAndSettle();
+      expect(e.msgBodies.length, 2);
+      expect(e.msgBodies[1].containsKey('tirage_id'), isFalse);
+    },
+  );
 
   testWidgets('H-C/§25. conseiller avec fil existant -> rouvre CE fil, aucun '
       'POST /open', (tester) async {
@@ -494,6 +500,8 @@ void main() {
     expect(chat.consultationId, 'c-ezra-existing');
     expect(chat.advisor.name, 'Ezra');
     expect(chat.tirageId, 'tir-abc-123');
+    expect(chat.initialMessage, contains('NOM-'));
+    expect(chat.initialMessage, contains(_serverCombined));
     expect(e.posts.where((p) => p == 'POST /api/consultation/open'), isEmpty);
   });
 

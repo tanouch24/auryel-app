@@ -19,8 +19,8 @@ import 'package:auryel/screens/consultation_screen.dart';
 import 'package:auryel/screens/dashboard_screen.dart';
 import 'package:auryel/screens/home_screen.dart';
 import 'package:auryel/screens/meditation_feed_screen.dart';
-import 'package:auryel/screens/tirage_jeu_screen.dart';
 import 'package:auryel/screens/tirage_screen.dart';
+import 'package:auryel/screens/wellbeing_program_screen.dart';
 import 'package:auryel/screens/wake_settings_screen.dart';
 import 'package:auryel/state/auryel_state.dart';
 import 'package:auryel/state/auth_controller.dart';
@@ -94,7 +94,7 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(_tab('Accueil'), findsOneWidget);
-      expect(_tab('Tirage & Jeu'), findsOneWidget);
+      expect(_tab('Bien-être'), findsOneWidget);
       expect(_tab('Consultation'), findsOneWidget);
       expect(_tab('Méditation'), findsOneWidget);
       expect(_tab('Réveil'), findsOneWidget);
@@ -105,7 +105,7 @@ void main() {
       expect(_tab('Mon compte'), findsNothing);
 
       // Ordre visuel : Consultation au centre (index 2), Réveil en dernier.
-      final tirageX = tester.getCenter(_tab('Tirage & Jeu')).dx;
+      final tirageX = tester.getCenter(_tab('Bien-être')).dx;
       final consultX = tester.getCenter(_tab('Consultation')).dx;
       final meditX = tester.getCenter(_tab('Méditation')).dx;
       final reveilX = tester.getCenter(_tab('Réveil')).dx;
@@ -116,7 +116,7 @@ void main() {
   );
 
   testWidgets(
-    'Accueil -> HomeScreen ; Tirage & Jeu -> hub ; Consultation -> feed ; '
+    'Accueil -> HomeScreen ; Bien-être -> programme ; Consultation -> feed ; '
     'Méditation -> bibliothèque ; Réveil -> réglages ; bouton d\'en-tête '
     '« Mon compte » -> Dashboard ; retour Accueil',
     (tester) async {
@@ -141,11 +141,11 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      // Tirage & Jeu : ouvre le HUB, pas le TirageScreen directement.
-      await tester.tap(_tab('Tirage & Jeu'));
+      // Bien-être ouvre directement le nouveau programme 30 jours.
+      await tester.tap(_tab('Bien-être'));
       await tester.pumpAndSettle();
-      expect(find.byType(TirageJeuScreen), findsOneWidget);
-      expect(find.text('Mini-jeux Auryel'), findsOneWidget);
+      expect(find.byType(WellbeingProgramScreen), findsOneWidget);
+      expect(find.text('Mon programme Bien-être'), findsOneWidget);
       expect(find.byType(TirageScreen), findsNothing);
 
       // Consultation (J6-F2 : LISTE des discussions en cours).

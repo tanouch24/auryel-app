@@ -12,6 +12,7 @@ import '../widgets/ai_transparency_note.dart';
 import 'adult_gate.dart';
 import 'onboarding/email_auth_screen.dart';
 import 'premium_screen.dart';
+import 'rewards_wallet_screen.dart';
 
 /// Chat réel connecté à `POST /api/consultation/message` (F3 + F4).
 ///
@@ -1013,9 +1014,6 @@ class _NoCreditPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // TIMER-D.2 — panneau « temps épuisé ». Non-Premium : upsell 4 h/mois.
-    // Premium : pas de promesse d'achat d'heure (consommable non câblé).
-    final isPremium = quota?.isPremium == true;
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.fromLTRB(24, 22, 24, 20),
@@ -1030,9 +1028,7 @@ class _NoCreditPanel extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              isPremium
-                  ? 'Ton temps de consultation disponible est épuisé.'
-                  : 'Ton temps de consultation est épuisé.',
+              'Ton temps de consultation est terminé.',
               style: AuryelText.display(
                 fontSize: 17,
                 fontWeight: FontWeight.w600,
@@ -1040,52 +1036,43 @@ class _NoCreditPanel extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             Text(
-              isPremium
-                  ? 'Ta conversation reste enregistrée. Ton temps se '
-                        'renouvellera à la prochaine période.'
-                  : 'Passe à Premium pour continuer, avec 4 h de consultation '
-                        'par mois.',
+              'Tu peux continuer avec ton conseiller en ajoutant du temps de consultation, ou réaliser des missions pour gagner des Étoiles et débloquer des minutes supplémentaires.',
               style: AuryelText.body(
                 fontSize: 13,
                 color: AuryelColors.textMuted,
               ),
             ),
-            if (!isPremium) ...[
-              const SizedBox(height: 12),
-              Text(
-                'Premium — 4,99 €/mois',
-                style: AuryelText.body(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                  color: AuryelColors.goldLight,
+            const SizedBox(height: 18),
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton(
+                onPressed: () => Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const PremiumScreen()),
+                ),
+                child: const Text('Acheter du temps'),
+              ),
+            ),
+            const SizedBox(height: 8),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton(
+                onPressed: () => Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => const RewardsWalletScreen(),
+                  ),
+                ),
+                child: const Text('Voir mes missions ⭐'),
+              ),
+            ),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: TextButton(
+                onPressed: onClose,
+                child: Text(
+                  'Retour',
+                  style: AuryelText.body(color: AuryelColors.textMuted),
                 ),
               ),
-            ],
-            const SizedBox(height: 18),
-            Row(
-              children: [
-                TextButton(
-                  onPressed: onClose,
-                  child: Text(
-                    'Retour',
-                    style: AuryelText.body(color: AuryelColors.textMuted),
-                  ),
-                ),
-                const Spacer(),
-                if (!isPremium)
-                  TextButton(
-                    onPressed: () => Navigator.of(context).push(
-                      MaterialPageRoute(builder: (_) => const PremiumScreen()),
-                    ),
-                    child: Text(
-                      'Découvrir Premium',
-                      style: AuryelText.body(
-                        fontWeight: FontWeight.w600,
-                        color: AuryelColors.goldLight,
-                      ),
-                    ),
-                  ),
-              ],
             ),
           ],
         ),

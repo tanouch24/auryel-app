@@ -411,7 +411,20 @@ class _TirageScreenState extends State<TirageScreen> {
   /// Le `tirage_id` n'est envoyé qu'avec le PREMIER message (géré par
   /// ChatScreen) : ouvrir le chat n'envoie rien au serveur, ne consomme aucun
   /// crédit, n'appelle jamais `changeAdvisor` / ne PATCH aucun profil.
-  Future<void> _talkAboutTirage(String tirageId) async {
+  String _tirageContext(TirageResult result) {
+    final cards = result.cards
+        .map((card) => '- ${card.name}')
+        .where((line) => line != '- ')
+        .join('\n');
+    final interpretation = result.combinedInterpretation.trim();
+    return 'J’aimerais parler de mon tirage avec toi.\n\n'
+        'Mon tirage :\n${cards.isEmpty ? result.cardKeys.join(', ') : cards}'
+        '${interpretation.isEmpty ? '' : '\n\nRésumé :\n$interpretation'}\n\n'
+        'J’aimerais mieux comprendre ce qu’il signifie pour moi.';
+  }
+
+  Future<void> _talkAboutTirage(TirageResult result) async {
+    final tirageId = result.tirageId;
     final controller = ConsultationScope.maybeReadOf(context);
     final navigator = Navigator.of(context);
     final messenger = ScaffoldMessenger.of(context);
@@ -446,6 +459,7 @@ class _TirageScreenState extends State<TirageScreen> {
             consultationId: known.id,
             advisor: picked,
             tirageId: tirageId,
+            initialMessage: _tirageContext(result),
           ),
         ),
       );
@@ -462,6 +476,7 @@ class _TirageScreenState extends State<TirageScreen> {
             consultationId: dto.id,
             advisor: picked,
             tirageId: tirageId,
+            initialMessage: _tirageContext(result),
           ),
         ),
       );
@@ -551,7 +566,7 @@ class _TirageScreenState extends State<TirageScreen> {
                         const SizedBox(height: 24),
                         AuryelGoldButton(
                           label: 'En parler à mon conseiller',
-                          onTap: () => _talkAboutTirage(result.tirageId),
+                          onTap: () => _talkAboutTirage(result),
                         ),
                         const SizedBox(height: 12),
                         Center(
@@ -910,7 +925,10 @@ class _TirageSynthesis extends StatelessWidget {
           const SizedBox(height: 6),
           Text(
             'Ce que dit l’ensemble',
-            style: AuryelText.display(fontSize: 19, fontWeight: FontWeight.w600),
+            style: AuryelText.display(
+              fontSize: 19,
+              fontWeight: FontWeight.w600,
+            ),
           ),
           const SizedBox(height: 10),
           Text(

@@ -458,7 +458,7 @@ void main() {
       );
       for (final label in [
         'Accueil',
-        'Tirage & Jeu',
+        'Bien-être',
         'Consultation',
         'Méditation',
         'Réveil',

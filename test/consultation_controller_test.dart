@@ -930,13 +930,14 @@ void main() {
         await t.tap(find.text('Commencer'));
         await t.pumpAndSettle();
 
-        // _noCreditBody() est Premium -> mur sobre (titre « disponible épuisé »,
-        // pas de prix, pas de « Découvrir Premium »).
+        // _noCreditBody() est Premium -> achat prioritaire et missions.
         expect(
-          find.text('Ton temps de consultation disponible est épuisé.'),
+          find.text('Ton temps de consultation est terminé.'),
           findsOneWidget,
         );
         expect(find.text('Premium — 4,99 €/mois'), findsNothing);
+        expect(find.text('Acheter du temps'), findsOneWidget);
+        expect(find.text('Voir mes missions ⭐'), findsOneWidget);
         expect(rig.controller.active, isNull);
         // TIMER-D.1 — le corps du 402 resynchronise `time` (0) + `quota`.
         expect(rig.controller.time!.totalRemainingSeconds, 0);

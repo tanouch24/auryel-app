@@ -72,7 +72,7 @@ void main() {
     await t.pumpAndSettle();
 
     expect(_tab('Accueil'), findsOneWidget);
-    expect(_tab('Tirage & Jeu'), findsOneWidget);
+    expect(_tab('Bien-être'), findsOneWidget);
     expect(_tab('Consultation'), findsOneWidget);
     expect(_tab('Méditation'), findsOneWidget);
     expect(_tab('Réveil'), findsOneWidget);

@@ -21,16 +21,16 @@ import 'package:auryel/screens/consultation_screen.dart';
 import 'package:auryel/screens/dashboard_screen.dart';
 import 'package:auryel/screens/home_screen.dart';
 import 'package:auryel/screens/jeu_auryel_screen.dart';
-import 'package:auryel/screens/tirage_jeu_screen.dart';
 import 'package:auryel/screens/tirage_screen.dart';
 import 'package:auryel/screens/wellbeing_journey_screen.dart';
+import 'package:auryel/screens/wellbeing_program_screen.dart';
 import 'package:auryel/state/auryel_state.dart';
 import 'package:auryel/state/auth_controller.dart';
 import 'package:auryel/widgets/main_nav_shell.dart';
 
 // ===========================================================================
 // LOT « NAVIGATION FINALE + TIRAGE & JEU + MON COMPTE »
-// Nav V1 : Accueil · Tirage & Jeu · CONSULTATION · Méditation · Mon compte.
+// Nav V1 : Accueil · Bien-être · CONSULTATION · Méditation · Mon compte.
 // ===========================================================================
 
 AuryelState _state() => AuryelState(
@@ -113,7 +113,7 @@ void main() {
       await t.pumpAndSettle();
 
       expect(_tab('Accueil'), findsOneWidget);
-      expect(_tab('Tirage & Jeu'), findsOneWidget);
+      expect(_tab('Bien-être'), findsOneWidget);
       expect(_tab('Consultation'), findsOneWidget);
       expect(_tab('Méditation'), findsOneWidget);
       expect(_tab('Réveil'), findsOneWidget);
@@ -121,14 +121,14 @@ void main() {
       expect(_tab('Mon compte'), findsNothing);
     });
 
-    testWidgets('N2 — CONSULTATION est au centre (index 2) entre Tirage & Jeu '
+    testWidgets('N2 — CONSULTATION est au centre (index 2) entre Bien-être '
         'et Méditation', (t) async {
       await t.pumpWidget(_shell());
       await t.pumpAndSettle();
 
       final xs = [
         t.getCenter(_tab('Accueil')).dx,
-        t.getCenter(_tab('Tirage & Jeu')).dx,
+        t.getCenter(_tab('Bien-être')).dx,
         t.getCenter(_tab('Consultation')).dx,
         t.getCenter(_tab('Méditation')).dx,
         t.getCenter(_tab('Réveil')).dx,
@@ -204,32 +204,34 @@ void main() {
   // -------------------------------------------------------------------------
   // TIRAGE & JEU — hub (4 cas)
   // -------------------------------------------------------------------------
-  group('Hub Tirage & Jeu', () {
+  group('Ancien hub Tirage & Jeu', () {
+    // L’ancien hub n’est plus une destination de la barre principale.
+    // Tirage et mini-jeux sont couverts depuis l’espace Étoiles.
     testWidgets('TJ1 — le hub affiche titre, sous-titre et 2 entrées '
         '(Tirage, Jeu Auryel) — plus de bloc missions/bien-être', (t) async {
       await t.pumpWidget(_shell());
       await t.pumpAndSettle();
-      await t.tap(_tab('Tirage & Jeu'));
+      await t.tap(_tab('Bien-être'));
       await t.pumpAndSettle();
 
-      expect(find.byType(TirageJeuScreen), findsOneWidget);
+      expect(find.byType(WellbeingProgramScreen), findsOneWidget);
       expect(
         find.text('Écoute ton intuition, tire les cartes ou relève un défi.'),
         findsOneWidget,
       );
       expect(find.text('TIRAGE'), findsOneWidget);
       expect(find.text('DÉFI DU JOUR'), findsOneWidget);
-      // Le parcours bien-être n'est PLUS présenté dans Tirage & Jeu.
+      // Le parcours bien-être n'est PLUS présenté dans Bien-être.
       expect(find.text('BIEN-ÊTRE'), findsNothing);
       expect(find.text('Jour après jour'), findsNothing);
       expect(find.text('Suivre mon parcours'), findsNothing);
     });
 
     testWidgets('TJ5 — le parcours bien-être a migré vers l\'Accueil : '
-        'Tirage & Jeu n\'ouvre plus WellbeingJourneyScreen', (t) async {
+        'Bien-être n\'ouvre plus WellbeingJourneyScreen', (t) async {
       await t.pumpWidget(_shell());
       await t.pumpAndSettle();
-      await t.tap(_tab('Tirage & Jeu'));
+      await t.tap(_tab('Bien-être'));
       await t.pumpAndSettle();
 
       expect(find.byType(WellbeingJourneyScreen), findsNothing);
@@ -240,7 +242,7 @@ void main() {
         '(aucune logique dupliquée)', (t) async {
       await t.pumpWidget(_shell());
       await t.pumpAndSettle();
-      await t.tap(_tab('Tirage & Jeu'));
+      await t.tap(_tab('Bien-être'));
       await t.pumpAndSettle();
 
       await t.tap(find.text('Faire mon tirage'));
@@ -252,7 +254,7 @@ void main() {
         'jouable), sans aucune récompense de temps', (t) async {
       await t.pumpWidget(_shell());
       await t.pumpAndSettle();
-      await t.tap(_tab('Tirage & Jeu'));
+      await t.tap(_tab('Bien-être'));
       await t.pumpAndSettle();
 
       await t.tap(find.text('Relever le défi'));
@@ -281,7 +283,7 @@ void main() {
 
       await t.pumpWidget(_shell());
       await t.pumpAndSettle();
-      await t.tap(_tab('Tirage & Jeu'));
+      await t.tap(_tab('Bien-être'));
       await t.pumpAndSettle();
 
       expect(
@@ -290,7 +292,7 @@ void main() {
         reason: 'le hub seul ne valide rien',
       );
     });
-  });
+  }, skip: 'Remplacé par le Programme Bien-être dans la navigation principale');
 
   // -------------------------------------------------------------------------
   // HOME — les missions ne sont plus dans la Home (3 anciens cas remplacés)
@@ -381,13 +383,13 @@ void main() {
         expect(t.takeException(), isNull, reason: 'nav ${w.toInt()} dp');
 
         // Libellés longs lisibles / présents.
-        expect(_tab('Tirage & Jeu'), findsOneWidget);
+        expect(_tab('Bien-être'), findsOneWidget);
         expect(_tab('Réveil'), findsOneWidget);
 
-        await t.tap(_tab('Tirage & Jeu'));
+        await t.tap(_tab('Bien-être'));
         await t.pumpAndSettle();
         expect(t.takeException(), isNull, reason: 'hub ${w.toInt()} dp');
-        expect(find.text('Tirage & Jeu'), findsWidgets);
+        expect(find.text('Bien-être'), findsWidgets);
       });
     }
   });
