@@ -126,10 +126,10 @@ void main() {
         await _pumpHome(t, rig);
         await t.pumpAndSettle();
         expect(find.textContaining('2 h'), findsNothing);
-        expect(find.textContaining('consultations'), findsNothing);
+        expect(find.textContaining('consultations restantes'), findsNothing);
         expect(find.text('TON TEMPS DE CONSULTATION'), findsOneWidget);
         expect(find.text('20 minutes offertes'), findsOneWidget);
-        expect(find.text('Commencer une consultation'), findsOneWidget);
+        expect(find.text('Voir mes consultations'), findsOneWidget);
       },
     );
 
@@ -144,7 +144,7 @@ void main() {
       await rig.controller.refresh();
       await _pumpHome(t, rig);
       await t.pumpAndSettle();
-      expect(find.text('Commencer une consultation'), findsOneWidget);
+      expect(find.text('Voir mes consultations'), findsOneWidget);
       expect(find.textContaining('/8'), findsNothing);
       expect(find.textContaining('consultations restantes'), findsNothing);
       expect(find.text('TON TEMPS DE CONSULTATION'), findsOneWidget);

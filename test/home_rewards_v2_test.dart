@@ -77,14 +77,14 @@ void main() {
     await tester.pump(const Duration(seconds: 1));
 
     expect(find.byKey(const Key('home-stars-pill')), findsOneWidget);
-    expect(find.text('DÉCOUVRE LES OFFRES DE CONSULTATION'), findsOneWidget);
+    expect(find.byKey(const Key('home-premium-offer')), findsOneWidget);
     expect(find.text('Auryel Premium'), findsOneWidget);
     expect(find.text('4 h de consultation par mois'), findsOneWidget);
     expect(find.text('4,99 €/mois'), findsOneWidget);
     expect(find.text('Sans publicité'), findsOneWidget);
     expect(
       find.text('Gagne des minutes de consultation gratuitement'),
-      findsOneWidget,
+      findsNothing,
     );
     expect(find.text('TES MISSIONS DU JOUR'), findsNothing);
     expect(find.text('Pensée du jour'), findsNothing);

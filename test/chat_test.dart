@@ -598,8 +598,8 @@ void main() {
     );
     await t.pumpAndSettle();
 
-    await t.ensureVisible(find.text('Commencer une consultation'));
-    await t.tap(find.text('Commencer une consultation'));
+    await t.ensureVisible(find.text('Voir mes consultations'));
+    await t.tap(find.text('Voir mes consultations'));
     await t.pumpAndSettle();
 
     expect(tabs, contains(kTabConsultation));

@@ -16,6 +16,7 @@ import '../data/daily_like_store.dart';
 import '../data/daily_share_tracker.dart';
 import '../data/daily_thought.dart';
 import '../screens/splash_screen.dart';
+import '../screens/consultation_screen.dart';
 import '../state/auryel_state.dart';
 import '../state/auth_controller.dart';
 import '../state/consultation_controller.dart';
@@ -131,11 +132,10 @@ class HomeScreen extends StatelessWidget {
                       duration: 500.ms,
                     ),
                     const SizedBox(height: 14),
-
-                    _HomeAdvisorCard(advisor: advisor)
+                    _DailyThoughtZone(repository: thoughtRepository)
                         .animate()
-                        .fadeIn(delay: 300.ms, duration: 500.ms),
-                    const SizedBox(height: 14),
+                        .fadeIn(delay: 260.ms, duration: 500.ms),
+                    const SizedBox(height: 16),
                     (consultation == null
                             ? _TimeAvailableBlock(
                                 consultation: null,
@@ -149,19 +149,19 @@ class HomeScreen extends StatelessWidget {
                                 ),
                               ))
                         .animate()
-                        .fadeIn(delay: 380.ms, duration: 500.ms),
+                        .fadeIn(delay: 340.ms, duration: 500.ms),
                     const SizedBox(height: 14),
-                    const _ConsultationOffers().animate().fadeIn(
-                      delay: 440.ms,
-                      duration: 500.ms,
-                    ),
-                    const SizedBox(height: 18),
-                    _Divider(),
-                    const SizedBox(height: 14),
-                    _DailyThoughtZone(repository: thoughtRepository)
+                    (consultation == null
+                            ? const _ConsultationOffers(isPremium: false)
+                            : ListenableBuilder(
+                                listenable: consultation,
+                                builder: (context, _) => _ConsultationOffers(
+                                  isPremium:
+                                      consultation.quota?.isPremium ?? false,
+                                ),
+                              ))
                         .animate()
-                        .fadeIn(delay: 500.ms, duration: 500.ms),
-                    const SizedBox(height: 14),
+                        .fadeIn(delay: 400.ms, duration: 500.ms),
                     /* The old mission tiles deliberately do not belong on the
                        Home anymore. Their real flows remain in their tabs and
                        the active reward rules are listed in RewardsWallet. */
@@ -412,31 +412,50 @@ class _HomeAdvisorCard extends StatelessWidget {
 }
 
 class _ConsultationOffers extends StatelessWidget {
-  const _ConsultationOffers();
+  const _ConsultationOffers({required this.isPremium});
+
+  final bool isPremium;
 
   void _openPremium(BuildContext context) =>
       Navigator.of(context)
           .push(MaterialPageRoute(builder: (_) => const PremiumScreen()));
 
-  void _openWallet(BuildContext context) =>
-      Navigator.of(context)
-          .push(MaterialPageRoute(builder: (_) => const RewardsWalletScreen()));
-
   @override
   Widget build(BuildContext context) {
+    if (isPremium) {
+      return Container(
+        key: const Key('home-premium-active'),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+        decoration: BoxDecoration(
+          color: AuryelColors.surface.withValues(alpha: 0.62),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: AuryelColors.warmBorder),
+        ),
+        child: Row(
+          children: [
+            const PhosphorIcon(
+              PhosphorIconsRegular.crown,
+              size: 18,
+              color: AuryelColors.goldLight,
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                'Premium actif · Sans publicité',
+                style: AuryelText.body(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: AuryelColors.textCream,
+                ),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Text(
-          'DÉCOUVRE LES OFFRES DE CONSULTATION',
-          style: AuryelText.body(
-            fontSize: 10.5,
-            fontWeight: FontWeight.w600,
-            color: AuryelColors.gold,
-            letterSpacing: 1.6,
-          ),
-        ),
-        const SizedBox(height: 10),
         _OfferCard(
           key: const Key('home-premium-offer'),
           title: 'Auryel Premium',
@@ -446,15 +465,6 @@ class _ConsultationOffers extends StatelessWidget {
           primary: true,
           cta: 'Découvrir Premium',
           onTap: () => _openPremium(context),
-        ),
-        const SizedBox(height: 10),
-        _OfferCard(
-          key: const Key('home-free-offer'),
-          title: 'Gagne des minutes de consultation gratuitement',
-          detail: 'Gagne des Étoiles avec les activités Auryel',
-          price: '400 ⭐ = 10 min  ·  500 ⭐ = 15 min',
-          cta: 'Découvrir comment',
-          onTap: () => _openWallet(context),
         ),
       ],
     );
@@ -1313,67 +1323,83 @@ class _TimeAvailableBlock extends StatelessWidget {
     final active = c?.hasActiveSession == true;
     final ctaLabel = active
         ? 'Consultation en cours'
-        : hasTime
-        ? 'Commencer une consultation'
-        : 'Découvrir Premium';
+        : 'Voir mes consultations';
 
-    return Container(
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
-      decoration: BoxDecoration(
+    return Semantics(
+      button: true,
+      label: 'Ouvrir les consultations, $value',
+      child: Material(
+        color: Colors.transparent,
         borderRadius: BorderRadius.circular(16),
-        color: AuryelColors.surface.withValues(alpha: 0.5),
-        border: Border.all(color: AuryelColors.warmBorder, width: 1),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(
-            'TON TEMPS DE CONSULTATION',
-            style: AuryelText.body(
-              fontSize: 9.5,
-              fontWeight: FontWeight.w600,
-              color: AuryelColors.gold,
-              letterSpacing: 1.8,
+        child: InkWell(
+          key: const Key('home-time-card'),
+          borderRadius: BorderRadius.circular(16),
+          onTap: () {
+            final nav = MainNavScope.maybeOf(context);
+            if (nav != null) {
+              nav.goToTab(kTabConsultation);
+            } else {
+              Navigator.of(context).push(
+                MaterialPageRoute(builder: (_) => const ConsultationScreen()),
+              );
+            }
+          },
+          child: Ink(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(16),
+              color: AuryelColors.surface.withValues(alpha: 0.5),
+              border: Border.all(color: AuryelColors.warmBorder, width: 1),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  'TON TEMPS DE CONSULTATION',
+                  style: AuryelText.body(
+                    fontSize: 9.5,
+                    fontWeight: FontWeight.w600,
+                    color: AuryelColors.gold,
+                    letterSpacing: 1.8,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  value,
+                  style: AuryelText.display(
+                    fontSize: 18,
+                    fontWeight: FontWeight.w600,
+                    color: AuryelColors.textCream,
+                  ),
+                ),
+                if (active) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    'Temps réel communiqué par le serveur',
+                    style: AuryelText.body(
+                      fontSize: 11,
+                      color: AuryelColors.textSecondary,
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 12),
+                if (!hasTime)
+                  Text(
+                    'Découvre les solutions ci-dessous pour continuer.',
+                    style: AuryelText.body(
+                      fontSize: 12,
+                      color: AuryelColors.textMuted,
+                    ),
+                  ),
+                if (hasTime) ...[
+                  const SizedBox(height: 12),
+                  _CompactCta(label: ctaLabel, onTap: null),
+                ],
+              ],
             ),
           ),
-          const SizedBox(height: 3),
-          Text(
-            value,
-            style: AuryelText.display(
-              fontSize: 18,
-              fontWeight: FontWeight.w600,
-              color: AuryelColors.textCream,
-            ),
-          ),
-          if (active) ...[
-            const SizedBox(height: 2),
-            Text(
-              'Temps réel communiqué par le serveur',
-              style: AuryelText.body(
-                fontSize: 11,
-                color: AuryelColors.textSecondary,
-              ),
-            ),
-          ],
-          const SizedBox(height: 12),
-          if (!hasTime)
-            Text(
-              'Découvre les solutions ci-dessous pour continuer.',
-              style: AuryelText.body(
-                fontSize: 12,
-                color: AuryelColors.textMuted,
-              ),
-            ),
-          if (hasTime) ...[
-            const SizedBox(height: 12),
-            _CompactCta(
-              label: ctaLabel,
-              onTap: () =>
-                  MainNavScope.maybeOf(context)?.goToTab(kTabConsultation),
-            ),
-          ],
-        ],
+        ),
       ),
     );
   }

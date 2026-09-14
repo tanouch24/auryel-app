@@ -304,7 +304,11 @@ void main() {
       expect(find.text('TES MISSIONS DU JOUR'), findsNothing);
       expect(find.text('Carte du jour'), findsNothing);
       expect(find.text('Prends ton temps'), findsNothing);
-      expect(find.text('DÉCOUVRE LES OFFRES DE CONSULTATION'), findsOneWidget);
+      expect(find.byKey(const Key('home-premium-offer')), findsOneWidget);
+      expect(
+        find.text('Gagne des minutes de consultation gratuitement'),
+        findsNothing,
+      );
     });
 
     testWidgets('H2 — les onglets fonctionnels restent présents', (t) async {

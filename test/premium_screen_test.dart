@@ -191,10 +191,31 @@ void main() {
     await t.pump();
 
     expect(find.text('Auryel Premium'), findsOneWidget);
+    expect(find.text('Ton cadeau de bienvenue'), findsOneWidget);
+    expect(find.text('20 minutes de consultation offertes'), findsOneWidget);
+    expect(find.text('Auryel Gratuit'), findsOneWidget);
+    expect(find.text('0 €'), findsOneWidget);
     expect(find.text('4 h de consultation par mois'), findsOneWidget);
-    expect(find.text('4,99 €'), findsOneWidget); // prix du store
+    expect(find.text('Sans publicité'), findsOneWidget);
+    expect(find.text('4,99 €/mois'), findsOneWidget);
     expect(find.text('S’abonner'), findsOneWidget);
     expect(find.text('Restaurer mes achats'), findsOneWidget);
+  });
+
+  testWidgets('offre gratuite et cadeau commun visibles sans abonnement', (
+    t,
+  ) async {
+    final rig = _rig(handler: _happy);
+    rig.gateway.available = false;
+    await rig.controller.initialize();
+    await _pump(t, rig.controller);
+    await t.pump();
+
+    expect(find.byKey(const Key('premium-welcome-gift')), findsOneWidget);
+    expect(find.byKey(const Key('premium-free-plan')), findsOneWidget);
+    expect(find.text('Continuer gratuitement'), findsOneWidget);
+    expect(find.text('4 h de consultation par mois'), findsOneWidget);
+    expect(find.text('4,99 €/mois'), findsOneWidget);
   });
 
   testWidgets(
@@ -206,8 +227,7 @@ void main() {
       await _pump(t, rig.controller);
       await t.pump();
 
-      expect(find.text('Abonnement mensuel'), findsOneWidget);
-      expect(find.textContaining('€'), findsNothing);
+      expect(find.text('4,99 €/mois'), findsOneWidget);
       expect(
         find.text('L’abonnement n’est pas encore disponible.'),
         findsOneWidget,
@@ -224,6 +244,7 @@ void main() {
     await _pump(t, rig.controller);
     await t.pump();
 
+    await t.ensureVisible(find.text('S’abonner'));
     await t.tap(find.text('S’abonner'));
     await t.pump();
     expect(rig.gateway.buyCalls, 1);
@@ -236,6 +257,7 @@ void main() {
     await _pump(t, rig.controller);
     await t.pump();
 
+    await t.ensureVisible(find.text('Restaurer mes achats'));
     await t.tap(find.text('Restaurer mes achats'));
     await t.pump();
     expect(rig.gateway.restoreCalls, 1);
@@ -280,6 +302,7 @@ void main() {
     expect(rig.controller.state, PurchaseState.verifyRetryable);
     expect(find.text('Réessayer'), findsOneWidget);
 
+    await t.ensureVisible(find.text('Réessayer'));
     await t.tap(find.text('Réessayer'));
     await t.pump();
     await t.pump(const Duration(milliseconds: 50));
@@ -327,7 +350,7 @@ void main() {
     await t.pump();
 
     // Rappel juridique essentiel présent sur l'écran d'achat.
-    expect(find.text('4,99 €'), findsOneWidget); // prix du Store, autoritaire
+    expect(find.text('4,99 €/mois'), findsOneWidget);
     expect(
       find.textContaining('renouvellement automatique via Google Play'),
       findsOneWidget,

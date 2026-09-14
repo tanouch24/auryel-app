@@ -610,7 +610,7 @@ void main() {
       await _pumpWithin(t, rig, const HomeScreen());
       await t.pumpAndSettle();
 
-      expect(find.text('Commencer une consultation'), findsOneWidget);
+      expect(find.text('Voir mes consultations'), findsOneWidget);
       expect(find.text('Reprendre'), findsNothing);
     });
 
@@ -625,7 +625,7 @@ void main() {
       await rig.controller.refresh();
       await _pumpWithin(t, rig, const HomeScreen());
       await t.pumpAndSettle();
-      expect(find.text('Commencer une consultation'), findsOneWidget);
+      expect(find.text('Voir mes consultations'), findsOneWidget);
       expect(find.text('TON TEMPS DE CONSULTATION'), findsOneWidget);
       expect(find.text('20 minutes offertes'), findsOneWidget);
     });
@@ -643,7 +643,7 @@ void main() {
       await _pumpWithin(t, rig, const HomeScreen());
       await t.pumpAndSettle();
       expect(find.text('Temps de consultation épuisé'), findsOneWidget);
-      expect(find.text('Auryel Premium'), findsOneWidget);
+      expect(find.byKey(const Key('home-premium-offer')), findsOneWidget);
     });
 
     testWidgets('temps disponible -> CTA "Commencer une consultation"', (
@@ -658,7 +658,7 @@ void main() {
       await rig.controller.refresh();
       await _pumpWithin(t, rig, const HomeScreen());
       await t.pumpAndSettle();
-      expect(find.text('Commencer une consultation'), findsOneWidget);
+      expect(find.text('Voir mes consultations'), findsOneWidget);
     });
 
     testWidgets('ni gratuite, ni temps -> solutions Premium', (t) async {
@@ -680,7 +680,7 @@ void main() {
       await _pumpWithin(t, rig, const HomeScreen());
       await t.pumpAndSettle();
       expect(find.text('Temps de consultation épuisé'), findsOneWidget);
-      expect(find.text('Auryel Premium'), findsOneWidget);
+      expect(find.byKey(const Key('home-premium-offer')), findsOneWidget);
     });
 
     testWidgets('Premium SANS temps restant -> solutions Premium', (t) async {
@@ -694,7 +694,7 @@ void main() {
       await _pumpWithin(t, rig, const HomeScreen());
       await t.pumpAndSettle();
       expect(find.text('Temps de consultation épuisé'), findsOneWidget);
-      expect(find.text('Auryel Premium'), findsOneWidget);
+      expect(find.byKey(const Key('home-premium-active')), findsOneWidget);
     });
 
     testWidgets('J6-F2 §21 : tap CTA -> demande l\'onglet Consultation, jamais '

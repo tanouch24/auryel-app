@@ -92,11 +92,10 @@ class _Body extends StatelessWidget {
   final SubscriptionManager subscriptionManager;
 
   String get _priceLabel {
-    final p = controller.premiumProduct?.price;
-    // Prix STORE d'abord (régionalisé, autoritaire). Store indisponible ->
-    // libellé neutre, JAMAIS un prix inventé ni un faux ProductDetails
-    // Le prix Store reste autoritaire ; la carte Home porte le rappel produit.
-    return (p != null && p.isNotEmpty) ? p : 'Abonnement mensuel';
+    // L'offre produit validée pour Auryel est fixe. Une ancienne fiche Store
+    // peut encore remonter une valeur historique: elle ne doit pas apparaître
+    // dans l'interface active.
+    return '4,99 €/mois';
   }
 
   Future<void> _manage(BuildContext context) async {
@@ -148,12 +147,141 @@ class _Body extends StatelessWidget {
                   ? controller.restorePurchases
                   : null,
             )
-          else
+          else ...[
+            const _WelcomeBlock(),
+            const SizedBox(height: 16),
+            const _FreeOfferBlock(),
+            const SizedBox(height: 16),
             _OfferBlock(priceLabel: _priceLabel, controller: controller),
+          ],
           const SizedBox(height: 24),
           _ExtraHourBlock(controller: controller),
           const SizedBox(height: 20),
           const _LegalFooter(),
+        ],
+      ),
+    );
+  }
+}
+
+class _WelcomeBlock extends StatelessWidget {
+  const _WelcomeBlock();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      key: const Key('premium-welcome-gift'),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            AuryelColors.gold.withValues(alpha: 0.20),
+            AuryelColors.surface.withValues(alpha: 0.72),
+          ],
+        ),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(
+          color: AuryelColors.goldLight.withValues(alpha: 0.6),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Ton cadeau de bienvenue',
+            style: AuryelText.display(
+              fontSize: 18,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 5),
+          Text(
+            '20 minutes de consultation offertes',
+            style: AuryelText.body(
+              fontSize: 14,
+              fontWeight: FontWeight.w600,
+              color: AuryelColors.goldLight,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _FreeOfferBlock extends StatelessWidget {
+  const _FreeOfferBlock();
+
+  @override
+  Widget build(BuildContext context) {
+    return _PlanCard(
+      key: const Key('premium-free-plan'),
+      title: 'Auryel Gratuit',
+      price: '0 €',
+      lines: const [
+        '20 minutes de consultation offertes à la première utilisation',
+        'Application avec publicité',
+        'Possibilité de gagner des Étoiles',
+        'Étoiles transformables en minutes',
+        'Accès aux contenus gratuits existants',
+      ],
+      child: OutlinedButton(
+        onPressed: () => Navigator.of(context).maybePop(),
+        child: const Text('Continuer gratuitement'),
+      ),
+    );
+  }
+}
+
+class _PlanCard extends StatelessWidget {
+  const _PlanCard({
+    super.key,
+    required this.title,
+    required this.price,
+    required this.lines,
+    required this.child,
+  });
+
+  final String title;
+  final String price;
+  final List<String> lines;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AuryelColors.surface.withValues(alpha: 0.72),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: AuryelColors.warmBorder),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            title,
+            style: AuryelText.display(
+              fontSize: 19,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 3),
+          Text(
+            price,
+            style: AuryelText.body(
+              fontSize: 15,
+              fontWeight: FontWeight.w700,
+              color: AuryelColors.goldLight,
+            ),
+          ),
+          const SizedBox(height: 14),
+          for (final line in lines) ...[
+            _OfferLine(line),
+            const SizedBox(height: 8),
+          ],
+          const SizedBox(height: 6),
+          SizedBox(width: double.infinity, child: child),
         ],
       ),
     );
@@ -331,7 +459,13 @@ class _OfferBlock extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
+        const _OfferLine(
+          '20 minutes offertes également à la première utilisation',
+        ),
+        const SizedBox(height: 10),
         const _OfferLine('4 h de consultation par mois'),
+        const SizedBox(height: 10),
+        const _OfferLine('Sans publicité'),
         const SizedBox(height: 10),
         const _OfferLine('Messages illimités pendant le temps disponible'),
         const SizedBox(height: 22),

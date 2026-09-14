@@ -71,7 +71,11 @@ void main() {
     testWidgets('offres visibles et anciennes missions absentes', (t) async {
       await t.pumpWidget(_home());
       await t.pumpAndSettle();
-      expect(find.text('DÉCOUVRE LES OFFRES DE CONSULTATION'), findsOneWidget);
+      expect(find.byKey(const Key('home-premium-offer')), findsOneWidget);
+      expect(
+        find.text('Gagne des minutes de consultation gratuitement'),
+        findsNothing,
+      );
       expect(find.text('4,99 €/mois'), findsOneWidget);
       expect(find.text('TES MISSIONS DU JOUR'), findsNothing);
       expect(find.text('Suis ton parcours pendant 30 jours'), findsNothing);
