@@ -77,18 +77,18 @@ void main() {
       expect(find.text('Suis ton parcours pendant 30 jours'), findsOneWidget);
     });
 
-    testWidgets('le sous-texte annonce la récompense de 15 min à 30 jours', (
-      t,
-    ) async {
+    testWidgets('CORRECTIF PRODUIT — le sous-texte ne promet plus 15 min de '
+        'consultation (univers recentré sur les Étoiles)', (t) async {
       await t.pumpWidget(_home());
       await t.pumpAndSettle();
       expect(
         find.text(
-          'Avance chaque jour dans ton parcours bien-être et gagne 15 min '
-          'de consultation offertes à la fin des 30 jours.',
+          'Avance à ton rythme. Chaque journée complétée construit ton '
+          'parcours.',
         ),
         findsOneWidget,
       );
+      expect(find.textContaining('15 min'), findsNothing);
     });
 
     testWidgets('tap sur le CTA -> ouvre l\'écran parcours (carte)', (t) async {

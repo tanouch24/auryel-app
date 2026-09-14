@@ -1,14 +1,21 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
 import 'package:phosphor_icons/phosphor_icons.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'package:auryel/api/api_client.dart';
+import 'package:auryel/api/rewards_api.dart';
 import 'package:auryel/data/daily_like_store.dart';
 import 'package:auryel/data/daily_thought.dart';
 import 'package:auryel/data/onboarding_record.dart';
 import 'package:auryel/data/onboarding_repository.dart';
 import 'package:auryel/screens/home_screen.dart';
 import 'package:auryel/state/auryel_state.dart';
+import 'package:auryel/state/rewards_controller.dart';
 import 'package:auryel/widgets/daily_message_sheet.dart';
 
 // ===========================================================================
@@ -49,6 +56,43 @@ Widget _host() => AuryelStateScope(
   child: MaterialApp(home: HomeScreen(thoughtRepository: _repo())),
 );
 
+/// Même Accueil, avec un [RewardsScope] câblé et un wallet déjà chargé
+/// (règle `share_completed` connue) : le bloc partage doit alors annoncer le
+/// gain RÉEL d'Étoiles, jamais un montant inventé.
+Widget _hostWithRewards(RewardsController rewards) => AuryelStateScope(
+  state: _state(),
+  child: RewardsScope(
+    controller: rewards,
+    child: MaterialApp(home: HomeScreen(thoughtRepository: _repo())),
+  ),
+);
+
+RewardsController _rewards(int shareCompletedStars) {
+  final client = ApiClient(
+    httpClient: MockClient(
+      (_) async => http.Response(
+        jsonEncode({
+          'stars_balance': 0,
+          'rules': [
+            {
+              'rule_key': 'share_completed',
+              'stars_amount': shareCompletedStars,
+            },
+          ],
+          'recent_transactions': [],
+        }),
+        200,
+        headers: {'content-type': 'application/json'},
+      ),
+    ),
+    baseUrl: 'http://test.local',
+  );
+  return RewardsController(
+    api: RewardsApi(client),
+    tokenProvider: () async => 'tok',
+  );
+}
+
 // Même Accueil mais « réduire les animations » activé : le repère « Cliquez
 // ici » doit se rendre STATIQUE (aucune animation qui empêcherait pumpAndSettle).
 Widget _hostNoAnim() => AuryelStateScope(
@@ -63,8 +107,12 @@ Widget _hostNoAnim() => AuryelStateScope(
   ),
 );
 
-// Nouveau bénéfice du bloc partage (bouton dédié « Partager maintenant »).
-const _shareCta = 'gagne 1 h de consultation';
+// CORRECTIF PRODUIT — l'ancienne promesse « gagne 1 h de consultation » et
+// le compteur « X / 30 jours » sont retirés (univers recentré sur les
+// Étoiles) : sans [RewardsScope] câblé (comme dans `_host()` ci-dessous), le
+// bloc partage retombe sur un CTA neutre, jamais un montant inventé — voir
+// `home_screen.dart` > `_ShareRewardBlock`.
+const _shareCta = 'Partage cette pensée avec tes proches';
 const _shareBtn = 'Partager maintenant';
 
 void main() {
@@ -78,28 +126,39 @@ void main() {
   });
 
   testWidgets('C. ancien CTA « voir l\'interprétation » supprimé ; nouveau CTA '
-      'partage/récompense + compteur « X / 30 » présents', (t) async {
+      'partage/récompense présent, plus de compteur « X / 30 »', (t) async {
     await t.pumpWidget(_host());
     await t.pump(const Duration(seconds: 1));
     expect(find.text('Clique ici pour voir l’interprétation'), findsNothing);
     expect(find.textContaining(_shareCta), findsOneWidget);
-    expect(find.textContaining('/ 30 jours'), findsOneWidget);
+    expect(find.textContaining('/ 30 jours'), findsNothing);
   });
 
   testWidgets('C quater. bénéfice + VRAI bouton « Partager maintenant » ; '
-      'plus d\'encadré ambigu ni de « Cliquez ici »', (t) async {
+      'plus d\'encadré ambigu ni de « Cliquez ici », plus de promesse « 1 h '
+      'de consultation »', (t) async {
     await t.pumpWidget(_host());
     await t.pump(const Duration(seconds: 1));
     expect(
       find.text('Partage cette pensée et gagne 1 h de consultation'),
-      findsOneWidget,
-    );
-    expect(find.text(_shareBtn), findsOneWidget);
-    expect(find.text('Cliquez ici'), findsNothing);
-    expect(
-      find.textContaining('gagne 1 h de communication offerte'),
       findsNothing,
     );
+    expect(find.text(_shareCta), findsOneWidget);
+    expect(find.text(_shareBtn), findsOneWidget);
+    expect(find.text('Cliquez ici'), findsNothing);
+    expect(find.textContaining('1 h de consultation'), findsNothing);
+  });
+
+  testWidgets('CORRECTIF PRODUIT — règle share_completed connue -> annonce '
+      'le gain RÉEL d\'Étoiles (jamais un montant inventé)', (t) async {
+    final rewards = _rewards(15);
+    addTearDown(rewards.dispose);
+    await rewards.refresh();
+    await t.pumpWidget(_hostWithRewards(rewards));
+    await t.pump(const Duration(seconds: 1));
+
+    expect(find.text('Partage cette pensée et gagne +15 ⭐'), findsOneWidget);
+    expect(find.text(_shareCta), findsNothing); // CTA neutre remplacé
   });
 
   testWidgets('C ter. tap sur le CTA ouvre l\'aperçu de LA publication du jour '
@@ -133,21 +192,19 @@ void main() {
     expect(ctaDy, greaterThan(phraseDy));
   });
 
-  testWidgets('CTA partage : bénéfice, puis VRAI bouton, puis compteur '
-      '(ordre vertical) ; « Cliquez ici » supprimé', (t) async {
+  testWidgets('CTA partage : bénéfice, puis VRAI bouton (ordre vertical) ; '
+      '« Cliquez ici » supprimé, plus de compteur « X / 30 »', (t) async {
     await t.pumpWidget(_host());
     await t.pump(const Duration(seconds: 1));
 
     expect(find.text('Cliquez ici'), findsNothing);
     expect(find.textContaining(_shareCta), findsOneWidget); // bénéfice
     expect(find.text(_shareBtn), findsOneWidget); // vrai bouton
-    expect(find.textContaining('/ 30 jours'), findsOneWidget); // compteur
+    expect(find.textContaining('/ 30 jours'), findsNothing); // ex-compteur
 
     final benefitDy = t.getTopLeft(find.textContaining(_shareCta)).dy;
     final btnDy = t.getTopLeft(find.text(_shareBtn)).dy;
-    final counterDy = t.getTopLeft(find.textContaining('/ 30 jours')).dy;
     expect(btnDy, greaterThan(benefitDy), reason: 'bouton sous le bénéfice');
-    expect(counterDy, greaterThan(btnDy), reason: 'compteur sous le bouton');
   });
 
   testWidgets('tap « Partager maintenant » -> aperçu de la publication', (
@@ -173,7 +230,6 @@ void main() {
     expect(find.text('Cliquez ici'), findsNothing);
     expect(find.text(_shareBtn), findsOneWidget);
     expect(find.textContaining(_shareCta), findsOneWidget);
-    expect(find.textContaining('/ 30 jours'), findsOneWidget);
     expect(t.takeException(), isNull);
   });
 

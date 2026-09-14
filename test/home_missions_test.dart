@@ -152,23 +152,22 @@ _WellbeingRig _wellbeingRig({List<String> doneToday = const []}) {
   return (wellbeing: wellbeing, auth: auth, hits: hits);
 }
 
-Widget _hostWithWellbeing(_WellbeingRig rig, {List<int>? tabTaps}) =>
-    AuthScope(
-      controller: rig.auth,
-      child: WellbeingScope(
-        controller: rig.wellbeing,
-        child: AuryelStateScope(
-          state: _state(),
-          child: MaterialApp(
-            home: MainNavScope(
-              goToTab: (i) => tabTaps?.add(i),
-              currentIndex: kTabHome,
-              child: HomeScreen(thoughtRepository: _repo()),
-            ),
-          ),
+Widget _hostWithWellbeing(_WellbeingRig rig, {List<int>? tabTaps}) => AuthScope(
+  controller: rig.auth,
+  child: WellbeingScope(
+    controller: rig.wellbeing,
+    child: AuryelStateScope(
+      state: _state(),
+      child: MaterialApp(
+        home: MainNavScope(
+          goToTab: (i) => tabTaps?.add(i),
+          currentIndex: kTabHome,
+          child: HomeScreen(thoughtRepository: _repo()),
         ),
       ),
-    );
+    ),
+  ),
+);
 
 void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
@@ -233,9 +232,7 @@ void main() {
       'AUDIT — 3/4 côté serveur : compteur 3/4, PAS "Journée complétée" '
       '(reproduit le bug : Consultation non terminée)',
       (t) async {
-        final rig = _wellbeingRig(
-          doneToday: ['pensee', 'tirage', 'moment'],
-        );
+        final rig = _wellbeingRig(doneToday: ['pensee', 'tirage', 'moment']);
         await t.pumpWidget(_hostWithWellbeing(rig));
         await t.pump(const Duration(seconds: 1));
         await t.pump(const Duration(milliseconds: 50));
@@ -244,7 +241,8 @@ void main() {
         expect(
           find.text('Journée Auryel complétée'),
           findsNothing,
-          reason: 'Accueil ne doit JAMAIS annoncer la journée terminée '
+          reason:
+              'Accueil ne doit JAMAIS annoncer la journée terminée '
               'tant que le serveur dit 3/4',
         );
         expect(
@@ -256,9 +254,7 @@ void main() {
       },
     );
 
-    testWidgets('4/4 côté serveur -> « Journée Auryel complétée »', (
-      t,
-    ) async {
+    testWidgets('4/4 côté serveur -> « Journée Auryel complétée »', (t) async {
       final rig = _wellbeingRig(doneToday: kWellbeingMissions);
       await t.pumpWidget(_hostWithWellbeing(rig));
       await t.pump(const Duration(seconds: 1));
@@ -317,24 +313,21 @@ void main() {
       expect(rig.wellbeing.isMissionDone('moment'), isFalse);
     });
 
-    testWidgets(
-      'tap « Pensée du jour » -> ouvre l\'aperçu de la publication',
-      (t) async {
-        final rig = _wellbeingRig();
-        await t.pumpWidget(_hostWithWellbeing(rig));
-        await t.pump(const Duration(seconds: 1));
-        await t.pump(const Duration(milliseconds: 50));
-
-        await t.tap(find.text('Pensée du jour'));
-        await t.pump();
-        await t.pump(const Duration(milliseconds: 400));
-        expect(find.byType(DailyMessageSheet), findsOneWidget);
-      },
-    );
-
-    testWidgets('lignes de mission : Semantics bouton + état coché', (
+    testWidgets('tap « Pensée du jour » -> ouvre l\'aperçu de la publication', (
       t,
     ) async {
+      final rig = _wellbeingRig();
+      await t.pumpWidget(_hostWithWellbeing(rig));
+      await t.pump(const Duration(seconds: 1));
+      await t.pump(const Duration(milliseconds: 50));
+
+      await t.tap(find.text('Pensée du jour'));
+      await t.pump();
+      await t.pump(const Duration(milliseconds: 400));
+      expect(find.byType(DailyMessageSheet), findsOneWidget);
+    });
+
+    testWidgets('lignes de mission : Semantics bouton + état coché', (t) async {
       final rig = _wellbeingRig(doneToday: ['tirage']);
       await t.pumpWidget(_hostWithWellbeing(rig));
       await t.pump(const Duration(seconds: 1));
@@ -436,18 +429,20 @@ void main() {
 
   group('Pensée du jour — préservée', () {
     testWidgets(
-      'bloc partage : bénéfice + bouton « Partager maintenant » + « X / 30 '
-      'jours » + aucune date',
+      'bloc partage : bénéfice neutre (CORRECTIF PRODUIT, plus de promesse '
+      '« 1 h de consultation ») + bouton « Partager maintenant » + aucune '
+      'date',
       (t) async {
         await t.pumpWidget(_host());
         await t.pump(const Duration(seconds: 1));
+        expect(find.textContaining('gagne 1 h de consultation'), findsNothing);
         expect(
-          find.textContaining('gagne 1 h de consultation'),
+          find.text('Partage cette pensée avec tes proches'),
           findsOneWidget,
         );
         expect(find.text('Partager maintenant'), findsOneWidget);
         expect(find.text('Cliquez ici'), findsNothing);
-        expect(find.textContaining('/ 30 jours'), findsOneWidget);
+        expect(find.textContaining('/ 30 jours'), findsNothing);
         expect(find.textContaining('AOÛT'), findsNothing);
         expect(find.textContaining('2026'), findsNothing);
       },

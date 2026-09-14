@@ -26,6 +26,30 @@ const Map<String, String> _kRuleLabels = {
 String _ruleLabel(String ruleKey) =>
     _kRuleLabels[ruleKey] ?? ruleKey.replaceAll('_', ' ');
 
+/// CORRECTIF PRODUIT — description courte de CE QUE fait l'action (jamais un
+/// montant : `stars_amount` reste exclusivement lu depuis `RewardRule`).
+/// Même idiome que `_kRuleLabels` : une clé future inconnue de l'app retombe
+/// sur une chaîne vide plutôt que de planter.
+const Map<String, String> _kRuleDescriptions = {
+  'wake_completed': 'Éteins ton réveil Auryel.',
+  'daily_card_completed': 'Consulte ta carte du jour.',
+  'tarot_completed': 'Fais ton tirage à 3 cartes.',
+  'meditation_completed': 'Termine un Moment (méditation).',
+  'share_completed': 'Partage Auryel avec tes proches.',
+  'mini_game_completed': 'Termine une partie d’un mini-jeu.',
+};
+
+String? _ruleDescription(String ruleKey) => _kRuleDescriptions[ruleKey];
+
+/// Limite quotidienne en toutes lettres, dérivée UNIQUEMENT de
+/// `RewardRule.dailyLimit` (valeur serveur réelle) — `null` = pas de texte,
+/// jamais une limite devinée.
+String? _ruleLimitLabel(int? dailyLimit) {
+  if (dailyLimit == null) return null;
+  if (dailyLimit <= 1) return 'Une fois par jour';
+  return 'Jusqu’à $dailyLimit fois par jour';
+}
+
 /// GROS CHANTIER AURYEL (Prompt 3/5) — libellés des produits « temps contre
 /// Étoiles ». Coût/durée eux-mêmes JAMAIS codés en dur (résolus depuis
 /// `ExpressProduct`) ; seul le TITRE est une copy locale.
@@ -300,6 +324,77 @@ class _SectionCard extends StatelessWidget {
   }
 }
 
+/// Une source de gain : nom + montant réel (serveur) en tête, description
+/// courte + limite quotidienne réelle en dessous. Structure demandée pour
+/// que « Comment gagner des Étoiles » soit enfin compréhensible d'un coup
+/// d'œil (nom / récompense / description / limite éventuelle).
+class _RuleRow extends StatelessWidget {
+  const _RuleRow({required this.rule});
+
+  final RewardRule rule;
+
+  @override
+  Widget build(BuildContext context) {
+    final description = _ruleDescription(rule.ruleKey);
+    final limit = _ruleLimitLabel(rule.dailyLimit);
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AuryelColors.backgroundDeep.withValues(alpha: 0.3),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AuryelColors.warmBorder),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  _ruleLabel(rule.ruleKey),
+                  style: AuryelText.body(
+                    fontSize: 13.5,
+                    fontWeight: FontWeight.w600,
+                    color: AuryelColors.textCream,
+                  ),
+                ),
+              ),
+              Text(
+                '+${rule.starsAmount} ⭐',
+                style: AuryelText.body(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w700,
+                  color: AuryelColors.goldLight,
+                ),
+              ),
+            ],
+          ),
+          if (description != null) ...[
+            const SizedBox(height: 4),
+            Text(
+              description,
+              style: AuryelText.body(
+                fontSize: 12,
+                color: AuryelColors.textSecondary,
+              ),
+            ),
+          ],
+          if (limit != null) ...[
+            const SizedBox(height: 3),
+            Text(
+              limit,
+              style: AuryelText.body(
+                fontSize: 10.5,
+                color: AuryelColors.textMuted,
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
 class _RulesSection extends StatelessWidget {
   const _RulesSection({required this.controller});
 
@@ -328,31 +423,10 @@ class _RulesSection extends StatelessWidget {
                 )
               : Column(
                   children: [
-                    for (final rule in rules)
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: 8),
-                        child: Row(
-                          children: [
-                            Expanded(
-                              child: Text(
-                                _ruleLabel(rule.ruleKey),
-                                style: AuryelText.body(
-                                  fontSize: 13,
-                                  color: AuryelColors.textSecondary,
-                                ),
-                              ),
-                            ),
-                            Text(
-                              '+${rule.starsAmount} ⭐',
-                              style: AuryelText.body(
-                                fontSize: 13,
-                                fontWeight: FontWeight.w600,
-                                color: AuryelColors.goldLight,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
+                    for (final rule in rules) ...[
+                      _RuleRow(rule: rule),
+                      if (rule != rules.last) const SizedBox(height: 12),
+                    ],
                   ],
                 ),
         );

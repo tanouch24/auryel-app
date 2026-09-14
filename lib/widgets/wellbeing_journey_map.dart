@@ -671,7 +671,11 @@ class _RewardLine extends StatelessWidget {
             child: Text(
               progress.rewardEarnedForCurrentCycle
                   ? 'Récompense du cycle ${progress.cycleNumber} déjà ajoutée à ton temps de consultation.'
-                  : 'Au bout des 30 journées : 15 minutes de consultation offertes. Chaque journée compte, même après une pause.',
+                  // CORRECTIF PRODUIT — ne promet plus de minutes à l'avance
+                  // (ancienne mécanique mise en concurrence des Étoiles). Le
+                  // crédit +900 s à la 30e journée reste un VRAI mécanisme
+                  // serveur inchangé (branche ci-dessus, une fois acquis).
+                  : 'Avance à ton rythme. Chaque journée compte, même après une pause.',
               style: AuryelText.body(
                 fontSize: 11.5,
                 height: 1.4,

@@ -185,11 +185,19 @@ class _HiddenCardScreenState extends State<HiddenCardScreen> {
 
   Widget _buildBody() {
     if (_phase == _Phase.result) return _buildResult();
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 28),
+    // CORRECTIF VISUEL — les 3 cartes flottaient seules sur le fond noir,
+    // impression de grand bloc vide (constaté à l'écran, Samsung). Panneau
+    // premium cohérent avec le reste d'Auryel : aucun changement de logique.
+    return _GamePanel(
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
+          const PhosphorIcon(
+            PhosphorIconsFill.cardsThree,
+            size: 26,
+            color: AuryelColors.goldLight,
+          ),
+          const SizedBox(height: 14),
           Text(
             'Carte cachée',
             style: AuryelText.display(
@@ -208,7 +216,7 @@ class _HiddenCardScreenState extends State<HiddenCardScreen> {
             textAlign: TextAlign.center,
             style: AuryelText.body(fontSize: 13, color: AuryelColors.textMuted),
           ),
-          const SizedBox(height: 36),
+          const SizedBox(height: 32),
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
@@ -251,13 +259,14 @@ class _HiddenCardScreenState extends State<HiddenCardScreen> {
           ? 'Bien joué, tu as retrouvé la bonne carte !'
           : 'Bien tenté !';
     }
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 28),
+    return _GamePanel(
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           PhosphorIcon(
-            _correct ? PhosphorIconsFill.sparkle : PhosphorIconsRegular.checkCircle,
+            _correct
+                ? PhosphorIconsFill.sparkle
+                : PhosphorIconsRegular.checkCircle,
             size: 34,
             color: AuryelColors.goldLight,
           ),
@@ -312,6 +321,42 @@ class _HiddenCardScreenState extends State<HiddenCardScreen> {
   }
 }
 
+/// Panneau premium partagé par les états jeu/résultat — CORRECTIF VISUEL :
+/// avant, le contenu flottait seul sur le fond noir, ce qui donnait
+/// l'impression d'un écran vide. Même habillage que `_SectionCard` /
+/// `_RewardLine` ailleurs dans Auryel : aucune logique, uniquement de la
+/// présentation.
+class _GamePanel extends StatelessWidget {
+  const _GamePanel({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(24),
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              AuryelColors.surface.withValues(alpha: 0.55),
+              AuryelColors.surface.withValues(alpha: 0.25),
+            ],
+          ),
+          border: Border.all(
+            color: AuryelColors.goldLight.withValues(alpha: 0.3),
+          ),
+        ),
+        child: child,
+      ),
+    );
+  }
+}
+
 class _CardTile extends StatelessWidget {
   const _CardTile({
     required this.faceUp,
@@ -336,24 +381,35 @@ class _CardTile extends StatelessWidget {
           onTap: enabled ? onTap : null,
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 200),
-            width: 78,
-            height: 106,
+            width: 82,
+            height: 112,
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(14),
               gradient: faceUp ? AuryelColors.goldGradient : null,
-              color: faceUp ? null : AuryelColors.surface.withValues(alpha: 0.6),
+              color: faceUp ? null : AuryelColors.surfaceLight,
               border: Border.all(
-                color: faceUp ? AuryelColors.goldLight : AuryelColors.warmBorder,
+                color: faceUp
+                    ? AuryelColors.goldLight
+                    : AuryelColors.warmBorder,
                 width: faceUp ? 2 : 1,
               ),
+              boxShadow: faceUp
+                  ? [
+                      BoxShadow(
+                        color: AuryelColors.gold.withValues(alpha: 0.35),
+                        blurRadius: 16,
+                        spreadRadius: 1,
+                      ),
+                    ]
+                  : null,
             ),
             alignment: Alignment.center,
             child: faceUp
-                ? const Text(_kCardSymbol, style: TextStyle(fontSize: 26))
+                ? const Text(_kCardSymbol, style: TextStyle(fontSize: 28))
                 : PhosphorIcon(
                     PhosphorIconsRegular.question,
-                    size: 22,
-                    color: AuryelColors.textMuted,
+                    size: 24,
+                    color: AuryelColors.gold.withValues(alpha: 0.7),
                   ),
           ),
         ),

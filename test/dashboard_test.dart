@@ -33,6 +33,7 @@ import 'package:auryel/widgets/daily_message_sheet.dart';
 import 'package:auryel/state/auryel_state.dart';
 import 'package:auryel/state/auth_controller.dart';
 import 'package:auryel/state/consultation_controller.dart';
+import 'package:auryel/state/rewards_controller.dart';
 import 'package:auryel/widgets/main_nav_shell.dart';
 
 // ===========================================================================
@@ -299,7 +300,8 @@ void main() {
     },
   );
 
-  testWidgets('I/J/K/L — Mon parcours + compteurs locaux + progression 30 j', (
+  testWidgets('I/J/K/L — Mon parcours + compteurs locaux, CORRECTIF PRODUIT : '
+      'plus de promesse « 1 h de consultation » ni de compteur 30 j', (
     t,
   ) async {
     final prefs = await SharedPreferences.getInstance();
@@ -317,64 +319,58 @@ void main() {
     expect(find.text('MON PARCOURS'), findsOneWidget);
     expect(find.text('2 messages aimés'), findsOneWidget);
     expect(find.text('3 jours de partage'), findsOneWidget);
-    // progression 30 j + nouveau wording récompense (B10.1 §8-§9)
     expect(find.text('MES RÉCOMPENSES'), findsOneWidget);
     expect(find.text('Ta pensée du jour'), findsOneWidget);
     expect(
       find.text('Partage la publication du jour avec tes contacts.'),
       findsOneWidget,
     );
+    // CORRECTIF PRODUIT — ancienne promesse retirée (univers Étoiles) ; sans
+    // RewardsScope câblé (comme ici), CTA neutre, aucun montant inventé.
     expect(
       find.text('30 jours de partage = 1 h de consultation offerte.'),
+      findsNothing,
+    );
+    expect(find.text('3 / 30 jours'), findsNothing);
+    expect(
+      find.text('Un geste simple, sans rien promettre en plus.'),
       findsOneWidget,
     );
-    expect(find.text('3 / 30 jours'), findsOneWidget);
     expect(find.text('Partager ma pensée du jour'), findsOneWidget);
   });
 
-  testWidgets('J2 — progression partage : le SERVEUR fait autorité quand '
-      'GET share-progress répond', (t) async {
-    final prefs = await SharedPreferences.getInstance();
-    final tracker = DailyShareTracker(prefs: prefs);
-    await tracker.recordShareAttempt(now: DateTime(2026, 9, 1)); // local = 1
-    var hit = false;
-    final auth = _auth(
-      MockClient((req) async {
-        if (req.url.path == '/api/app/rewards/share-progress') {
-          hit = true;
-          return http.Response(
-            jsonEncode({'count': 12, 'target': 30, 'credited': false}),
-            200,
-            headers: {'content-type': 'application/json'},
-          );
-        }
-        return http.Response('{}', 404);
-      }),
+  testWidgets('CORRECTIF PRODUIT — règle share_completed connue -> Dashboard '
+      'annonce le gain RÉEL d\'Étoiles (même RewardsScope que « Voir mes '
+      'Étoiles »)', (t) async {
+    final rewards = RewardsController(
+      api: RewardsApi(
+        ApiClient(
+          httpClient: MockClient(
+            (_) async => http.Response(
+              jsonEncode({
+                'stars_balance': 0,
+                'rules': [
+                  {'rule_key': 'share_completed', 'stars_amount': 15},
+                ],
+                'recent_transactions': [],
+              }),
+              200,
+              headers: {'content-type': 'application/json'},
+            ),
+          ),
+          baseUrl: 'http://test.local',
+        ),
+      ),
+      tokenProvider: () async => 'tok',
     );
+    addTearDown(rewards.dispose);
+    await rewards.refresh();
 
-    await t.pumpWidget(_dash(auth: auth));
+    await t.pumpWidget(RewardsScope(controller: rewards, child: _dash()));
     await t.pump();
     await t.pump(const Duration(milliseconds: 50));
 
-    expect(hit, isTrue, reason: 'GET share-progress réellement appelé');
-    expect(find.text('12 / 30 jours'), findsOneWidget); // serveur
-    expect(find.text('1 / 30 jours'), findsNothing); // pas le cache local
-  });
-
-  testWidgets('J2 — progression partage : endpoint indisponible -> repli sur '
-      'le cache local, aucun crash', (t) async {
-    final prefs = await SharedPreferences.getInstance();
-    final tracker = DailyShareTracker(prefs: prefs);
-    await tracker.recordShareAttempt(now: DateTime(2026, 9, 1));
-    await tracker.recordShareAttempt(now: DateTime(2026, 9, 2)); // local = 2
-    final auth = _auth(MockClient((_) async => http.Response('{}', 503)));
-
-    await t.pumpWidget(_dash(auth: auth));
-    await t.pump();
-    await t.pump(const Duration(milliseconds: 50));
-
-    expect(find.text('2 / 30 jours'), findsOneWidget);
-    expect(t.takeException(), isNull);
+    expect(find.text('Chaque partage crédite +15 ⭐.'), findsOneWidget);
   });
 
   testWidgets('M/P — aucune heure attribuée, suppression = 2 confirmations', (
@@ -386,7 +382,7 @@ void main() {
     // récompense : mention honnête (le crédit est décidé par le serveur), aucun
     // crédit local. L'ancien hedge « en cours d'activation » a été retiré (J2).
     expect(
-      find.textContaining('le crédit de l’heure sont gérés par nos serveurs'),
+      find.textContaining('crédit de tes Étoiles est géré par nos serveurs'),
       findsOneWidget,
     );
     expect(find.textContaining('en cours d’activation'), findsNothing);
@@ -792,7 +788,10 @@ void main() {
     expect(c.time?.purchasedRemainingSeconds ?? 0, 0);
   });
 
-  testWidgets('B10.1 H — récompense : 30/30 rendu sans overflow', (t) async {
+  testWidgets('B10.1 H — récompense : 30 jours de partage rendu sans '
+      'overflow (compteur "X / 30 jours" retiré, CORRECTIF PRODUIT)', (
+    t,
+  ) async {
     final prefs = await SharedPreferences.getInstance();
     final tracker = DailyShareTracker(prefs: prefs);
     for (var d = 1; d <= 30; d++) {
@@ -806,7 +805,8 @@ void main() {
     await t.pump();
     await t.pump(const Duration(milliseconds: 50));
 
-    expect(find.text('30 / 30 jours'), findsOneWidget);
+    expect(find.text('30 jours de partage'), findsOneWidget);
+    expect(find.text('30 / 30 jours'), findsNothing);
     expect(t.takeException(), isNull);
   });
 

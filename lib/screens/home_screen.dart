@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:phosphor_icons/phosphor_icons.dart';
 
+import '../api/rewards_api.dart' show RewardRule;
 import '../api/wellbeing_api.dart' show kWellbeingMissions;
 import '../data/content_repository.dart';
 import '../data/daily_like_store.dart';
@@ -100,9 +101,22 @@ class HomeScreen extends StatelessWidget {
           SafeArea(
             child: SingleChildScrollView(
               child: Padding(
-                padding: const EdgeInsets.fromLTRB(24, 30, 24, 20),
+                padding: const EdgeInsets.fromLTRB(24, 16, 24, 20),
                 child: Column(
                   children: [
+                    // CORRECTIF PRODUIT — « Mon compte » / pilule Étoiles
+                    // rejoignent le flux normal de la colonne (au lieu d'un
+                    // overlay `Positioned` au-dessus du wordmark) : sur les
+                    // petits écrans (Samsung Galaxy A07/A075F), les 2 pilules
+                    // pouvaient chevaucher visuellement « AURYEL ». En
+                    // séquence, aucun chevauchement possible, quelle que soit
+                    // la largeur d'écran — le logo qui suit reste toujours
+                    // parfaitement centré en dessous.
+                    const _AccountAndStarsRow().animate().fadeIn(
+                      delay: 100.ms,
+                      duration: 400.ms,
+                    ),
+                    const SizedBox(height: 18),
                     const AuryelWordmark().animate().fadeIn(duration: 500.ms),
                     const SizedBox(height: 6),
                     Text(
@@ -140,9 +154,10 @@ class HomeScreen extends StatelessWidget {
 
                     // 2 bis — CTA PARCOURS BIEN-ÊTRE (carte de progression type
                     // jeu, écran dédié). Volontairement bien visible.
-                    const _WellbeingJourneyCta()
-                        .animate()
-                        .fadeIn(delay: 520.ms, duration: 500.ms),
+                    const _WellbeingJourneyCta().animate().fadeIn(
+                      delay: 520.ms,
+                      duration: 500.ms,
+                    ),
 
                     const SizedBox(height: 14),
                     _Divider(),
@@ -168,104 +183,6 @@ class HomeScreen extends StatelessWidget {
               ),
             ),
           ),
-          Positioned(
-            top: 0,
-            left: 0,
-            right: 0,
-            child: SafeArea(
-              bottom: false,
-              child: Padding(
-                padding: const EdgeInsets.only(right: 16, top: 8),
-                child: Align(
-                  alignment: Alignment.topRight,
-                  // GROS CHANTIER AURYEL (Prompt 2/5) — le solde Étoiles
-                  // rejoint « Mon compte » en haut de l'Accueil : décision
-                  // produit explicite, PAS un bouton caché (zone tactile
-                  // confortable, icône + texte, aussi visible que « Mon
-                  // compte »). `mainAxisSize: min` + un `Wrap` en repli
-                  // (jamais un `Row` qui déborderait sur les très petits
-                  // écrans, ex. Samsung Galaxy A07) : les 2 pilules passent
-                  // sur 2 lignes plutôt que de couper un texte.
-                  child: Wrap(
-                    alignment: WrapAlignment.end,
-                    crossAxisAlignment: WrapCrossAlignment.center,
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: [
-                      GestureDetector(
-                        onLongPress: kDebugMode
-                            ? () => _debugResetOnboarding(context)
-                            : null,
-                        // CORRECTIF UX FINAL — « Mon compte » quitte la barre
-                        // du bas (nav V2) : ce bouton devient le SEUL accès au
-                        // Dashboard depuis l'Accueil. Nettement plus visible
-                        // qu'une simple icône profil (icône + texte, zone
-                        // tactile confortable, rendu premium reconnaissable
-                        // comme une action de navigation, pas un détail
-                        // discret).
-                        child: Semantics(
-                          button: true,
-                          label: 'Mon compte',
-                          child: Material(
-                            color: Colors.transparent,
-                            borderRadius: BorderRadius.circular(999),
-                            child: InkWell(
-                              key: const Key('home-my-account-button'),
-                              borderRadius: BorderRadius.circular(999),
-                              onTap: () => Navigator.of(context).push(
-                                MaterialPageRoute(
-                                  builder: (_) => const DashboardScreen(),
-                                ),
-                              ),
-                              child: Container(
-                                padding: const EdgeInsets.fromLTRB(
-                                  10,
-                                  8,
-                                  14,
-                                  8,
-                                ),
-                                decoration: BoxDecoration(
-                                  borderRadius: BorderRadius.circular(999),
-                                  color: AuryelColors.surface.withValues(
-                                    alpha: 0.75,
-                                  ),
-                                  border: Border.all(
-                                    color: AuryelColors.goldLight.withValues(
-                                      alpha: 0.45,
-                                    ),
-                                  ),
-                                ),
-                                child: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    const PhosphorIcon(
-                                      PhosphorIconsFill.userCircle,
-                                      size: 20,
-                                      color: AuryelColors.goldLight,
-                                    ),
-                                    const SizedBox(width: 7),
-                                    Text(
-                                      'Mon compte',
-                                      style: AuryelText.body(
-                                        fontSize: 12.5,
-                                        fontWeight: FontWeight.w600,
-                                        color: AuryelColors.textCream,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                      const _StarsPill(),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ).animate().fadeIn(delay: 200.ms, duration: 400.ms),
         ],
       ),
     );
@@ -273,13 +190,93 @@ class HomeScreen extends StatelessWidget {
 }
 
 // ---------------------------------------------------------------------------
-// GROS CHANTIER AURYEL (Prompt 2/5) — pilule « ⭐ solde », à côté de « Mon
-// compte ». Le SERVEUR reste l'unique source de vérité : [RewardsScope] est
-// l'instance PARTAGÉE (câblée dans main()) — jamais un solde recalculé ici.
-// Sans scope câblé (tests hérités qui ne montent que HomeScreen) : ne
-// s'affiche pas du tout plutôt qu'un faux « 0 ⭐ ».
+// CORRECTIF PRODUIT — « Mon compte » + pilule Étoiles, dans le flux normal
+// de l'Accueil (ligne dédiée juste au-dessus du wordmark AURYEL, jamais un
+// overlay `Positioned` par-dessus lui : c'est ce qui provoquait le
+// chevauchement observé sur Samsung Galaxy A07/A075F). Le logo reste centré
+// sans dépendre de la largeur des pilules.
 // ---------------------------------------------------------------------------
 
+class _AccountAndStarsRow extends StatelessWidget {
+  const _AccountAndStarsRow();
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        GestureDetector(
+          onLongPress: kDebugMode ? () => _debugResetOnboarding(context) : null,
+          // CORRECTIF UX FINAL — « Mon compte » quitte la barre du bas
+          // (nav V2) : ce bouton devient le SEUL accès au Dashboard depuis
+          // l'Accueil. Nettement plus visible qu'une simple icône profil
+          // (icône + texte, zone tactile confortable, rendu premium
+          // reconnaissable comme une action de navigation, pas un détail
+          // discret).
+          child: Semantics(
+            button: true,
+            label: 'Mon compte',
+            child: Material(
+              color: Colors.transparent,
+              borderRadius: BorderRadius.circular(999),
+              child: InkWell(
+                key: const Key('home-my-account-button'),
+                borderRadius: BorderRadius.circular(999),
+                onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute(builder: (_) => const DashboardScreen()),
+                ),
+                child: Container(
+                  padding: const EdgeInsets.fromLTRB(10, 8, 14, 8),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(999),
+                    color: AuryelColors.surface.withValues(alpha: 0.75),
+                    border: Border.all(
+                      color: AuryelColors.goldLight.withValues(alpha: 0.45),
+                    ),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const PhosphorIcon(
+                        PhosphorIconsFill.userCircle,
+                        size: 20,
+                        color: AuryelColors.goldLight,
+                      ),
+                      const SizedBox(width: 7),
+                      Text(
+                        'Mon compte',
+                        style: AuryelText.body(
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w600,
+                          color: AuryelColors.textCream,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ),
+        const _StarsPill(),
+      ],
+    );
+  }
+}
+
+// GROS CHANTIER AURYEL (Prompt 2/5, revu au correctif produit) — pilule
+// « ⭐ solde ». Le SERVEUR reste l'unique source de vérité : [RewardsScope]
+// est l'instance PARTAGÉE (câblée dans main()) — jamais un solde recalculé
+// ici.
+//
+// CORRECTIF PRODUIT — auparavant masquée tant que le wallet n'avait jamais
+// chargé (« jamais un faux 0 »). Décision produit revue : la pilule reste
+// TOUJOURS visible dès qu'un [RewardsScope] existe (pour que l'utilisatrice
+// comprenne d'emblée que les Étoiles existent) — un neutre « … » remplace le
+// montant tant que le solde réel n'est pas connu (chargement ou erreur),
+// jamais un montant inventé. Solde réellement à 0 -> affiche « 0 », jamais
+// masqué. Sans [RewardsScope] du tout (tests hérités qui ne montent que
+// `HomeScreen` sans le câbler) : masquée, seul cas où aucune donnée n'existe.
 class _StarsPill extends StatelessWidget {
   const _StarsPill();
 
@@ -299,13 +296,11 @@ class _StarsPill extends StatelessWidget {
     return ListenableBuilder(
       listenable: rewards,
       builder: (context, _) {
-        // Tant que le 1er chargement n'a pas abouti : rien plutôt qu'un
-        // faux « 0 ⭐ » qui donnerait l'impression d'un solde vide.
-        if (rewards.wallet == null) return const SizedBox.shrink();
-        final label = _format(rewards.starsBalance);
+        final wallet = rewards.wallet;
+        final label = wallet == null ? '…' : _format(rewards.starsBalance);
         return Semantics(
           button: true,
-          label: 'Mes Étoiles, $label',
+          label: wallet == null ? 'Mes Étoiles' : 'Mes Étoiles, $label',
           child: Material(
             color: Colors.transparent,
             borderRadius: BorderRadius.circular(999),
@@ -331,6 +326,7 @@ class _StarsPill extends StatelessWidget {
                     const SizedBox(width: 6),
                     Text(
                       label,
+                      key: const Key('home-stars-pill-value'),
                       style: AuryelText.body(
                         fontSize: 12.5,
                         fontWeight: FontWeight.w600,
@@ -397,13 +393,14 @@ class _Divider extends StatelessWidget {
 
 /// CTA bien visible vers la carte de progression « Mon parcours bien-être ».
 ///
-/// Le sous-texte annonce la récompense de fin de cycle (+15 min de
-/// consultation). C'est une promesse RÉELLE, déjà créditée côté serveur —
-/// `WellbeingProgress.rewardEarnedForCurrentCycle` / `.rewardCreditedSeconds`
-/// (voir `api/wellbeing_api.dart`), déjà affichée dans le parcours lui-même
-/// (`widgets/wellbeing_journey_map.dart` > `_RewardLine`). Cette carte ne fait
-/// qu'annoncer un mécanisme qui existe déjà : aucune attribution locale
-/// n'est créée ici, et il n'y a rien à brancher côté backend pour ce lot.
+/// CORRECTIF PRODUIT — le sous-texte ne promet plus une durée de consultation
+/// (« +15 min ») : univers Auryel recentré sur les Étoiles, cette promesse
+/// devenait une ancienne mécanique affichée en concurrence du nouveau
+/// système. Le crédit +900 s à la 30e journée d'un cycle reste un VRAI
+/// mécanisme serveur inchangé (`_reconcile_wellbeing_progress`,
+/// `WellbeingProgress.rewardEarnedForCurrentCycle` / `.rewardCreditedSeconds`,
+/// affiché dans le parcours lui-même via `wellbeing_journey_map.dart` >
+/// `_RewardLine`) — seule cette carte d'accroche cesse de le mettre en avant.
 class _WellbeingJourneyCta extends StatelessWidget {
   const _WellbeingJourneyCta();
 
@@ -429,10 +426,10 @@ class _WellbeingJourneyCta extends StatelessWidget {
           // à `false`/`kDebugMode` avant toute release de production réelle.
           onLongPress: kAuryelPocTempSamsungTestAccessEnabled
               ? () => Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (_) => const WellbeingSagaMapPocScreen(),
-                    ),
-                  )
+                  MaterialPageRoute(
+                    builder: (_) => const WellbeingSagaMapPocScreen(),
+                  ),
+                )
               : null,
           child: Container(
             padding: const EdgeInsets.fromLTRB(16, 14, 14, 14),
@@ -481,9 +478,8 @@ class _WellbeingJourneyCta extends StatelessWidget {
                       ),
                       const SizedBox(height: 3),
                       Text(
-                        'Avance chaque jour dans ton parcours bien-être et '
-                        'gagne 15 min de consultation offertes à la fin des '
-                        '30 jours.',
+                        'Avance à ton rythme. Chaque journée complétée '
+                        'construit ton parcours.',
                         maxLines: 3,
                         overflow: TextOverflow.ellipsis,
                         style: AuryelText.body(
@@ -535,7 +531,6 @@ class _DailyThoughtZoneState extends State<_DailyThoughtZone>
 
   DailyThought? _thought;
   DateTime? _loadedDay;
-  int _sharedDays = 0;
 
   DateTime get _today {
     final n = DateTime.now();
@@ -574,10 +569,7 @@ class _DailyThoughtZoneState extends State<_DailyThoughtZone>
       : _repo.thoughtFor(DateTime.now());
 
   Future<void> _refresh() async {
-    if (_thought != null && _loadedDay == _today) {
-      await _loadCounter();
-      return;
-    }
+    if (_thought != null && _loadedDay == _today) return;
     try {
       final t = await _loadThought();
       if (!mounted) return;
@@ -588,26 +580,12 @@ class _DailyThoughtZoneState extends State<_DailyThoughtZone>
     } catch (_) {
       /* garde la pensée précédente, jamais d'écran vide */
     }
-    await _loadCounter();
-  }
-
-  Future<void> _loadCounter() async {
-    try {
-      final n = await _tracker.sharedDaysCount();
-      if (mounted) setState(() => _sharedDays = n);
-    } catch (_) {
-      /* défaut : 0 */
-    }
   }
 
   void _openPreview() {
     final t = _thought;
     if (t == null) return;
-    showDailyThoughtSheet(
-      context,
-      thought: t,
-      tracker: _tracker,
-    ).then((_) => _loadCounter());
+    showDailyThoughtSheet(context, thought: t, tracker: _tracker);
   }
 
   @override
@@ -645,7 +623,7 @@ class _DailyThoughtZoneState extends State<_DailyThoughtZone>
           ),
         ),
         const SizedBox(height: 12),
-        _ShareRewardBlock(sharedDays: _sharedDays, onShare: _openPreview),
+        _ShareRewardBlock(onShare: _openPreview),
         const SizedBox(height: 2),
         const _DailyLikeButton(),
       ],
@@ -658,19 +636,42 @@ class _DailyThoughtZoneState extends State<_DailyThoughtZone>
 /// compteur de jours reste sous le bouton, en secondaire. La logique de
 /// récompense (30 jours = 1 h) est INCHANGÉE : `onShare` ouvre l'aperçu
 /// partageable exactement comme avant.
-class _ShareRewardBlock extends StatelessWidget {
-  const _ShareRewardBlock({required this.sharedDays, required this.onShare});
+/// Montant réel d'une règle Étoiles depuis le wallet partagé, `null` si
+/// [RewardsScope] est absent, pas encore chargé, ou si la règle n'existe pas
+/// (jamais inventé côté Flutter).
+int? _ruleStarsAmount(BuildContext context, String ruleKey) {
+  final rules = RewardsScope.maybeOf(context)?.rules;
+  if (rules == null) return null;
+  for (final RewardRule r in rules) {
+    if (r.ruleKey == ruleKey) return r.starsAmount;
+  }
+  return null;
+}
 
-  final int sharedDays;
+/// CORRECTIF PRODUIT — l'ancienne promesse (« 30 jours de partage = 1 h de
+/// consultation ») reste un VRAI mécanisme serveur, INCHANGÉ (pas touché
+/// ici), mais n'est plus mise en avant : elle coexistait avec les Étoiles et
+/// brouillait le message. Le partage crédite RÉELLEMENT des Étoiles
+/// (`share_completed`, `POST /api/app/rewards/daily-share`) : on affiche ce
+/// gain réel quand la règle est connue, sinon un CTA neutre sans aucun
+/// montant inventé. Le compteur « X / 30 jours » disparaît avec la promesse
+/// qu'il servait.
+class _ShareRewardBlock extends StatelessWidget {
+  const _ShareRewardBlock({required this.onShare});
+
   final VoidCallback onShare;
 
   @override
   Widget build(BuildContext context) {
+    final stars = _ruleStarsAmount(context, 'share_completed');
+    final headline = stars != null
+        ? 'Partage cette pensée et gagne +$stars ⭐'
+        : 'Partage cette pensée avec tes proches';
     final block = Column(
       mainAxisSize: MainAxisSize.min,
       children: [
         Text(
-          'Partage cette pensée et gagne 1 h de consultation',
+          headline,
           textAlign: TextAlign.center,
           style: AuryelText.body(
             fontSize: 12.5,
@@ -681,16 +682,6 @@ class _ShareRewardBlock extends StatelessWidget {
         ),
         const SizedBox(height: 10),
         AuryelGoldButton(label: 'Partager maintenant', onTap: onShare),
-        const SizedBox(height: 6),
-        Text(
-          '$sharedDays / 30 jours',
-          style: AuryelText.body(
-            fontSize: 11,
-            fontWeight: FontWeight.w600,
-            color: AuryelColors.textMuted,
-            letterSpacing: 0.4,
-          ),
-        ),
       ],
     );
     if (MediaQuery.disableAnimationsOf(context)) return block;
@@ -920,7 +911,10 @@ class _MissionsSectionState extends State<_MissionsSection>
       label: 'Consultation',
       icon: PhosphorIconsRegular.chatCircle,
     ),
-    'moment': (label: 'Prends ton temps', icon: PhosphorIconsRegular.flowerLotus),
+    'moment': (
+      label: 'Prends ton temps',
+      icon: PhosphorIconsRegular.flowerLotus,
+    ),
   };
 
   @override

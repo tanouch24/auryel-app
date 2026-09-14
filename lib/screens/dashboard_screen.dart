@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:phosphor_icons/phosphor_icons.dart';
 
 import '../api/memory_api.dart';
+import '../api/rewards_api.dart' show RewardRule;
 import '../config/legal_texts.dart';
 import '../data/app_review_service.dart';
 import '../data/birth_date_parser.dart';
@@ -9,12 +10,12 @@ import '../data/daily_like_store.dart';
 import '../data/daily_share_tracker.dart';
 import '../data/daily_thought.dart';
 import '../data/legal_link_launcher.dart';
-import '../data/share_reward_repository.dart';
 import '../data/subscription_manager.dart';
 import '../state/auth_controller.dart';
 import '../state/auryel_state.dart';
 import '../state/consultation_controller.dart';
 import '../state/purchase_controller.dart';
+import '../state/rewards_controller.dart';
 import '../theme/auryel_theme.dart';
 import '../widgets/advisors_carousel.dart';
 import '../widgets/ai_transparency_note.dart';
@@ -81,13 +82,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
       widget.reviewService ?? InAppReviewService();
   bool _rating = false;
 
-  /// Progression partage SERVEUR (`GET /api/app/rewards/share-progress`) — fait
-  /// autorité quand disponible ; sinon on retombe sur le cache local
-  /// [_shareDays]. Aucun endpoint inventé : `RewardsApi` porte déjà cette route.
-  int? _serverShareCount;
-  int _shareTarget = 30;
-  bool _serverShareRequested = false;
-
   /// Éligibilité Memory (`GET /api/app/memory/progress`) — lecture seule,
   /// source de vérité serveur. `null` tant qu'indisponible (endpoint absent,
   /// réseau, pas de session) : le bloc Memory n'affiche alors que la règle.
@@ -99,13 +93,14 @@ class _DashboardScreenState extends State<DashboardScreen> {
     _loadCounters();
   }
 
+  bool _memoryProgressRequested = false;
+
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
     // Une seule tentative de lecture serveur par montage (besoin du scope Auth).
-    if (_serverShareRequested) return;
-    _serverShareRequested = true;
-    _loadServerShareProgress();
+    if (_memoryProgressRequested) return;
+    _memoryProgressRequested = true;
     _loadMemoryProgress();
   }
 
@@ -142,25 +137,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
     } catch (_) {
       /* compteurs à 0 par défaut */
     }
-  }
-
-  /// Lecture SEULE de la progression serveur (`count` / `target`). Ne crédite
-  /// rien, ne modifie aucun quota. En cas d'indisponibilité (endpoint absent,
-  /// réseau, 5xx, 401, pas de session), `loadProgress()` renvoie `null` et
-  /// l'affichage reste sur le cache local.
-  Future<void> _loadServerShareProgress() async {
-    final auth = AuthScope.maybeOf(context);
-    if (auth == null) return;
-    final repo = ShareRewardRepository(
-      api: auth.rewardsApi,
-      tokenProvider: auth.currentToken,
-    );
-    final progress = await repo.loadProgress();
-    if (progress == null || !mounted) return;
-    setState(() {
-      _serverShareCount = progress.count;
-      _shareTarget = progress.target;
-    });
   }
 
   void _openSupport() {
@@ -507,9 +483,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 ),
                 const SizedBox(height: 16),
                 _RewardsSection(
-                  // Serveur autoritaire quand disponible, sinon cache local.
-                  shareDays: _serverShareCount ?? _shareDays,
-                  target: _shareTarget,
                   onGenerate: _openPublication,
                   memoryProgress: _memoryProgress,
                 ),
@@ -1109,19 +1082,18 @@ class _StatRow extends StatelessWidget {
 // Mes récompenses
 // ---------------------------------------------------------------------------
 
+/// CORRECTIF PRODUIT — l'ancien encart (« 30 jours de partage = 1 h de
+/// consultation offerte » + barre de progression) est retiré : cette
+/// promesse coexistait avec les Étoiles et brouillait le message produit
+/// (le mécanisme serveur sous-jacent, lui, n'est pas touché — cf.
+/// `home_screen.dart` > `_ShareRewardBlock`). Le partage crédite RÉELLEMENT
+/// des Étoiles (`share_completed`) : on affiche ce gain réel quand la règle
+/// est connue (résolue depuis le MÊME [RewardsScope] que « Voir mes
+/// Étoiles » ci-dessous, jamais un montant recalculé ou inventé ici), sinon
+/// un CTA neutre sans promesse.
 class _RewardsSection extends StatelessWidget {
-  const _RewardsSection({
-    required this.shareDays,
-    required this.target,
-    required this.onGenerate,
-    this.memoryProgress,
-  });
+  const _RewardsSection({required this.onGenerate, this.memoryProgress});
 
-  /// Jours de partage à afficher — serveur si disponible, sinon cache local.
-  final int shareDays;
-
-  /// Palier (30 en V1) — vient de la réponse serveur quand disponible.
-  final int target;
   final VoidCallback onGenerate;
 
   /// Éligibilité Memory (source serveur). `null` = règle affichée sans état.
@@ -1129,8 +1101,10 @@ class _RewardsSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final safeTarget = target <= 0 ? 30 : target;
-    final capped = shareDays > safeTarget ? safeTarget : shareDays;
+    final shareStars = RewardsScope.maybeOf(context)?.rules
+        .cast<RewardRule?>()
+        .firstWhere((r) => r!.ruleKey == 'share_completed', orElse: () => null)
+        ?.starsAmount;
     return _Section(
       title: 'Mes récompenses',
       icon: PhosphorIconsRegular.gift,
@@ -1171,29 +1145,12 @@ class _RewardsSection extends StatelessWidget {
           ),
           const SizedBox(height: 6),
           Text(
-            '$safeTarget jours de partage = 1 h de consultation offerte.',
+            shareStars != null
+                ? 'Chaque partage crédite +$shareStars ⭐.'
+                : 'Un geste simple, sans rien promettre en plus.',
             style: AuryelText.body(
               fontSize: 11.5,
               height: 1.4,
-              fontWeight: FontWeight.w600,
-              color: AuryelColors.goldLight,
-            ),
-          ),
-          const SizedBox(height: 12),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(6),
-            child: LinearProgressIndicator(
-              value: capped / safeTarget,
-              minHeight: 6,
-              backgroundColor: AuryelColors.warmBorder,
-              valueColor: const AlwaysStoppedAnimation(AuryelColors.goldLight),
-            ),
-          ),
-          const SizedBox(height: 6),
-          Text(
-            '$capped / $safeTarget jours',
-            style: AuryelText.body(
-              fontSize: 12,
               fontWeight: FontWeight.w600,
               color: AuryelColors.goldLight,
             ),
@@ -1205,8 +1162,8 @@ class _RewardsSection extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           Text(
-            'Un partage compté par jour. Le décompte des jours et le crédit '
-            'de l’heure sont gérés par nos serveurs.',
+            'Un partage compté par jour. Le crédit de tes Étoiles est géré '
+            'par nos serveurs.',
             style: AuryelText.body(
               fontSize: 10.5,
               height: 1.4,

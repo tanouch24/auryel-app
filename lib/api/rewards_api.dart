@@ -60,17 +60,35 @@ int _asInt(Object? v) {
   return int.tryParse(v?.toString() ?? '') ?? 0;
 }
 
+int? _asIntOrNull(Object? v) {
+  if (v == null) return null;
+  if (v is int) return v;
+  if (v is num) return v.toInt();
+  return int.tryParse(v.toString());
+}
+
 /// Une règle de récompense ACTIVE (le serveur n'expose jamais une règle
 /// `enabled=false` : une action future désactivée n'apparaît jamais).
 class RewardRule {
-  const RewardRule({required this.ruleKey, required this.starsAmount});
+  const RewardRule({
+    required this.ruleKey,
+    required this.starsAmount,
+    this.dailyLimit,
+  });
 
   final String ruleKey;
   final int starsAmount;
 
+  /// `null` = pas de plafond quotidien (ex. jalon de streak) ; sinon le
+  /// nombre maximum de crédits par jour pour cette règle. TOUJOURS la valeur
+  /// serveur réelle (`reward_rules.daily_limit`) — jamais devinée côté
+  /// Flutter.
+  final int? dailyLimit;
+
   factory RewardRule.fromJson(Map<String, dynamic> json) => RewardRule(
     ruleKey: (json['rule_key'] ?? '').toString(),
     starsAmount: _asInt(json['stars_amount']),
+    dailyLimit: _asIntOrNull(json['daily_limit']),
   );
 }
 
@@ -343,10 +361,11 @@ class RewardsApi {
     required String productKey,
     required String idempotencyKey,
   }) async {
-    final json = await _client.postJson('/api/app/rewards/express-consultation', {
-      'product_key': productKey,
-      'idempotency_key': idempotencyKey,
-    }, bearer: bearer);
+    final json = await _client.postJson(
+      '/api/app/rewards/express-consultation',
+      {'product_key': productKey, 'idempotency_key': idempotencyKey},
+      bearer: bearer,
+    );
     return ExpressConsultationResult.fromJson(json);
   }
 }

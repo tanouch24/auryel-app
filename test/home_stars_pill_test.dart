@@ -86,16 +86,36 @@ void main() {
     expect(find.byKey(const Key('home-my-account-button')), findsOneWidget);
   });
 
-  testWidgets('RewardsScope câblé mais wallet pas encore chargé -> pas de '
-      'pilule tant que le solde réel n\'est pas connu (jamais « 0 »)', (
-    t,
-  ) async {
+  testWidgets('CORRECTIF PRODUIT — RewardsScope câblé mais wallet pas '
+      'encore chargé -> pilule TOUJOURS visible (comprendre que les '
+      'Étoiles existent), neutre « … » tant que le solde réel n\'est pas '
+      'connu (jamais un « 0 » inventé)', (t) async {
     final neverResolves = Completer<http.Response>();
     final rewards = _rewards((_) => neverResolves.future);
     addTearDown(rewards.dispose);
     await t.pumpWidget(_host(rewards));
     await t.pump(const Duration(seconds: 1));
-    expect(find.byKey(const Key('home-stars-pill')), findsNothing);
+    expect(find.byKey(const Key('home-stars-pill')), findsOneWidget);
+    expect(
+      (t.widget(find.byKey(const Key('home-stars-pill-value'))) as Text).data,
+      '…',
+    );
+  });
+
+  testWidgets('CORRECTIF PRODUIT — wallet indisponible (404/500) -> pilule '
+      'visible, neutre « … », aucun crash, jamais un solde inventé', (t) async {
+    final rewards = _rewards((_) async => http.Response('not found', 404));
+    addTearDown(rewards.dispose);
+    await rewards.refresh();
+    await t.pumpWidget(_host(rewards));
+    await t.pump(const Duration(seconds: 1));
+
+    expect(t.takeException(), isNull);
+    expect(find.byKey(const Key('home-stars-pill')), findsOneWidget);
+    expect(
+      (t.widget(find.byKey(const Key('home-stars-pill-value'))) as Text).data,
+      '…',
+    );
   });
 
   testWidgets('solde à 0 -> pilule affichée quand même (« 0 ⭐ », jamais '
@@ -196,6 +216,33 @@ void main() {
 
     expect(find.text('12345'), findsOneWidget);
     expect(t.takeException(), isNull);
+  });
+
+  testWidgets('CORRECTIF PRODUIT — « Mon compte » et la pilule Étoiles ne '
+      'chevauchent jamais le wordmark AURYEL (Samsung Galaxy A07, 360×800), '
+      'même avec les deux pilules visibles', (t) async {
+    final rewards = _rewards(
+      (_) async =>
+          _json({'stars_balance': 135, 'rules': [], 'recent_transactions': []}),
+    );
+    addTearDown(rewards.dispose);
+    await rewards.refresh();
+    t.view.physicalSize = const Size(720, 1600); // 360×800 @ 2.0 (Galaxy A07)
+    t.view.devicePixelRatio = 2.0;
+    addTearDown(t.view.reset);
+    await t.pumpWidget(_host(rewards));
+    await t.pump(const Duration(seconds: 1));
+
+    expect(t.takeException(), isNull);
+    final accountRect = t.getRect(
+      find.byKey(const Key('home-my-account-button')),
+    );
+    final starsRect = t.getRect(find.byKey(const Key('home-stars-pill')));
+    final wordmark = t.getRect(find.text('AURYEL'));
+    // Les deux pilules terminent AVANT que le wordmark ne commence (flux
+    // séquentiel, plus un overlay superposé) : aucun chevauchement possible.
+    expect(accountRect.bottom, lessThanOrEqualTo(wordmark.top));
+    expect(starsRect.bottom, lessThanOrEqualTo(wordmark.top));
   });
 
   testWidgets('solde très grand (>= 100 000) -> compacté, jamais coupé', (

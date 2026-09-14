@@ -354,10 +354,7 @@ class _JeuAuryelScreenState extends State<JeuAuryelScreen> {
       return Center(
         child: Text(
           'Préparation de la partie…',
-          style: AuryelText.body(
-            fontSize: 13,
-            color: AuryelColors.textMuted,
-          ),
+          style: AuryelText.body(fontSize: 13, color: AuryelColors.textMuted),
         ),
       );
     }
@@ -375,12 +372,19 @@ class _JeuAuryelScreenState extends State<JeuAuryelScreen> {
         Expanded(
           child: Stack(
             children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 6, 16, 16),
-                child: _Board(
-                  cards: _game.cards,
-                  reduceMotion: reduceMotion,
-                  onTap: _game.flip,
+              // CORRECTIF VISUEL — le plateau (8/12/16 cartes) n'occupait que
+              // le haut de l'espace disponible, laissant un grand bloc vide
+              // en dessous (constaté à l'écran). `Center` + grille non
+              // scrollable (contenu toujours fixe et petit) : le plateau se
+              // centre verticalement, aucun changement de logique de jeu.
+              Center(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 6, 16, 16),
+                  child: _Board(
+                    cards: _game.cards,
+                    reduceMotion: reduceMotion,
+                    onTap: _game.flip,
+                  ),
                 ),
               ),
               if (_game.isWon) _buildWinLayer(),
@@ -393,7 +397,10 @@ class _JeuAuryelScreenState extends State<JeuAuryelScreen> {
 
   Widget _buildWinLayer() {
     final serverBound =
-        _gameId != null || _finalizingReward || _rewardResult != null || _rewardError;
+        _gameId != null ||
+        _finalizingReward ||
+        _rewardResult != null ||
+        _rewardError;
     if (!serverBound) {
       return _WinOverlay(
         time: _mmss(_game.elapsed),
@@ -670,7 +677,8 @@ class _Board extends StatelessWidget {
     // 4 colonnes : lisible de 360 à 430 dp pour 8 / 12 / 16 cartes.
     const cols = 4;
     return GridView.builder(
-      physics: const ClampingScrollPhysics(),
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
       gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
         crossAxisCount: cols,
         mainAxisSpacing: 10,

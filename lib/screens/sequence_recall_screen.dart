@@ -72,7 +72,10 @@ class _SequenceRecallScreenState extends State<SequenceRecallScreen> {
     final token = await auth.currentToken();
     if (token == null || token.isEmpty || !mounted) return;
     try {
-      final session = await api.start(bearer: token, gameKey: 'sequence_recall');
+      final session = await api.start(
+        bearer: token,
+        gameKey: 'sequence_recall',
+      );
       if (mounted) setState(() => _session = session);
     } catch (_) {
       /* jeu jouable sans récompense si le backend n'est pas joignable */
@@ -154,15 +157,20 @@ class _SequenceRecallScreenState extends State<SequenceRecallScreen> {
 
   bool get _correct =>
       _input.length == _sequence.length &&
-      List.generate(_sequence.length, (i) => _input[i] == _sequence[i])
-          .every((ok) => ok);
+      List.generate(
+        _sequence.length,
+        (i) => _input[i] == _sequence[i],
+      ).every((ok) => ok);
 
   void _restart() {
     setState(() {
       _sequence
         ..clear()
         ..addAll(
-          List.generate(_kSequenceLength, (_) => _random.nextInt(_kSymbols.length)),
+          List.generate(
+            _kSequenceLength,
+            (_) => _random.nextInt(_kSymbols.length),
+          ),
         );
       _input.clear();
       _result = null;
@@ -210,11 +218,21 @@ class _SequenceRecallScreenState extends State<SequenceRecallScreen> {
 
   Widget _buildBody() {
     if (_phase == _Phase.result) return _buildResult();
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 28),
+    // CORRECTIF VISUEL — le contenu (texte + symboles) flottait seul sur le
+    // fond noir, avec l'impression d'un grand bloc vide autour (constaté à
+    // l'écran, Samsung). Panneau premium cohérent avec le reste d'Auryel
+    // (même habillage que `_SectionCard`/`_RewardLine`) : aucun changement
+    // de logique de jeu.
+    return _GamePanel(
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
+          const PhosphorIcon(
+            PhosphorIconsFill.sparkle,
+            size: 26,
+            color: AuryelColors.goldLight,
+          ),
+          const SizedBox(height: 14),
           Text(
             'Suite intuitive',
             style: AuryelText.display(
@@ -231,7 +249,7 @@ class _SequenceRecallScreenState extends State<SequenceRecallScreen> {
             textAlign: TextAlign.center,
             style: AuryelText.body(fontSize: 13, color: AuryelColors.textMuted),
           ),
-          const SizedBox(height: 36),
+          const SizedBox(height: 32),
           Wrap(
             spacing: 18,
             runSpacing: 18,
@@ -246,7 +264,7 @@ class _SequenceRecallScreenState extends State<SequenceRecallScreen> {
                 ),
             ],
           ),
-          const SizedBox(height: 28),
+          const SizedBox(height: 24),
           if (_phase == _Phase.input)
             Text(
               '${_input.length} / ${_sequence.length}',
@@ -284,13 +302,14 @@ class _SequenceRecallScreenState extends State<SequenceRecallScreen> {
           ? 'Bien joué, tu as retrouvé l’ordre !'
           : 'Pas tout à fait, mais bien tenté !';
     }
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 28),
+    return _GamePanel(
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           PhosphorIcon(
-            _correct ? PhosphorIconsFill.sparkle : PhosphorIconsRegular.checkCircle,
+            _correct
+                ? PhosphorIconsFill.sparkle
+                : PhosphorIconsRegular.checkCircle,
             size: 34,
             color: AuryelColors.goldLight,
           ),
@@ -345,6 +364,42 @@ class _SequenceRecallScreenState extends State<SequenceRecallScreen> {
   }
 }
 
+/// Panneau premium partagé par les états jeu/résultat — CORRECTIF VISUEL :
+/// avant, le contenu (texte + tuiles) flottait seul sur le fond noir, ce qui
+/// donnait l'impression d'un écran vide. Même habillage que `_SectionCard`
+/// / `_RewardLine` ailleurs dans Auryel (fond doré très doux, bordure fine) :
+/// aucune animation ni logique, uniquement de la présentation.
+class _GamePanel extends StatelessWidget {
+  const _GamePanel({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(24),
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              AuryelColors.surface.withValues(alpha: 0.55),
+              AuryelColors.surface.withValues(alpha: 0.25),
+            ],
+          ),
+          border: Border.all(
+            color: AuryelColors.goldLight.withValues(alpha: 0.3),
+          ),
+        ),
+        child: child,
+      ),
+    );
+  }
+}
+
 class _SymbolTile extends StatelessWidget {
   const _SymbolTile({
     required this.symbol,
@@ -371,21 +426,30 @@ class _SymbolTile extends StatelessWidget {
           onTap: enabled ? onTap : null,
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 150),
-            width: 68,
-            height: 68,
+            width: 72,
+            height: 72,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
               gradient: highlighted ? AuryelColors.goldGradient : null,
-              color: highlighted ? null : AuryelColors.surface.withValues(alpha: 0.6),
+              color: highlighted ? null : AuryelColors.surfaceLight,
               border: Border.all(
                 color: highlighted
                     ? AuryelColors.goldLight
                     : AuryelColors.warmBorder,
                 width: highlighted ? 2 : 1,
               ),
+              boxShadow: highlighted
+                  ? [
+                      BoxShadow(
+                        color: AuryelColors.gold.withValues(alpha: 0.35),
+                        blurRadius: 16,
+                        spreadRadius: 1,
+                      ),
+                    ]
+                  : null,
             ),
             alignment: Alignment.center,
-            child: Text(symbol, style: const TextStyle(fontSize: 28)),
+            child: Text(symbol, style: const TextStyle(fontSize: 30)),
           ),
         ),
       ),

@@ -409,7 +409,7 @@ void main() {
       // ligne récompense — désormais tout en haut de l'écran (FINITIONS UX),
       // déjà visible sans scroll ; `scrollUntilVisible` est un no-op ici.
       await t.scrollUntilVisible(
-        find.textContaining('15 minutes de consultation offertes'),
+        find.textContaining('Avance à ton rythme'),
         250,
         scrollable: find.byType(Scrollable).first,
       );
@@ -437,18 +437,13 @@ void main() {
         await t.pumpAndSettle();
 
         // Un seul exemplaire de chaque bloc (pas de duplication).
-        expect(
-          find.textContaining('15 minutes de consultation offertes'),
-          findsOneWidget,
-        );
+        expect(find.textContaining('Avance à ton rythme'), findsOneWidget);
         expect(find.textContaining('ÉTAPE DU JOUR'), findsOneWidget);
 
         // Comprendre le principe/la récompense, PUIS l'étape du jour,
         // AVANT la carte/chemin des 30 jours (en-tête stats + chemin peint).
         final rewardY = t
-            .getTopLeft(
-              find.textContaining('15 minutes de consultation offertes'),
-            )
+            .getTopLeft(find.textContaining('Avance à ton rythme'))
             .dy;
         final todayStepY = t
             .getTopLeft(find.textContaining('ÉTAPE DU JOUR'))
