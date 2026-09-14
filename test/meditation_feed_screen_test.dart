@@ -490,129 +490,23 @@ void main() {
   });
 
   // ===========================================================================
-  // CORRECTIF BLOQUANT — « lecture synchronisée » : la page suivante doit
-  // être PRÊTE (vidéo initialisée + audio préparé) AVANT que l'utilisateur y
-  // arrive ; au swipe, vidéo ET audio démarrent ENSEMBLE ; si la page n'est
-  // pas prête, JAMAIS de son sans image.
+  // CORRECTIF UX « sans spinner ni replay manuel » — le feed doit se
+  // comporter comme un feed vidéo moderne : swipe -> autoplay audio ET
+  // vidéo immédiat, jamais de spinner/texte de chargement, jamais besoin de
+  // retaper Play. La vidéo, elle, est alimentée par un petit pool de
+  // candidats déjà chargés d'avance (bornés par un timeout court) : si l'un
+  // est trop lent/cassé, il est écarté pour la session et remplacé.
   // ===========================================================================
-  group('Lecture synchronisée (préchargement + readiness)', () {
+  group('Autoplay sans spinner (pool vidéo)', () {
     testWidgets(
-      'la page suivante est préchargée PENDANT la lecture de la page '
-      'courante (avant tout swipe)',
+      'swipe vers une page dont un visuel est déjà prêt dans le pool -> '
+      'audio ET vidéo démarrent automatiquement, sans aucun tap',
       (t) async {
         final repo = _repoWithMeditations(
           [_m('a'), _m('b'), _m('c')],
-          videos: [_v('v0'), _v('v1')],
+          videos: [_v('v0'), _v('v1'), _v('v2')],
         );
         final env = _hostTracked(repo);
-        await t.pumpWidget(env.widget);
-        await t.pumpAndSettle();
-
-        // Page 0 en lecture -> les slots 0 ET 1 (fenêtre N, N+1) doivent déjà
-        // avoir leur propre lecteur audio ET leur propre surface vidéo créés
-        // et préparés, SANS aucun swipe.
-        expect(
-          env.audios.length,
-          greaterThanOrEqualTo(2),
-          reason: 'audio de la page suivante déjà préparé à l’avance',
-        );
-        expect(
-          env.surfaces.length,
-          greaterThanOrEqualTo(2),
-          reason: 'vidéo de la page suivante déjà chargée à l’avance',
-        );
-        expect(env.audios[1].calls, contains('prepare:https://cdn.auryel.app/b.mp3'));
-      },
-    );
-
-    testWidgets(
-      'page suivante DÉJÀ prête au swipe -> vidéo ET audio démarrent '
-      'ENSEMBLE (aucun rattrapage différé)',
-      (t) async {
-        final repo = _repoWithMeditations(
-          [_m('a'), _m('b'), _m('c')],
-          videos: [_v('v0'), _v('v1')],
-        );
-        final env = _hostTracked(repo);
-        await t.pumpWidget(env.widget);
-        await t.pumpAndSettle(); // page 0 prête + en lecture
-
-        await t.fling(
-          find.byKey(const Key('meditation-feed-page-view')),
-          const Offset(0, -600),
-          1200,
-        );
-        await t.pumpAndSettle();
-
-        expect(find.byKey(const Key('meditation-feed-preparing')), findsNothing);
-        expect(env.audios[1].calls, contains('play:https://cdn.auryel.app/b.mp3'));
-      },
-    );
-
-    testWidgets(
-      'vidéo lente à initialiser -> écran de transition, AUCUN audio de '
-      'cette page tant qu\'elle n\'est pas prête (même la toute 1ʳᵉ page, '
-      'où le même mécanisme de readiness s\'applique — pas de swipe requis '
-      'pour prouver le mécanisme, exercé ici sur le cas le plus direct)',
-      (t) async {
-        final gate = Completer<bool>();
-        final repo = _repoWithMeditations(
-          [_m('a'), _m('b'), _m('c')],
-          videos: [_v('v0')],
-        );
-        // Slot 0 (1ʳᵉ page) : vidéo VOLONTAIREMENT bloquée -> simule un
-        // réseau lent, dès l'ouverture du feed.
-        final env = _hostTracked(
-          repo,
-          surfaceAt: (i) => i == 0 ? _GatedSurface(gate: gate) : _FakeSurface(),
-        );
-        await t.pumpWidget(env.widget);
-        // Jamais `pumpAndSettle` ici : le média de la page est délibérément
-        // bloqué, un indicateur de chargement indéterminé tourne encore.
-        await t.pump();
-        await t.pump(const Duration(milliseconds: 200));
-
-        // La page n'est PAS prête (vidéo toujours bloquée) -> transition
-        // calme affichée, et surtout AUCUN `play:` audio pour cette page.
-        expect(
-          find.byKey(const Key('meditation-feed-preparing')),
-          findsOneWidget,
-          reason: 'jamais de fond vide/noir brut : transition calme affichée',
-        );
-        expect(
-          env.audios[0].calls.any((c) => c.startsWith('play:')),
-          isFalse,
-          reason: 'jamais d’audio tant que la vidéo n’est pas prête',
-        );
-
-        // La vidéo finit par être prête -> vidéo ET audio démarrent ENSEMBLE.
-        gate.complete(true);
-        await t.pump();
-        await t.pump(const Duration(milliseconds: 50));
-
-        expect(find.byKey(const Key('meditation-feed-preparing')), findsNothing);
-        expect(
-          env.audios[0].calls.any((c) => c.startsWith('play:')),
-          isTrue,
-          reason: 'vidéo prête -> l’audio démarre maintenant, EN MÊME TEMPS',
-        );
-      },
-    );
-
-    testWidgets(
-      'vidéo qui échoue DÉFINITIVEMENT (jamais prête) -> la page finit '
-      'quand même par démarrer (audio seul), jamais bloquée indéfiniment',
-      (t) async {
-        final repo = _repoWithMeditations(
-          [_m('a'), _m('b'), _m('c')],
-          videos: [_v('v0'), _v('v1')],
-        );
-        final env = _hostTracked(
-          repo,
-          surfaceAt: (i) => _GatedSurface(
-            gate: Completer<bool>()..complete(false), // échec immédiat
-          ),
-        );
         await t.pumpWidget(env.widget);
         await t.pumpAndSettle();
 
@@ -626,9 +520,168 @@ void main() {
         expect(
           env.audios[1].calls.any((c) => c.startsWith('play:')),
           isTrue,
-          reason:
-              'un échec vidéo définitif ne doit jamais empêcher la lecture '
-              'audio (fond statique)',
+          reason: 'aucun tap requis : l’audio démarre automatiquement',
+        );
+        expect(
+          find.bySemanticsLabel('Mettre en pause'),
+          findsOneWidget,
+          reason: 'le lecteur affiche déjà l’état « en lecture »',
+        );
+      },
+    );
+
+    testWidgets(
+      'aucun spinner ni texte de chargement visible, jamais, y compris '
+      'juste après un swipe',
+      (t) async {
+        final repo = _repoWithMeditations(
+          [_m('a'), _m('b'), _m('c')],
+          videos: [_v('v0'), _v('v1')],
+        );
+        final env = _hostTracked(repo);
+        await t.pumpWidget(env.widget);
+        await t.pumpAndSettle();
+        expect(find.textContaining('Un instant'), findsNothing);
+        expect(find.byType(CircularProgressIndicator), findsNothing);
+
+        await t.fling(
+          find.byKey(const Key('meditation-feed-page-view')),
+          const Offset(0, -600),
+          1200,
+        );
+        await t.pump(); // frame immédiate après le swipe, avant tout settle
+        expect(find.textContaining('Un instant'), findsNothing);
+        expect(find.byType(CircularProgressIndicator), findsNothing);
+      },
+    );
+
+    testWidgets(
+      'vidéo lente à charger (dépasse le timeout court) -> abandonnée, '
+      'une AUTRE candidate déjà rapide prend le relais',
+      (t) async {
+        final slow = Completer<bool>(); // ne se complète jamais
+        final repo = _repoWithMeditations(
+          [_m('a'), _m('b'), _m('c')],
+          videos: [_v('v0'), _v('v1'), _v('v2')],
+        );
+        var call = 0;
+        final env = _hostTracked(
+          repo,
+          surfaceAt: (i) {
+            call++;
+            // Le tout 1er candidat du pool est délibérément lent ; les
+            // suivants sont rapides.
+            return call == 1 ? _GatedSurface(gate: slow) : _FakeSurface();
+          },
+        );
+        await t.pumpWidget(env.widget);
+        await t.pumpAndSettle();
+
+        // Le timeout court du pool (2,5 s) doit avoir abandonné le candidat
+        // lent -> un autre visuel, rapide, a fini par être assigné, SANS
+        // jamais avoir affiché de spinner entre-temps.
+        for (var i = 0; i < 30 && env.surfaces.length < 2; i++) {
+          await t.pump(const Duration(milliseconds: 100));
+        }
+        expect(find.textContaining('Un instant'), findsNothing);
+        expect(
+          env.surfaces.length,
+          greaterThanOrEqualTo(2),
+          reason: 'la candidate lente a été abandonnée, une autre créée',
+        );
+      },
+    );
+
+    testWidgets(
+      'vidéo dont le chargement échoue -> écartée pour la session, jamais '
+      're-tentée par un réapprovisionnement ultérieur du pool',
+      (t) async {
+        final repo = _repoWithMeditations(
+          [_m('a'), _m('b')],
+          videos: [_v('broken')], // 1 SEULE vidéo au catalogue, cassée
+        );
+        final loadCalls = <String>[];
+        final env = _hostTracked(
+          repo,
+          surfaceAt: (i) {
+            final s = _GatedSurface(gate: Completer<bool>()..complete(false));
+            return s;
+          },
+        );
+        await t.pumpWidget(env.widget);
+        await t.pumpAndSettle();
+        // Laisse le temps à plusieurs cycles de réapprovisionnement.
+        for (var i = 0; i < 10; i++) {
+          await t.pump(const Duration(milliseconds: 100));
+        }
+
+        for (final s in env.surfaces) {
+          loadCalls.addAll((s as _GatedSurface).calls.where((c) => c.startsWith('load:')));
+        }
+        // Un catalogue à 1 SEULE vidéo cassée : elle n'est tentée qu'une
+        // fois (jamais reproposée par un réapprovisionnement suivant),
+        // ensuite le pool abandonne proprement (catalogue épuisé).
+        expect(loadCalls.length, 1, reason: 'jamais de boucle sur une vidéo cassée');
+      },
+    );
+
+    testWidgets(
+      'pause volontaire de l\'utilisateur : un réapprovisionnement du pool '
+      'plus tard ne relance PAS la lecture',
+      (t) async {
+        final repo = _repoWithMeditations(
+          [_m('a'), _m('b'), _m('c')],
+          videos: [_v('v0'), _v('v1')],
+        );
+        final env = _hostTracked(repo);
+        await t.pumpWidget(env.widget);
+        await t.pumpAndSettle();
+        expect(env.audios[0].isPlaying, isTrue);
+
+        await t.tap(find.bySemanticsLabel('Mettre en pause'));
+        await t.pumpAndSettle();
+        expect(env.audios[0].isPlaying, isFalse);
+        final callsAtPause = List<String>.from(env.audios[0].calls);
+
+        // Un cycle supplémentaire de préparation (ex. la fenêtre se
+        // recalcule) ne doit JAMAIS faire hériter cette page d'un
+        // redémarrage qu'elle n'a pas demandé.
+        await t.pump(const Duration(seconds: 1));
+        expect(env.audios[0].isPlaying, isFalse);
+        expect(env.audios[0].calls, callsAtPause);
+      },
+    );
+
+    testWidgets(
+      'chaque changement de page réactive l\'autoplay (pas seulement la '
+      '1ʳᵉ transition)',
+      (t) async {
+        final repo = _repoWithMeditations(
+          [_m('a'), _m('b'), _m('c')],
+          videos: [_v('v0'), _v('v1'), _v('v2')],
+        );
+        final env = _hostTracked(repo);
+        await t.pumpWidget(env.widget);
+        await t.pumpAndSettle();
+
+        await t.fling(
+          find.byKey(const Key('meditation-feed-page-view')),
+          const Offset(0, -600),
+          1200,
+        );
+        await t.pumpAndSettle();
+        expect(env.audios[1].calls.any((c) => c.startsWith('play:')), isTrue);
+
+        await t.fling(
+          find.byKey(const Key('meditation-feed-page-view')),
+          const Offset(0, -600),
+          1200,
+        );
+        await t.pumpAndSettle();
+        expect(
+          env.audios[2].calls.any((c) => c.startsWith('play:')),
+          isTrue,
+          reason: 'la 2ᵉ transition autoplay tout autant que la 1ʳᵉ',
         );
       },
     );
@@ -654,6 +707,24 @@ void main() {
 
         final playing = env.audios.where((a) => a.isPlaying).length;
         expect(playing, 1, reason: 'jamais deux pages actives en même temps');
+      },
+    );
+
+    testWidgets(
+      'activation normale : si un visuel est affiché, l\'audio de CETTE '
+      'page est bien en lecture (jamais de vidéo qui joue seule)',
+      (t) async {
+        final repo = _repoWithMeditations(
+          [_m('a'), _m('b'), _m('c')],
+          videos: [_v('v0'), _v('v1'), _v('v2')],
+        );
+        final env = _hostTracked(repo);
+        await t.pumpWidget(env.widget);
+        await t.pumpAndSettle();
+
+        if (env.surfaces.isNotEmpty && env.surfaces.first.buildView() != null) {
+          expect(env.audios[0].isPlaying, isTrue);
+        }
       },
     );
   });

@@ -529,6 +529,30 @@ void main() {
     expect(surface.disposed, isTrue);
   });
 
+  testWidgets(
+    'CORRECTIF « double dispose » — un `audioOverride` fourni (feed) '
+    'n\'est JAMAIS disposé par l\'écran lui-même : la propriété reste à '
+    'l\'appelant (planterait un vrai lecteur disposé 2 fois, observé en '
+    'conditions réelles Samsung)',
+    (t) async {
+      final a = _FakeAudio();
+      await t.pumpWidget(_host(a, item: _libItem()));
+      await t.pumpAndSettle();
+      await t.ensureVisible(find.bySemanticsLabel('Lancer le moment'));
+      await t.tap(find.bySemanticsLabel('Lancer le moment'));
+      await t.pumpAndSettle();
+
+      await t.pumpWidget(const SizedBox());
+      await t.pumpAndSettle();
+
+      expect(
+        a.calls,
+        isNot(contains('dispose')),
+        reason: 'l’écran ne possède pas cet audio : il ne le dispose pas',
+      );
+    },
+  );
+
   // =========================================================================
   // Petits écrans Android
   // =========================================================================

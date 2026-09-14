@@ -232,13 +232,39 @@ class _MeditationScreenState extends State<MeditationScreen>
   }
 
   @override
+  void didUpdateWidget(covariant MeditationScreen old) {
+    super.didUpdateWidget(old);
+    // CORRECTIF UX « sans spinner ni replay manuel » — dans le feed, cette
+    // page peut être construite AVANT que son visuel ne soit prêt (l'audio,
+    // lui, démarre immédiatement quand même : jamais de tap requis). Le feed
+    // reconstruit alors ce widget (MÊME clé) dès qu'un visuel devient
+    // disponible : on le reprend ICI, réactivement — un simple champ `late`
+    // ne l'aurait capturé qu'une fois, au tout premier montage, et un visuel
+    // résolu après coup n'aurait alors plus jamais été repris.
+    if (widget.videoResolvedExternally &&
+        _video == null &&
+        widget.initialVideo != null &&
+        widget.initialVideo != old.initialVideo) {
+      setState(() => _video = widget.initialVideo);
+    }
+  }
+
+  @override
   void dispose() {
     _hideTimer?.cancel();
     WidgetsBinding.instance.removeObserver(this);
     for (final s in _subs) {
       s.cancel();
     }
-    _audio.dispose();
+    // CORRECTIF « double dispose » — dans le feed, cet audio est CRÉÉ ET
+    // POSSÉDÉ par `MeditationFeedScreen` (partagé via `audioOverride`,
+    // réutilisé le temps que la page reste dans la fenêtre ±1) : lui seul le
+    // dispose. Le disposer ICI EN PLUS aurait planté le lecteur réel
+    // (`AudioPlayer`/`audioplayers`) une 2ᵉ fois — observé en conditions
+    // réelles (Samsung) via des `PlatformException`/`AudioPlayer has been
+    // disposed` non rattrapées. Seul l'audio créé PAR CET ÉCRAN LUI-MÊME
+    // (usage historique hors feed, `audioOverride` absent) est disposé ici.
+    if (widget.audioOverride == null) _audio.dispose();
     super.dispose();
   }
 

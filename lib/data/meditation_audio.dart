@@ -67,6 +67,7 @@ class AudioPlayersMeditationAudio implements MeditationAudio {
   final StreamController<Duration> _duration = StreamController.broadcast();
   final StreamController<void> _complete = StreamController.broadcast();
   bool _playing = false;
+  bool _disposed = false;
 
   /// Source déjà préparée via [prepare] (source définie côté plateforme,
   /// prête à démarrer) — `null` tant qu'aucune préparation n'est en attente
@@ -167,6 +168,8 @@ class AudioPlayersMeditationAudio implements MeditationAudio {
 
   @override
   void dispose() {
+    if (_disposed) return; // CORRECTIF « double dispose » — jamais 2 fois.
+    _disposed = true;
     _playing = false;
     for (final s in _subs) {
       s.cancel();
@@ -175,8 +178,15 @@ class AudioPlayersMeditationAudio implements MeditationAudio {
     _position.close();
     _duration.close();
     _complete.close();
-    try {
-      _player?.dispose();
-    } catch (_) {}
+    final p = _player;
+    _player = null;
+    if (p == null) return;
+    // `AudioPlayer.dispose()` est ASYNCHRONE en interne (stop -> release ->
+    // dispose côté plateforme) : un simple `try {}` synchrone ne rattrape
+    // JAMAIS une erreur qui survient après le premier `await` (observé en
+    // conditions réelles Samsung : `PlatformException` non rattrapée,
+    // remontée comme exception non gérée). On attache explicitement un
+    // `catchError` sur le Future renvoyé.
+    unawaited(p.dispose().catchError((_) {}));
   }
 }

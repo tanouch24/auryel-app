@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:developer' as developer;
 
 import 'package:flutter/material.dart';
 import 'package:phosphor_icons/phosphor_icons.dart';
@@ -28,25 +29,37 @@ import 'meditation_screen.dart';
 /// (défilement en avant potentiellement infini) ; « précédent » reste
 /// simplement borné à la 1ʳᵉ page.
 ///
-/// CORRECTIF « lecture synchronisée » — le bug Samsung d'origine (l'audio de
-/// la méditation suivante démarrait immédiatement au swipe, la vidéo
-/// n'apparaissant que plusieurs secondes après) venait du fait que le
-/// préchargement d'une page voisine dépendait de la construction paresseuse
-/// du `PageView` (qui ne construit RÉELLEMENT une page qu'au moment où elle
-/// entre dans le viewport, pas avant). La préparation (vidéo ET audio) est
-/// désormais un état [_FeedSlot] géré PAR CE STATE, totalement DÉCOUPLÉ de la
-/// construction des widgets : elle démarre dès que possible pendant que la
-/// page précédente joue encore, indépendamment de ce que `PageView` a ou non
-/// déjà construit.
+/// CORRECTIF UX « sans spinner ni replay manuel » — deux bugs réels observés
+/// sur Samsung ont motivé cette version :
+///  1. un écran « Un instant… » (spinner) apparaissait trop souvent, parce
+///     que la page ACTIVEMENT visée attendait la fin de sa propre
+///     préparation vidéo avant de s'afficher ;
+///  2. certaines vidéos n'apparaissaient JAMAIS et l'audio exigeait parfois
+///     un second tap sur Play, parce qu'une page voisine (préconstruite
+///     pendant que l'utilisateur est encore sur la précédente) capturait son
+///     visuel une seule fois via un champ `late` — un visuel résolu APRÈS
+///     coup (une fois le réseau revenu) n'était alors plus jamais repris.
 ///
-/// Au swipe : si la page suivante est déjà « prête » (vidéo initialisée +
-/// 1ʳᵉ frame disponible, audio préparé), l'activation démarre vidéo ET audio
-/// ensemble (quasi simultané, jamais un `Future.delayed` arbitraire). Si elle
-/// ne l'est pas encore (swipe très rapide avant la fin du préchargement), un
-/// écran de transition calme s'affiche SANS AUCUN AUDIO tant que la page
-/// n'est pas prête — jamais de son sans image.
+/// Résolution : AUCUN écran d'attente séparé. Une page devient RÉELLEMENT
+/// active (donc son [MeditationScreen] construit) dès qu'elle est visée —
+/// l'audio démarre IMMÉDIATEMENT (jamais de tap requis), et son visuel
+/// s'affiche dès qu'il est prêt : soit déjà là (cas courant, grâce au
+/// [_VideoPool] pré-chargé en tâche de fond), soit rattrapé quelques
+/// centaines de ms plus tard via [MeditationScreen.initialVideo] devenu
+/// réactif (`didUpdateWidget`) — sans jamais réafficher un spinner ni
+/// interrompre l'audio déjà en cours. En l'absence totale de visuel
+/// disponible, l'écran retombe sur le fond calme DÉJÀ existant de
+/// [MeditationScreen] (aucune nouveauté, aucun spinner : simple médaillon
+/// statique) — jamais un texte « chargement ».
 ///
-/// CONTRÔLEURS — seules les pages à ±1 de la page consultée conservent un
+/// [_VideoPool] — un petit pool de vidéos DÉJÀ chargées et vérifiées
+/// (indépendant de la méditation qui les consommera, ces visuels étant de
+/// toute façon assignés au hasard) ; chaque candidat est tenté avec un
+/// timeout COURT — trop lente ou cassée, elle est écartée pour la session
+/// (jamais retentée) et remplacée immédiatement par une autre. Objectif :
+/// avoir quasi toujours, sans attendre, un visuel prêt à consommer.
+///
+/// CONTRÔLEURS — seules les pages à ±1 de la page visée conservent un
 /// [_FeedSlot] (donc un vrai lecteur audio + un vrai contrôleur vidéo) ; tout
 /// slot hors de cette fenêtre est disposé -> jamais 50 lecteurs/contrôleurs
 /// en mémoire, jamais tout le catalogue chargé d'avance.
@@ -87,8 +100,8 @@ class MeditationFeedScreen extends StatefulWidget {
   /// défaut ([MeditationAudio] concret).
   final MeditationAudio Function()? audioFactory;
 
-  /// Test uniquement : fabrique la surface vidéo d'une page (aucun canal
-  /// plateforme en test).
+  /// Test uniquement : fabrique la surface vidéo d'un candidat du pool
+  /// (aucun canal plateforme en test).
   final RelaxationVideoSurface Function()? videoSurfaceFactory;
 
   /// Test uniquement : sélecteur de vidéo d'ambiance déterministe.
@@ -98,13 +111,20 @@ class MeditationFeedScreen extends StatefulWidget {
   State<MeditationFeedScreen> createState() => _MeditationFeedScreenState();
 }
 
-/// État de préparation d'UNE page du feed — préparé À L'AVANCE, pendant que
-/// la page précédente joue encore, pour que vidéo ET audio démarrent
-/// ENSEMBLE au moment où l'utilisateur y arrive. « Prêt » veut dire résolu
-/// dans un sens ou dans l'autre : soit une vidéo a réellement fini de
-/// s'initialiser (1ʳᵉ frame disponible), soit il est définitivement établi
-/// qu'aucune vidéo utilisable n'existe pour cette page (fond statique) — dans
-/// les deux cas, plus rien ne peut retarder l'activation de l'audio.
+/// Un visuel d'ambiance DÉJÀ chargé et vérifié, en attente d'être consommé
+/// par une page du feed.
+class _PooledVideo {
+  _PooledVideo(this.video, this.surface);
+  final RelaxationVideo video;
+  final RelaxationVideoSurface surface;
+}
+
+/// État d'UNE page du feed. `video`/`surface` démarrent `null` et sont
+/// assignés dès qu'un candidat du [_VideoPool] est disponible — que ce soit
+/// AVANT ou APRÈS que la page ait déjà été construite (voir
+/// [MeditationScreen.initialVideo], devenu réactif). Ce découplage total
+/// entre « la page existe » et « son visuel est prêt » est précisément ce
+/// qui permet à l'audio de démarrer sans jamais attendre la vidéo.
 class _FeedSlot {
   _FeedSlot(this.item);
 
@@ -112,29 +132,7 @@ class _FeedSlot {
   MeditationAudio? audio;
   RelaxationVideo? video;
   RelaxationVideoSurface? surface;
-
-  bool audioReady = false;
-  bool videoReady = false;
   bool disposed = false;
-
-  bool get ready => audioReady && videoReady;
-
-  final Completer<void> _readyCompleter = Completer<void>();
-  Future<void> get onReady => _readyCompleter.future;
-
-  void _maybeComplete() {
-    if (ready && !_readyCompleter.isCompleted) _readyCompleter.complete();
-  }
-
-  void markAudioReady() {
-    audioReady = true;
-    _maybeComplete();
-  }
-
-  void markVideoReady() {
-    videoReady = true;
-    _maybeComplete();
-  }
 
   void dispose() {
     if (disposed) return;
@@ -156,21 +154,37 @@ class _MeditationFeedScreenState extends State<MeditationFeedScreen> {
   List<MeditationItem> _catalogItems = const [];
   final List<MeditationItem> _order = [];
 
-  /// Page physiquement affichée par le `PageView` (mise à jour immédiatement
-  /// au swipe). Sert UNIQUEMENT à décider quoi dessiner à chaque index.
+  /// Page physiquement visée par le `PageView` — TOUJOURS la page active
+  /// (plus de délai artificiel : voir la doc de la classe). Diffusée via
+  /// [FeedPageScope] : c'est elle qui pilote démarrage/pause dans
+  /// [MeditationScreen] (mécanisme inchangé des lots précédents).
   int _viewedIndex = 0;
 
-  /// Page réellement ACTIVE (audio/vidéo en cours) — ne rejoint [_viewedIndex]
-  /// qu'une fois son [_FeedSlot] prêt. Diffusée via [FeedPageScope] : c'est
-  /// elle qui pilote démarrage/pause dans [MeditationScreen] (mécanisme
-  /// inchangé du lot précédent).
-  int _activeIndex = -1;
-
-  static const _initialIndex = 0;
-
   /// Préparation en avance des pages à ±1 de [_viewedIndex] — DÉCOUPLÉE de la
-  /// construction des widgets `PageView` (voir doc de la classe).
+  /// construction des widgets `PageView`.
   final Map<int, _FeedSlot> _slots = {};
+
+  // ---------------------------------------------------------------------
+  // POOL DE VIDÉOS — un petit nombre de visuels déjà chargés d'avance,
+  // indépendamment de la méditation qui les consommera.
+  // ---------------------------------------------------------------------
+  final List<_PooledVideo> _videoPool = [];
+
+  /// Slugs écartés cette session (chargement trop lent ou en échec) —
+  /// jamais retentés tant que l'écran vit, pour ne jamais boucler sur une
+  /// vidéo cassée.
+  final Set<String> _brokenVideoSlugs = {};
+
+  bool _refillingPool = false;
+  static const _kPoolTarget = 2;
+
+  /// Délai COURT par candidat (préférer une autre vidéo déjà rapide plutôt
+  /// que d'attendre — jamais plusieurs secondes d'attente visible).
+  static const _kVideoCandidateTimeout = Duration(seconds: 2, milliseconds: 500);
+
+  /// Borne la préparation audio de la même façon (réseau lent -> le `play()`
+  /// normal, un peu plus lent, prendra simplement le relais à l'activation).
+  static const _kAudioPrepareTimeout = Duration(seconds: 3);
 
   List<RelaxationVideo>? _videoCatalog;
   Future<List<RelaxationVideo>>? _videoCatalogFuture;
@@ -178,16 +192,57 @@ class _MeditationFeedScreenState extends State<MeditationFeedScreen> {
   bool _hintResolved = false;
   bool _showHint = false;
 
-  /// Borne NOTRE propre préparation audio (indépendante des délais internes,
-  /// plus longs, du lecteur) — un réseau lent ne doit jamais faire traîner
-  /// l'écran de transition au-delà du raisonnable.
-  static const _kPrepareStepTimeout = Duration(seconds: 4);
+  /// `Future.timeout()` laisse son propre minuteur interne tourner tant que
+  /// le future d'origine n'a réellement abouti — ni annulable ni visible de
+  /// l'extérieur. Un lecteur RÉEL peut, en environnement de test (aucun
+  /// canal plateforme), ne JAMAIS résoudre : le minuteur de secours géré ICI
+  /// (annulé explicitement à [dispose]) évite un minuteur fantôme après la
+  /// destruction de l'écran.
+  final List<Timer> _ownTimers = [];
+
+  Future<T> _withOwnTimeout<T>(
+    Future<T> future,
+    Duration duration,
+    T Function() onTimeout,
+  ) {
+    final completer = Completer<T>();
+    late final Timer timer;
+    timer = Timer(duration, () {
+      _ownTimers.remove(timer);
+      if (!completer.isCompleted) completer.complete(onTimeout());
+    });
+    _ownTimers.add(timer);
+    future.then(
+      (v) {
+        if (timer.isActive) {
+          timer.cancel();
+          _ownTimers.remove(timer);
+        }
+        if (!completer.isCompleted) completer.complete(v);
+      },
+      onError: (Object e, StackTrace st) {
+        if (timer.isActive) {
+          timer.cancel();
+          _ownTimers.remove(timer);
+        }
+        if (!completer.isCompleted) completer.completeError(e, st);
+      },
+    );
+    return completer.future;
+  }
 
   @override
   void dispose() {
     _pageController.dispose();
+    for (final t in List<Timer>.of(_ownTimers)) {
+      t.cancel();
+    }
+    _ownTimers.clear();
     for (final s in _slots.values) {
       s.dispose();
+    }
+    for (final c in _videoPool) {
+      c.surface.dispose();
     }
     super.dispose();
   }
@@ -245,6 +300,9 @@ class _MeditationFeedScreenState extends State<MeditationFeedScreen> {
         ..addAll(ordered);
       _loading = false;
     });
+    // Amorce le pool AVANT même la 1ʳᵉ préparation de page : dès que
+    // possible, au moins un visuel est déjà prêt à être consommé.
+    unawaited(_refillPoolIfNeeded());
     _ensureWindowPrepared();
   }
 
@@ -294,113 +352,130 @@ class _MeditationFeedScreenState extends State<MeditationFeedScreen> {
     }();
   }
 
+  /// Reconstitue le pool jusqu'à [_kPoolTarget] candidats PRÊTS, PUIS
+  /// distribue immédiatement tout candidat disponible aux slots encore sans
+  /// visuel (qu'ils viennent d'être créés ou qu'ils attendaient déjà) — un
+  /// slot ne réclame le pool qu'une fois à sa création ; c'est CE
+  /// réapprovisionnement qui doit ensuite le servir dès qu'un candidat est
+  /// prêt, sinon un slot resterait sans visuel pour toujours. Chaque
+  /// tentative de chargement est bornée à [_kVideoCandidateTimeout] : trop
+  /// lente -> écartée pour la session (jamais retentée), remplacée par une
+  /// autre. Si TOUT le catalogue est cassé, abandonne proprement (le fond
+  /// statique déjà existant de [MeditationScreen] prend le relais, jamais de
+  /// boucle infinie).
+  Future<void> _refillPoolIfNeeded() async {
+    if (!_refillingPool) {
+      _refillingPool = true;
+      try {
+        while (mounted && _videoPool.length < _kPoolTarget) {
+          final catalog = await _resolveVideoCatalog();
+          if (catalog.isEmpty) break;
+          final avoid = {
+            ..._brokenVideoSlugs,
+            ..._videoPool.map((c) => c.video.slug),
+          };
+          final candidates = catalog
+              .where((v) => !avoid.contains(v.slug))
+              .toList(growable: false);
+          if (candidates.isEmpty) {
+            // Plus rien de neuf à proposer (tout cassé ou déjà dans le
+            // pool) -> on abandonne proprement plutôt que de boucler.
+            break;
+          }
+          // Pool générique (indépendant de toute méditation précise) : pas
+          // de filtre de catégorie ici, `choose` retombe déjà sur tout le
+          // catalogue si aucun visuel générique n'est disponible.
+          final picked = _videoSelector.choose(
+            candidates,
+            meditationCategory: '',
+          );
+          if (picked == null) break;
+          final surface =
+              widget.videoSurfaceFactory?.call() ?? VideoPlayerRelaxationSurface();
+          bool ok;
+          try {
+            ok = await _withOwnTimeout(
+              surface.load(picked.videoUrl),
+              _kVideoCandidateTimeout,
+              () => false,
+            );
+          } catch (_) {
+            ok = false;
+          }
+          if (!mounted) {
+            surface.dispose();
+            break;
+          }
+          if (ok) {
+            _videoPool.add(_PooledVideo(picked, surface));
+          } else {
+            surface.dispose();
+            _brokenVideoSlugs.add(picked.slug);
+            developer.log(
+              'Vidéo de relaxation écartée cette session '
+              '(chargement trop lent ou en échec) : '
+              '${picked.slug} — ${picked.videoUrl}',
+              name: 'auryel.meditation_feed',
+            );
+          }
+        }
+      } finally {
+        _refillingPool = false;
+      }
+    }
+    if (!mounted) return;
+
+    // Distribue tout candidat disponible aux slots (fenêtre courante) encore
+    // sans visuel — dans l'ordre de la fenêtre, pour privilégier la page
+    // visée puis ses voisines.
+    var assigned = false;
+    for (final i in _slots.keys.toList()..sort()) {
+      if (_videoPool.isEmpty) break;
+      final slot = _slots[i]!;
+      if (slot.disposed || slot.video != null) continue;
+      final c = _videoPool.removeAt(0);
+      slot.video = c.video;
+      slot.surface = c.surface;
+      assigned = true;
+    }
+    if (assigned) {
+      setState(() {});
+      // Ce qui vient d'être consommé doit être remplacé sans attendre le
+      // prochain déclencheur.
+      unawaited(_refillPoolIfNeeded());
+    }
+  }
+
   /// Démarre (si nécessaire) la préparation du slot [i] : audio préparé SANS
-  /// jouer, vidéo choisie et chargée d'avance (avec repli borné sur un AUTRE
-  /// visuel si le 1er choisi est trop lent/cassé — jamais garder coûte que
-  /// coûte une vidéo lente). N'a AUCUN effet si [i] est déjà préparé/en cours.
-  Future<void> _prepare(int i) async {
+  /// jouer (démarrage quasi instantané à l'activation), visuel réclamé au
+  /// pool (immédiatement si un candidat est déjà prêt, sinon dès qu'il le
+  /// devient — voir [_refillPoolIfNeeded]). N'a AUCUN effet si [i] est déjà
+  /// préparé/en cours.
+  void _prepare(int i) {
     if (_slots.containsKey(i)) return;
     final item = _itemAt(i);
     if (item == null) return;
     final slot = _FeedSlot(item);
     _slots[i] = slot;
 
-    // AUDIO — préparé sans jouer (voir `MeditationAudio.prepare`). Borné
-    // NOUS-MÊMES (au lieu de dépendre du délai interne, plus long, du
-    // lecteur) : un réseau lent ne doit jamais retarder l'activation de
-    // plusieurs dizaines de secondes — passé ce délai, la page est quand même
-    // considérée prête (un `play()` normal, un peu plus lent, prendra le
-    // relais à l'activation, jamais bloquant).
     final audio = widget.audioFactory?.call() ?? AudioPlayersMeditationAudio();
     slot.audio = audio;
     if (item.hasPlayableSource) {
       unawaited(
-        audio
-            .prepare(item.playbackSource)
-            .timeout(_kPrepareStepTimeout, onTimeout: () {})
-            .then((_) {
-              if (slot.disposed) return;
-              slot.markAudioReady();
-              _onSlotProgress();
-            })
-            .catchError((_) {
-              if (slot.disposed) return;
-              slot.markAudioReady();
-              _onSlotProgress();
-            }),
-      );
-    } else {
-      slot.markAudioReady(); // rien à préparer -> résolu immédiatement
-    }
-
-    // VIDÉO — résolution + chargement anticipé.
-    final catalog = await _resolveVideoCatalog();
-    if (slot.disposed) return;
-    if (catalog.isEmpty) {
-      slot.markVideoReady(); // aucune vidéo dispo -> résolu (fond statique)
-      _onSlotProgress();
-      return;
-    }
-
-    // 2 tentatives (1er choix + 1 repli) : borne le pire cas à ~16 s de
-    // réseau lent avant de considérer la page prête (fond statique le temps
-    // que l'audio, lui, démarre) — jamais un écran de transition qui traîne
-    // au-delà du raisonnable.
-    const maxAttempts = 2;
-    final tried = <RelaxationVideo>[];
-    RelaxationVideo? candidate = await _videoSelector.pick(
-      catalog,
-      meditationCategory: item.category.name,
-    );
-    for (var attempt = 0; attempt < maxAttempts && candidate != null; attempt++) {
-      if (slot.disposed) return;
-      tried.add(candidate);
-      final surface =
-          widget.videoSurfaceFactory?.call() ?? VideoPlayerRelaxationSurface();
-      final ok = await surface.load(candidate.videoUrl);
-      if (slot.disposed) {
-        surface.dispose();
-        return;
-      }
-      if (ok) {
-        slot.video = candidate;
-        slot.surface = surface;
-        break;
-      }
-      // Vidéo trop lente/cassée -> on PRÉFÈRE en essayer une autre déjà
-      // disponible plutôt que de garder coûte que coûte celle-ci (sélection
-      // PURE ici, sans toucher l'historique anti-répétition — seul un choix
-      // RÉELLEMENT retenu y est inscrit, via `pick` ci-dessus).
-      surface.dispose();
-      final remaining = catalog
-          .where((v) => !tried.any((t) => t.slug == v.slug))
-          .toList(growable: false);
-      candidate = _videoSelector.choose(
-        remaining,
-        meditationCategory: item.category.name,
+        _withOwnTimeout(
+          audio.prepare(item.playbackSource),
+          _kAudioPrepareTimeout,
+          () {},
+        ).catchError((_) {}),
       );
     }
-    slot.markVideoReady(); // résolu : avec vidéo prête, ou définitivement sans
-    _onSlotProgress();
-  }
 
-  /// Un slot vient de progresser (audio ou vidéo prêt) : si c'est celui de la
-  /// page actuellement VISÉE et qu'il est maintenant complet, l'active — et
-  /// dans tous les cas, notifie l'UI (l'écran de transition observe l'état
-  /// des slots directement).
-  void _onSlotProgress() {
-    if (!mounted) return;
-    setState(_syncActiveIndex);
-  }
-
-  /// Fait rejoindre [_activeIndex] à [_viewedIndex] dès que le slot visé est
-  /// prêt — jamais avant. C'est CE passage qui déclenche, via
-  /// [FeedPageScope], le démarrage synchronisé vidéo+audio de
-  /// [MeditationScreen] (mécanisme de reprise/démarrage déjà en place).
-  void _syncActiveIndex() {
-    if (_slots[_viewedIndex]?.ready == true) {
-      _activeIndex = _viewedIndex;
+    if (_videoPool.isNotEmpty) {
+      final c = _videoPool.removeAt(0);
+      slot.video = c.video;
+      slot.surface = c.surface;
     }
+    unawaited(_refillPoolIfNeeded());
   }
 
   /// Garantit un [_FeedSlot] préparé pour {viewedIndex-1, viewedIndex,
@@ -413,7 +488,7 @@ class _MeditationFeedScreenState extends State<MeditationFeedScreen> {
       _viewedIndex + 1,
     };
     for (final i in keep) {
-      unawaited(_prepare(i));
+      _prepare(i);
     }
     final stale = _slots.keys.where((i) => !keep.contains(i)).toList();
     for (final i in stale) {
@@ -422,10 +497,7 @@ class _MeditationFeedScreenState extends State<MeditationFeedScreen> {
   }
 
   void _onPageChanged(int i) {
-    setState(() {
-      _viewedIndex = i;
-      _syncActiveIndex();
-    });
+    setState(() => _viewedIndex = i);
     _ensureWindowPrepared();
     if (_showHint) {
       setState(() => _showHint = false);
@@ -471,25 +543,24 @@ class _MeditationFeedScreenState extends State<MeditationFeedScreen> {
               if (!withinWindow) return const ColoredBox(color: Colors.black);
 
               final slot = _slots[i];
-              // CORRECTIF « lecture synchronisée » — la page VISÉE n'est
-              // rendue en lecteur réel QUE si son slot est prêt (vidéo
-              // initialisée + audio préparé). Tant que ce n'est pas le cas :
-              // transition calme, JAMAIS de son de cette page en attendant
-              // (aucun `MeditationScreen` construit -> aucun `_start()`
-              // possible pour elle).
-              if (i == _viewedIndex && slot?.ready != true) {
-                return const _PreparingTransition(
-                  key: Key('meditation-feed-preparing'),
-                );
-              }
-
+              // CORRECTIF UX — la page est TOUJOURS construite (donc son
+              // audio démarre TOUJOURS immédiatement dès qu'elle devient
+              // active, jamais de tap requis) : AUCUN écran d'attente ici.
+              // `initialVideo` peut être `null` au premier rendu -> l'écran
+              // affiche alors son fond calme déjà existant (aucun spinner),
+              // puis se met à jour tout seul dès qu'un visuel arrive (voir
+              // `MeditationScreen.didUpdateWidget`).
               return FeedPageScope(
                 pageIndex: i,
-                activeIndex: _activeIndex,
+                activeIndex: _viewedIndex,
                 child: MeditationScreen(
                   key: ValueKey('meditation-feed-item-$i'),
                   item: slot?.item ?? item,
-                  autoplayOnOpen: i == _initialIndex,
+                  // Vrai dès la 1ʳᵉ construction ACTIVE de cette page — pas
+                  // seulement pour la toute 1ʳᵉ page du feed : une page
+                  // fraîchement construite déjà active ne doit JAMAIS
+                  // attendre un tap sur Play.
+                  autoplayOnOpen: i == _viewedIndex,
                   showCatalogNavigation: false,
                   audioOverride: slot?.audio,
                   initialVideo: slot?.video,
@@ -505,47 +576,6 @@ class _MeditationFeedScreenState extends State<MeditationFeedScreen> {
           _LibraryAccessButton(onTap: _openLibrary),
           if (_hintResolved) _SwipeHintOverlay(visible: _showHint),
         ],
-      ),
-    );
-  }
-}
-
-/// Écran de transition affiché UNIQUEMENT pendant qu'une page visée n'est pas
-/// encore prête (vidéo/audio en cours de préparation) — calme, jamais un
-/// fond vide/noir brut, et surtout SANS AUCUN AUDIO tant qu'il est affiché.
-class _PreparingTransition extends StatelessWidget {
-  const _PreparingTransition({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return DecoratedBox(
-      decoration: const BoxDecoration(
-        gradient: AuryelColors.backgroundGradient,
-      ),
-      child: Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const SizedBox(
-              width: 28,
-              height: 28,
-              child: CircularProgressIndicator(
-                strokeWidth: 2.4,
-                color: AuryelColors.goldLight,
-              ),
-            ),
-            const SizedBox(height: 14),
-            Text(
-              'Un instant…',
-              style: AuryelText.body(
-                fontSize: 11,
-                fontWeight: FontWeight.w600,
-                color: AuryelColors.textMuted,
-                letterSpacing: 0.8,
-              ),
-            ),
-          ],
-        ),
       ),
     );
   }
