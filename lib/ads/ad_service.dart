@@ -13,12 +13,10 @@ class AuryelAds {
 
   static const _rewardedTest = 'ca-app-pub-3940256099942544/5224354917';
   static const _appOpenTest = 'ca-app-pub-3940256099942544/9257395921';
+  static const _bannerTest = 'ca-app-pub-3940256099942544/6300978111';
   static const _rewardedProduction = 'ca-app-pub-6355299363807052/1344137680';
-  // Aucun identifiant App Open production n'a été fourni : fail-open en release.
-  static const _appOpenProduction = String.fromEnvironment(
-    'ADMOB_APP_OPEN_PROD_ID',
-    defaultValue: '',
-  );
+  static const _appOpenProduction = 'ca-app-pub-6355299363807052/4516417311';
+  static const _bannerProduction = 'ca-app-pub-6355299363807052/5857419144';
 
   RewardedAd? _rewarded;
   AppOpenAd? _appOpen;
@@ -29,6 +27,7 @@ class AuryelAds {
 
   String get rewardedUnitId => kDebugMode ? _rewardedTest : _rewardedProduction;
   String get appOpenUnitId => kDebugMode ? _appOpenTest : _appOpenProduction;
+  String get bannerUnitId => kDebugMode ? _bannerTest : _bannerProduction;
   bool get canRequestAds => _canRequestAds;
   bool get rewardedReady => _rewarded != null;
   bool get rewardedShowing => _rewardedShowing;
