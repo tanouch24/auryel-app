@@ -242,7 +242,7 @@ class _FreeOfferBlock extends StatelessWidget {
       price: '0 €',
       lines: const [
         'Avec publicité',
-        'Gagne des Étoiles pour obtenir des minutes de consultation',
+        'Regardez une publicité pour poser une question',
       ],
       child: OutlinedButton(
         onPressed: () => Navigator.of(context).maybePop(),

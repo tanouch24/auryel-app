@@ -179,6 +179,10 @@ class RewardWallet {
     this.minutesConvertedThisMonth = 0,
     this.monthlyMinutesLimit = 30,
     this.monthlyMinutesRemaining = 30,
+    this.questionsAvailable = 0,
+    this.rewardedProgress = 0,
+    this.totalRewarded = 0,
+    this.minutesAwarded = 0,
   });
 
   final int starsBalance;
@@ -194,6 +198,10 @@ class RewardWallet {
   final int minutesConvertedThisMonth;
   final int monthlyMinutesLimit;
   final int monthlyMinutesRemaining;
+  final int questionsAvailable;
+  final int rewardedProgress;
+  final int totalRewarded;
+  final int minutesAwarded;
 
   /// Indique si le serveur a déjà crédité [ruleKey] aujourd'hui.
   ///
@@ -253,6 +261,10 @@ class RewardWallet {
       monthlyMinutesRemaining: json.containsKey('monthly_minutes_remaining')
           ? _asInt(json['monthly_minutes_remaining'])
           : 30,
+      questionsAvailable: _asInt(json['questions_available']),
+      rewardedProgress: _asInt(json['progress']).clamp(0, 9),
+      totalRewarded: _asInt(json['total_rewarded']),
+      minutesAwarded: _asInt(json['minutes_awarded']),
     );
   }
 

@@ -942,20 +942,18 @@ class _RewardOutcomeOverlay extends StatelessWidget {
     } else if (result!.rewardCredited) {
       icon = PhosphorIconsFill.sparkle;
       title = 'Bravo';
-      body = 'Tu as gagné ${result!.starsAwarded} ⭐.';
-      note = 'Ton solde d’Étoiles a été mis à jour.';
+      body = 'Ta partie est terminée.';
+      note = 'Les jeux restent des fonctionnalités de contenu.';
     } else if (result!.isTimeExceeded) {
       icon = PhosphorIconsRegular.timer;
       title = 'Partie terminée';
-      body =
-          'Termine en moins de $threshold secondes pour gagner '
-          '${result!.starsReward} ⭐.';
+      body = 'Termine en moins de $threshold secondes pour réussir la partie.';
       note = 'Temps  $time';
     } else if (result!.isDailyLimitReached) {
       icon = PhosphorIconsRegular.checkCircle;
       title = 'Partie terminée';
-      body = 'Tu as déjà obtenu la récompense mini-jeu du jour.';
-      note = 'Reviens demain pour une nouvelle récompense.';
+      body = 'Cette partie est déjà terminée.';
+      note = 'Reviens demain pour une nouvelle partie.';
     } else if (result!.isExpired) {
       icon = PhosphorIconsRegular.hourglass;
       title = 'Partie terminée';

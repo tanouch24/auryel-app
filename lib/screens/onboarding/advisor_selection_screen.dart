@@ -221,8 +221,8 @@ class _StarsOnboardingNote extends StatelessWidget {
       border: Border.all(color: AuryelColors.gold.withValues(alpha: 0.35)),
     ),
     child: const Text(
-      'Gagne des Étoiles. Débloque du temps de consultation. ⭐\n'
-      'Les activités Auryel peuvent te faire gagner des Étoiles. Cumule-les et transforme-les en temps avec ton conseiller, jusqu’à 30 minutes supplémentaires par mois.',
+      'Regarde une publicité pour poser une question à ton conseiller.\n'
+      '1 pub = 1 question · 10 pubs = +5 min de consultation.',
     ),
   );
 }

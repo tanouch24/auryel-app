@@ -19,7 +19,10 @@ import 'rewards_wallet_screen.dart';
 /// Délai de présentation naturel après réception de la réponse réelle.
 /// Le réseau n’est jamais ralenti : seule l’apparition de la réponse est
 /// temporisée pendant que l’indicateur de saisie reste visible.
-Duration consultationReplyPresentationDelay(String reply, {int variationMs = 0}) {
+Duration consultationReplyPresentationDelay(
+  String reply, {
+  int variationMs = 0,
+}) {
   final length = reply.trim().length;
   final base = length < 120
       ? 1800
@@ -120,6 +123,7 @@ class _ChatScreenState extends State<ChatScreen> {
 
   /// Message en cours d'envoi / en échec — renvoyé tel quel, jamais dupliqué.
   String? _pending;
+  String? _pendingIdempotencyKey;
   String? _networkError;
 
   bool _noCredit = false;
@@ -317,6 +321,8 @@ class _ChatScreenState extends State<ChatScreen> {
 
     if (_pending == null) {
       _pending = text;
+      _pendingIdempotencyKey =
+          '${DateTime.now().toUtc().microsecondsSinceEpoch}:$text';
       _input.clear();
     }
     setState(() {
@@ -338,6 +344,7 @@ class _ChatScreenState extends State<ChatScreen> {
         // Chemin hérité (consultationId null) : body inchangé.
         consultationId: widget.consultationId,
         tirageId: _pendingTirageId,
+        idempotencyKey: _pendingIdempotencyKey,
       );
       if (!mounted) return;
       await _waitBeforeShowingReply(res.reply);
@@ -355,6 +362,7 @@ class _ChatScreenState extends State<ChatScreen> {
         );
         _consultation = res.consultation ?? _consultation;
         _pending = null;
+        _pendingIdempotencyKey = null;
         _sending = false;
         // T3 — le tirage a été rattaché : plus jamais renvoyé sur cette session.
         _pendingTirageId = null;
@@ -1071,7 +1079,7 @@ class _NoCreditPanel extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             Text(
-              'Tu peux continuer avec ton conseiller en ajoutant du temps de consultation, ou réaliser des missions pour gagner des Étoiles et débloquer des minutes supplémentaires.',
+              'Tu peux continuer avec ton conseiller en ajoutant du temps de consultation, ou regarder une publicité pour poser une question complète.',
               style: AuryelText.body(
                 fontSize: 13,
                 color: AuryelColors.textMuted,
@@ -1098,7 +1106,7 @@ class _NoCreditPanel extends StatelessWidget {
                     builder: (_) => const RewardsWalletScreen(),
                   ),
                 ),
-                child: const Text('Voir mes missions ⭐'),
+                child: const Text('Consultation gratuite'),
               ),
             ),
             Align(

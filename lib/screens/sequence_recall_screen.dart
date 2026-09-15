@@ -290,12 +290,9 @@ class _SequenceRecallScreenState extends State<SequenceRecallScreen> {
       body = _correct
           ? 'Bien joué, tu as retrouvé l’ordre !'
           : 'Manche terminée — pas tout à fait, mais bien tenté !';
-    } else if (result.awarded) {
-      title = 'Bravo';
-      body = 'Tu as gagné ${result.starsAwarded} ⭐.';
-    } else if (result.isDailyLimitReached) {
+    } else if (result.awarded || result.isDailyLimitReached) {
       title = 'Manche terminée';
-      body = 'Tu as déjà obtenu la récompense mini-jeu du jour.';
+      body = 'Bien joué, ta partie est terminée.';
     } else {
       title = 'Manche terminée';
       body = _correct

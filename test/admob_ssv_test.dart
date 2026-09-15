@@ -28,7 +28,7 @@ void main() {
 
   test('Rewarded annonce exactement 12 Étoiles dans son CTA', () {
     expect(rewardedStarsAmount, 12);
-    expect(rewardedAdCtaLabel(), 'Regarder une publicité · +12 ⭐');
+    expect(rewardedAdCtaLabel(), 'Regarder une publicité');
     expect(rewardedAdCtaLabel(loading: true), 'Chargement…');
   });
 

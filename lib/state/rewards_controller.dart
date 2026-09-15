@@ -52,6 +52,10 @@ class RewardsController extends ChangeNotifier {
   RewardWallet? get wallet => _wallet;
 
   int get starsBalance => _wallet?.starsBalance ?? 0;
+  int get questionsAvailable => _wallet?.questionsAvailable ?? 0;
+  int get rewardedProgress => _wallet?.rewardedProgress ?? 0;
+  int get totalRewarded => _wallet?.totalRewarded ?? 0;
+  int get minutesAwarded => _wallet?.minutesAwarded ?? 0;
   List<RewardRule> get rules => _wallet?.rules ?? const <RewardRule>[];
   RewardStreak get streak => _wallet?.streak ?? RewardStreak.zero;
   List<RewardTransaction> get recentTransactions =>

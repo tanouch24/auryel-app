@@ -386,11 +386,12 @@ RÉCOMPENSES — NON CONTRACTUELLES
 Chaque compte reçoit une seule fois 20 minutes de consultation offertes,
 selon les règles décidées par le serveur ; ce cadeau n'est pas recrédité lors
 d'un passage Premium et n'est pas cumulable par création de comptes multiples.
-Les Étoiles peuvent être gagnées notamment grâce aux publicités Rewarded
-(+12 Étoiles par publicité validée), aux mini-jeux, au tirage, au réveil et au
-partage, selon les limites quotidiennes définies par le serveur. Elles peuvent
-être converties en temps de consultation dans la limite de 30 minutes par
-mois. Ces avantages constituent des bonus non contractuels, sans valeur
+Après consommation des droits de consultation, un compte Free peut regarder
+volontairement une publicité Rewarded validée par le serveur : une publicité
+permet de poser une question complète à son conseiller. Chaque groupe de dix
+publicités validées ajoute cinq minutes de consultation. Les mini-jeux, le
+tirage, le réveil et le partage restent des fonctionnalités de contenu et
+d'engagement et ne donnent pas de crédit de consultation. Ces avantages constituent des bonus non contractuels, sans valeur
 monétaire, ne font pas
 partie des prestations garanties de l'abonnement et ne sont jamais convertibles
 en argent.

@@ -10,8 +10,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 // intentionally not mounted on Home.
 // ignore_for_file: unused_element, unused_element_parameter, unused_shown_name
 
-import '../api/rewards_api.dart' show RewardRule;
 import '../api/wellbeing_api.dart' show kWellbeingMissions;
+import '../api/rewards_api.dart' show RewardRule;
 import '../api/wellbeing_program_api.dart' show WellbeingProgramState;
 import '../data/content_repository.dart';
 import '../data/daily_like_store.dart';
@@ -105,7 +105,7 @@ class HomeScreen extends StatelessWidget {
                 padding: const EdgeInsets.fromLTRB(24, 16, 24, 20),
                 child: Column(
                   children: [
-                    // CORRECTIF PRODUIT — « Mon compte » / pilule Étoiles
+                    // « Mon compte » / consultation gratuite
                     // rejoignent le flux normal de la colonne (au lieu d'un
                     // overlay `Positioned` au-dessus du wordmark) : sur les
                     // petits écrans (Samsung Galaxy A07/A075F), les 2 pilules
@@ -245,11 +245,11 @@ class _StarsDiscoveryHintState extends State<_StarsDiscoveryHint> {
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
           child: Row(
             children: [
-              const Text('⭐', style: TextStyle(fontSize: 18)),
+              const Text('💬', style: TextStyle(fontSize: 18)),
               const SizedBox(width: 10),
               Expanded(
                 child: Text(
-                  'Gagne du temps de consultation\nDes missions t’attendent aujourd’hui →',
+                  'Consultation gratuite\nRegardez une publicité pour poser une question →',
                   style: AuryelText.body(fontSize: 12.5, height: 1.35),
                 ),
               ),
@@ -330,7 +330,7 @@ class _AccountAndStarsRow extends StatelessWidget {
             ),
           ),
         ),
-        const _StarsPill(),
+        const _FreeConsultationPill(),
       ],
     );
   }
@@ -349,18 +349,12 @@ class _AccountAndStarsRow extends StatelessWidget {
 // jamais un montant inventé. Solde réellement à 0 -> affiche « 0 », jamais
 // masqué. Sans [RewardsScope] du tout (tests hérités qui ne montent que
 // `HomeScreen` sans le câbler) : masquée, seul cas où aucune donnée n'existe.
-class _StarsPill extends StatelessWidget {
-  const _StarsPill();
+class _FreeConsultationPill extends StatelessWidget {
+  const _FreeConsultationPill();
 
   /// `340` en dessous de 100 000 (jamais coupé) ; compacté seulement à une
   /// très grande valeur, en gardant 1 décimale (`"1.2M"`) — jamais une simple
   /// troncature qui perdrait toute précision.
-  static String _format(int stars) {
-    if (stars < 100000) return '$stars';
-    if (stars < 1000000) return '${(stars / 1000).toStringAsFixed(0)}k';
-    return '${(stars / 1000000).toStringAsFixed(1)}M';
-  }
-
   @override
   Widget build(BuildContext context) {
     final rewards = RewardsScope.maybeOf(context);
@@ -368,11 +362,12 @@ class _StarsPill extends StatelessWidget {
     return ListenableBuilder(
       listenable: rewards,
       builder: (context, _) {
-        final wallet = rewards.wallet;
-        final label = wallet == null ? '…' : _format(rewards.starsBalance);
+        final label = rewards.wallet == null
+            ? 'Consultation gratuite'
+            : '${rewards.questionsAvailable} question${rewards.questionsAvailable == 1 ? '' : 's'}';
         return Semantics(
           button: true,
-          label: wallet == null ? 'Mes Étoiles' : 'Mes Étoiles, $label',
+          label: 'Consultation gratuite, $label',
           child: Material(
             color: Colors.transparent,
             borderRadius: BorderRadius.circular(999),
@@ -394,11 +389,11 @@ class _StarsPill extends StatelessWidget {
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Text('⭐', style: TextStyle(fontSize: 15)),
+                    const Text('💬', style: TextStyle(fontSize: 15)),
                     const SizedBox(width: 6),
                     Text(
                       label,
-                      key: const Key('home-stars-pill-value'),
+                      key: const Key('home-free-consultation-pill-value'),
                       style: AuryelText.body(
                         fontSize: 12.5,
                         fontWeight: FontWeight.w600,
@@ -955,10 +950,7 @@ class _ShareRewardBlock extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final stars = _ruleStarsAmount(context, 'share_completed');
-    final headline = stars != null
-        ? 'Partage cette pensée et gagne +$stars ⭐'
-        : 'Partage cette pensée avec tes proches';
+    const headline = 'Partage cette pensée avec tes proches';
     final block = Column(
       mainAxisSize: MainAxisSize.min,
       children: [

@@ -6,7 +6,6 @@ import 'package:flutter/material.dart';
 import 'package:phosphor_icons/phosphor_icons.dart';
 
 import '../api/memory_api.dart';
-import '../api/rewards_api.dart' show RewardRule;
 import '../config/legal_texts.dart';
 import '../data/app_review_service.dart';
 import '../data/birth_date_parser.dart';
@@ -990,18 +989,23 @@ class _DashboardStarsSection extends StatelessWidget {
   Widget build(BuildContext context) {
     final c = controller;
     return _Section(
-      title: 'Mes Étoiles',
-      icon: PhosphorIconsRegular.star,
+      title: 'Consultation gratuite',
+      icon: PhosphorIconsRegular.chatCircle,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Text(
-            c == null ? 'Ton solde est disponible dans l’espace Étoiles.' : '${c.starsBalance} ⭐',
-            style: AuryelText.display(fontSize: 20, fontWeight: FontWeight.w600),
+            c == null
+                ? 'Tes avantages sont disponibles ici.'
+                : '${c.questionsAvailable} question(s) disponible(s)',
+            style: AuryelText.display(
+              fontSize: 20,
+              fontWeight: FontWeight.w600,
+            ),
           ),
           const SizedBox(height: 8),
           _LinkRow(
-            label: 'Voir mes missions',
+            label: 'Voir ma consultation gratuite',
             icon: PhosphorIconsRegular.arrowRight,
             onTap: () => Navigator.of(context).push(
               MaterialPageRoute(builder: (_) => const RewardsWalletScreen()),
@@ -1111,10 +1115,6 @@ class _RewardsSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final shareStars = RewardsScope.maybeOf(context)?.rules
-        .cast<RewardRule?>()
-        .firstWhere((r) => r!.ruleKey == 'share_completed', orElse: () => null)
-        ?.starsAmount;
     return _Section(
       title: 'Mes récompenses',
       icon: PhosphorIconsRegular.gift,
@@ -1130,7 +1130,7 @@ class _RewardsSection extends StatelessWidget {
           // wallet : ne duplique aucun solde, ouvre juste l'écran existant
           // (qui gère lui-même chargement/erreur).
           _LinkRow(
-            label: 'Voir mes Étoiles',
+            label: 'Voir ma consultation gratuite',
             icon: PhosphorIconsRegular.sparkle,
             onTap: () => Navigator.of(context).push(
               MaterialPageRoute(builder: (_) => const RewardsWalletScreen()),
@@ -1155,9 +1155,7 @@ class _RewardsSection extends StatelessWidget {
           ),
           const SizedBox(height: 6),
           Text(
-            shareStars != null
-                ? 'Chaque partage crédite +$shareStars ⭐.'
-                : 'Un geste simple, sans rien promettre en plus.',
+            'Un geste simple, sans crédit de consultation.',
             style: AuryelText.body(
               fontSize: 11.5,
               height: 1.4,
@@ -1172,8 +1170,7 @@ class _RewardsSection extends StatelessWidget {
           ),
           const SizedBox(height: 8),
           Text(
-            'Un partage compté par jour. Le crédit de tes Étoiles est géré '
-            'par nos serveurs.',
+            'Le partage reste une fonctionnalité de contenu.',
             style: AuryelText.body(
               fontSize: 10.5,
               height: 1.4,
@@ -1232,7 +1229,6 @@ class _MemoryRewardBlock extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final p = progress;
-    final stars = p?.starsReward ?? 0;
     final status = p == null
         ? null
         : (p.eligibleToday
@@ -1265,9 +1261,7 @@ class _MemoryRewardBlock extends StatelessWidget {
           children: [
             Expanded(
               child: Text(
-                stars > 0
-                    ? 'Termine une partie — +$stars ⭐'
-                    : 'Termine une partie',
+                'Termine une partie',
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 style: AuryelText.body(

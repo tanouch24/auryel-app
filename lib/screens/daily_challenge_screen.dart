@@ -48,7 +48,10 @@ class _DailyChallengeScreenState extends State<DailyChallengeScreen>
       final auth = AuthScope.maybeOf(context);
       final api = auth?.memoryApi;
       if (auth == null || api == null) return;
-      _controller = MemoryRewardsController(api: api, tokenProvider: auth.currentToken);
+      _controller = MemoryRewardsController(
+        api: api,
+        tokenProvider: auth.currentToken,
+      );
       _ownsController = true;
     }
     _controller!.addListener(_onChange);
@@ -83,7 +86,6 @@ class _DailyChallengeScreenState extends State<DailyChallengeScreen>
   Widget build(BuildContext context) {
     final c = _controller;
     final eligible = c?.eligibleToday;
-    final stars = c?.starsReward ?? 0;
 
     return Scaffold(
       body: Container(
@@ -119,9 +121,7 @@ class _DailyChallengeScreenState extends State<DailyChallengeScreen>
                 ),
                 const SizedBox(height: 8),
                 Text(
-                  stars > 0
-                      ? 'Termine un mini-jeu aujourd’hui : +$stars ⭐'
-                      : 'Termine un mini-jeu aujourd’hui pour une récompense.',
+                  'Termine un mini-jeu aujourd’hui pour le plaisir.',
                   style: AuryelText.body(
                     fontSize: 13,
                     height: 1.4,
@@ -177,7 +177,8 @@ class _DailyChallengeScreenState extends State<DailyChallengeScreen>
                 _GameCard(
                   icon: PhosphorIconsRegular.puzzlePiece,
                   title: 'Le Jeu Auryel',
-                  body: 'Retrouve les paires cachées. Trois niveaux, parties '
+                  body:
+                      'Retrouve les paires cachées. Trois niveaux, parties '
                       'illimitées.',
                   onTap: () => _openGame(const JeuAuryelScreen()),
                 ),
@@ -258,7 +259,11 @@ class _GameCard extends StatelessWidget {
                     ),
                   ),
                   alignment: Alignment.center,
-                  child: PhosphorIcon(icon, size: 20, color: AuryelColors.goldLight),
+                  child: PhosphorIcon(
+                    icon,
+                    size: 20,
+                    color: AuryelColors.goldLight,
+                  ),
                 ),
                 const SizedBox(width: 12),
                 Expanded(

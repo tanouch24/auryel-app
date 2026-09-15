@@ -34,12 +34,15 @@ class ConsultationApi {
     required String message,
     String? consultationId,
     String? tirageId,
+    String? idempotencyKey,
   }) async {
     final json = await _client.postJson('/api/consultation/message', {
       'message': message,
       if (consultationId != null && consultationId.isNotEmpty)
         'consultation_id': consultationId,
       if (tirageId != null && tirageId.isNotEmpty) 'tirage_id': tirageId,
+      if (idempotencyKey != null && idempotencyKey.isNotEmpty)
+        'idempotency_key': idempotencyKey,
     }, bearer: bearer);
     return ConsultationMessageResponse.fromJson(json);
   }

@@ -247,12 +247,9 @@ class _HiddenCardScreenState extends State<HiddenCardScreen> {
       body = _correct
           ? 'Bien joué, tu as retrouvé la bonne carte !'
           : 'Manche terminée — bien tenté !';
-    } else if (result.awarded) {
-      title = 'Bravo';
-      body = 'Tu as gagné ${result.starsAwarded} ⭐.';
-    } else if (result.isDailyLimitReached) {
+    } else if (result.awarded || result.isDailyLimitReached) {
       title = 'Manche terminée';
-      body = 'Tu as déjà obtenu la récompense mini-jeu du jour.';
+      body = 'Bien joué, ta partie est terminée.';
     } else {
       title = 'Manche terminée';
       body = _correct
