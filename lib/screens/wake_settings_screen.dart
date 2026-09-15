@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 
 import '../data/wake_sound_catalog.dart';
+import '../data/wake_video.dart';
 
 import 'package:permission_handler/permission_handler.dart';
 import 'package:phosphor_icons/phosphor_icons.dart';
@@ -14,10 +15,10 @@ import '../theme/auryel_theme.dart';
 import '../widgets/main_nav_scope.dart';
 import 'wake_ringing_screen.dart';
 
-/// Onglet « Réveil » — Réveil Auryel vocal. Volontairement SIMPLE :
+/// Onglet « Réveil » — Réveil Auryel. Volontairement SIMPLE :
 /// l'utilisateur choisit une heure, active/désactive, et éventuellement des
-/// jours de semaine. Il ne choisit JAMAIS sa phrase, une catégorie ou une
-/// voix (sélection automatique côté [WakeMessageSelector]).
+/// jours de semaine. La vidéo complète du réveil est préparée en cache local
+/// pour que l'alarme ne dépende pas d'un téléchargement au déclenchement.
 class WakeSettingsScreen extends StatefulWidget {
   const WakeSettingsScreen({super.key, this.channel, this.prefsStore});
 
@@ -47,6 +48,7 @@ class _WakeSettingsScreenState extends State<WakeSettingsScreen>
       widget.channel ?? MethodChannelWakeAlarm();
   late final WakeAlarmPrefsStore _store =
       widget.prefsStore ?? WakeAlarmPrefsStore();
+  late final WakeVideoCache _videoCache = WakeVideoCache();
 
   WakeAlarmSettings _settings = WakeAlarmSettings.defaults;
   bool _loading = true;
@@ -58,11 +60,13 @@ class _WakeSettingsScreenState extends State<WakeSettingsScreen>
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _load();
+    unawaited(_prepareWakeVideo());
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _videoCache.close();
     super.dispose();
   }
 
@@ -95,6 +99,10 @@ class _WakeSettingsScreenState extends State<WakeSettingsScreen>
     });
   }
 
+  Future<void> _prepareWakeVideo() async {
+    await _videoCache.prepare(WakeVideoCatalog.pilot);
+  }
+
   Future<void> _persist(WakeAlarmSettings next) async {
     setState(() => _settings = next);
     await _store.save(next);
@@ -113,10 +121,15 @@ class _WakeSettingsScreenState extends State<WakeSettingsScreen>
 
   Future<void> _testWake() async {
     if (!mounted) return;
+    await _prepareWakeVideo();
+    if (!mounted) return;
     await Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (_) =>
-            WakeRingingScreen(testMode: true, testSoundId: _settings.soundId),
+        builder: (_) => WakeRingingScreen(
+          testMode: true,
+          video: WakeVideoCatalog.pilot,
+          cache: _videoCache,
+        ),
       ),
     );
   }
