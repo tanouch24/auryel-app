@@ -854,7 +854,7 @@ class _RewardedAdCardState extends State<_RewardedAdCard> {
           ),
           const SizedBox(height: 6),
           Text(
-            'Chaque publicité terminée te rapporte +12 Étoiles. Cumule tes Étoiles et échange-les contre du temps avec ton conseiller.',
+            'Chaque publicité terminée te rapporte +$rewardedStarsAmount Étoiles. Cumule tes Étoiles et échange-les contre du temps avec ton conseiller.',
             style: AuryelText.body(
               fontSize: 12,
               color: AuryelColors.textSecondary,
@@ -866,7 +866,7 @@ class _RewardedAdCardState extends State<_RewardedAdCard> {
             key: const Key('watch-rewarded-ad'),
             onPressed: ready && !_busy ? _watch : null,
             child: Text(
-              _busy ? 'Chargement…' : 'Regarder une publicité · +6 ⭐',
+              rewardedAdCtaLabel(loading: _busy),
             ),
           ),
           if (_message != null) ...[

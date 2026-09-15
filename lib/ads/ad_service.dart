@@ -9,6 +9,13 @@ ServerSideVerificationOptions rewardedSsvOptions({
   required String customData,
 }) => ServerSideVerificationOptions(userId: userId, customData: customData);
 
+/// Montant annoncé par l'expérience Rewarded. Le crédit effectif reste
+/// validé et attribué exclusivement par le backend via SSV.
+const int rewardedStarsAmount = 12;
+
+String rewardedAdCtaLabel({bool loading = false}) =>
+    loading ? 'Chargement…' : 'Regarder une publicité · +$rewardedStarsAmount ⭐';
+
 /// Règles synchrones d'éligibilité d'une App Open. La décision reste séparée
 /// du chargement asynchrone afin d'être testable et de garantir qu'un statut
 /// Premium inconnu (transmis ici comme `isFree: false`) fail-open vers l'app.

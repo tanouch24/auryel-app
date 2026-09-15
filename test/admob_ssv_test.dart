@@ -26,6 +26,12 @@ void main() {
     );
   });
 
+  test('Rewarded annonce exactement 12 Étoiles dans son CTA', () {
+    expect(rewardedStarsAmount, 12);
+    expect(rewardedAdCtaLabel(), 'Regarder une publicité · +12 ⭐');
+    expect(rewardedAdCtaLabel(loading: true), 'Chargement…');
+  });
+
   test('App Open : Free authentifié et onboarding terminé est éligible', () {
     expect(
       appOpenEligibility(
