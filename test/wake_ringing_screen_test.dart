@@ -9,7 +9,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:auryel/api/api_client.dart';
 import 'package:auryel/api/rewards_api.dart';
 import 'package:auryel/data/wake_message.dart';
-import 'package:auryel/data/wake_message_catalog.dart';
 import 'package:auryel/data/wake_message_selector.dart';
 import 'package:auryel/screens/wake_after_screen.dart';
 import 'package:auryel/screens/wake_ringing_screen.dart';
@@ -142,10 +141,7 @@ void main() {
       await t.pump(const Duration(seconds: 8));
 
       expect(voice.spoken, isNotNull);
-      expect(
-        WakeMessageCatalog.items.map((m) => m.id),
-        contains(voice.spoken!.id),
-      );
+      expect(voice.spoken!.id, startsWith('motivation_'));
     },
   );
 
@@ -226,6 +222,37 @@ void main() {
 
     final popScope = t.widget<PopScope>(find.byType(PopScope));
     expect(popScope.canPop, isFalse);
+  });
+
+  testWidgets('le mode test joue la motivation sans snooze ni récompense', (
+    t,
+  ) async {
+    final voice = _FakeVoice();
+    final channel = _FakeChannel();
+    await t.pumpWidget(
+      MaterialApp(
+        home: WakeRingingScreen(
+          testMode: true,
+          testSoundId: 'freesound_community-wake-up-33353',
+          voicePlayer: voice,
+          alarmChannel: channel,
+          messagesOverride: const [
+            WakeMessage(id: 'test', text: 'Motivation de test.'),
+          ],
+        ),
+      ),
+    );
+    await t.pump();
+    await t.pump(const Duration(seconds: 4));
+
+    expect(find.text('Motivation de test.'), findsOneWidget);
+    expect(voice.calls, contains('speak:test'));
+    expect(find.text('Répéter dans 10 min'), findsNothing);
+
+    await t.tap(find.bySemanticsLabel('Éteindre le réveil'));
+    await t.pump(const Duration(milliseconds: 100));
+    expect(channel.calls, contains('stopRinging'));
+    expect(channel.calls, isNot(contains('snoozeAlarm')));
   });
 
   testWidgets(

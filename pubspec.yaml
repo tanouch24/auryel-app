@@ -104,6 +104,7 @@ flutter:
     - assets/images/tarot_table_blank.png
     - assets/wake_sounds/
     - assets/images/wake/
+    - assets/wake_motivations/
     - assets/pensees/pensees_100_site.json
     - assets/pensees/publications/
 

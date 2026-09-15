@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -9,6 +10,8 @@ import '../data/wake_alarm_prefs.dart';
 import '../data/wake_sound_catalog.dart';
 import '../services/wake_alarm_channel.dart';
 import '../theme/auryel_theme.dart';
+import '../widgets/main_nav_scope.dart';
+import 'wake_ringing_screen.dart';
 
 /// Onglet « Réveil » — Réveil Auryel vocal. Volontairement SIMPLE :
 /// l'utilisateur choisit une heure, active/désactive, et éventuellement des
@@ -49,19 +52,41 @@ class _WakeSettingsScreenState extends State<WakeSettingsScreen>
   bool _awaitingPermission = false;
   final AudioPlayer _previewPlayer = AudioPlayer();
   String? _previewingSoundId;
+  StreamSubscription<void>? _previewCompleteSubscription;
+  int? _lastNavIndex;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    _previewCompleteSubscription = _previewPlayer.onPlayerComplete.listen((_) {
+      if (mounted) setState(() => _previewingSoundId = null);
+    });
     _load();
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    unawaited(_stopPreview());
+    _previewCompleteSubscription?.cancel();
     _previewPlayer.dispose();
     super.dispose();
+  }
+
+  Future<void> _stopPreview() async {
+    try {
+      await _previewPlayer.stop();
+    } catch (_) {}
+    if (mounted && _previewingSoundId != null) {
+      setState(() => _previewingSoundId = null);
+    }
+  }
+
+  @override
+  void deactivate() {
+    unawaited(_stopPreview());
+    super.deactivate();
   }
 
   @override
@@ -72,6 +97,18 @@ class _WakeSettingsScreenState extends State<WakeSettingsScreen>
       _awaitingPermission = false;
       _tryEnable();
     }
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final nav = MainNavScope.maybeOf(context);
+    if (nav != null &&
+        nav.currentIndex != _lastNavIndex &&
+        nav.currentIndex != kTabReveil) {
+      unawaited(_stopPreview());
+    }
+    _lastNavIndex = nav?.currentIndex;
   }
 
   Future<void> _load() async {
@@ -101,19 +138,30 @@ class _WakeSettingsScreenState extends State<WakeSettingsScreen>
 
   Future<void> _preview(WakeSoundOption sound) async {
     if (_previewingSoundId == sound.id) {
-      await _previewPlayer.stop();
-      if (mounted) setState(() => _previewingSoundId = null);
+      await _stopPreview();
       return;
     }
-    await _previewPlayer.stop();
+    await _stopPreview();
     if (mounted) setState(() => _previewingSoundId = sound.id);
     try {
       await _previewPlayer.play(
         AssetSource(sound.assetPath.replaceFirst('assets/', '')),
       );
-    } finally {
+    } catch (_) {
       if (mounted) setState(() => _previewingSoundId = null);
     }
+  }
+
+  Future<void> _testWake() async {
+    await _stopPreview();
+    if (!mounted) return;
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) =>
+            WakeRingingScreen(testMode: true, testSoundId: _settings.soundId),
+      ),
+    );
+    await _stopPreview();
   }
 
   Future<void> _tryEnable() async {
@@ -417,8 +465,12 @@ class _WakeSettingsScreenState extends State<WakeSettingsScreen>
                       Padding(
                         padding: const EdgeInsets.only(bottom: 6),
                         child: InkWell(
-                          onTap: () =>
-                              _persist(_settings.copyWith(soundId: sound.id)),
+                          onTap: () async {
+                            await _stopPreview();
+                            await _persist(
+                              _settings.copyWith(soundId: sound.id),
+                            );
+                          },
                           borderRadius: BorderRadius.circular(10),
                           child: Padding(
                             padding: const EdgeInsets.symmetric(vertical: 5),
@@ -443,14 +495,18 @@ class _WakeSettingsScreenState extends State<WakeSettingsScreen>
                                     ),
                                   ),
                                 ),
-                                IconButton(
-                                  tooltip: 'Aperçu',
+                                TextButton.icon(
                                   onPressed: () => _preview(sound),
                                   icon: Icon(
                                     _previewingSoundId == sound.id
                                         ? Icons.stop_circle_outlined
                                         : Icons.play_circle_outline,
                                     color: AuryelColors.goldLight,
+                                  ),
+                                  label: Text(
+                                    _previewingSoundId == sound.id
+                                        ? 'Arrêter'
+                                        : 'Écouter',
                                   ),
                                 ),
                               ],
@@ -460,6 +516,12 @@ class _WakeSettingsScreenState extends State<WakeSettingsScreen>
                       ),
                   ],
                 ),
+              ),
+              const SizedBox(height: 16),
+              OutlinedButton.icon(
+                onPressed: _testWake,
+                icon: const Icon(Icons.play_circle_outline),
+                label: const Text('Tester mon réveil'),
               ),
               const SizedBox(height: 16),
               Text(

@@ -4,11 +4,17 @@
 /// qu'il n'existe pas encore pour ce message (repli TextToSpeech local,
 /// jamais un appel TTS payant au moment où le réveil sonne).
 class WakeMessage {
-  const WakeMessage({required this.id, required this.text, this.audioUrl});
+  const WakeMessage({
+    required this.id,
+    required this.text,
+    this.audioUrl,
+    this.audioAsset,
+  });
 
   final String id;
   final String text;
   final String? audioUrl;
+  final String? audioAsset;
 
   /// Parsing TOLÉRANT — `null` si `id`/`text` exploitables manquent (l'entrée
   /// est alors ignorée, jamais de crash).
@@ -30,5 +36,6 @@ class WakeMessage {
     'id': id,
     'text': text,
     if (audioUrl != null) 'audio_url': audioUrl,
+    if (audioAsset != null) 'audio_asset': audioAsset,
   };
 }

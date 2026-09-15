@@ -9,6 +9,10 @@ import '../data/content_repository.dart';
 import '../data/wake_message.dart';
 import '../data/wake_message_catalog.dart';
 import '../data/wake_message_selector.dart';
+import '../data/wake_motivation.dart';
+import '../data/wake_sound_catalog.dart';
+import '../data/wake_image_catalog.dart';
+import '../data/wake_alarm_prefs.dart';
 import '../services/wake_alarm_channel.dart';
 import '../state/rewards_controller.dart';
 import '../theme/auryel_theme.dart';
@@ -33,6 +37,13 @@ class DefaultWakeVoicePlayer implements WakeVoicePlayer {
 
   @override
   Future<void> speak(WakeMessage message) async {
+    final asset = message.audioAsset;
+    if (asset != null && asset.isNotEmpty) {
+      try {
+        await _player.play(ap.AssetSource(asset.replaceFirst('assets/', '')));
+        return;
+      } catch (_) {}
+    }
     final url = message.audioUrl;
     if (url != null && url.isNotEmpty) {
       try {
@@ -77,6 +88,8 @@ class WakeRingingScreen extends StatefulWidget {
     this.messageSelector,
     this.messagesOverride,
     this.now,
+    this.testMode = false,
+    this.testSoundId,
   });
 
   /// Test uniquement : lecteur vocal injecté (aucun canal plateforme réel).
@@ -87,6 +100,8 @@ class WakeRingingScreen extends StatefulWidget {
   /// Test uniquement : catalogue de messages injecté (sans [ContentScope]).
   final List<WakeMessage>? messagesOverride;
   final DateTime? now;
+  final bool testMode;
+  final String? testSoundId;
 
   @override
   State<WakeRingingScreen> createState() => _WakeRingingScreenState();
@@ -105,6 +120,7 @@ class _WakeRingingScreenState extends State<WakeRingingScreen> {
   Timer? _motivationTimer;
   DateTime _now = DateTime.now();
   bool _acting = false;
+  ap.AudioPlayer? _testAlarmPlayer;
 
   @override
   void initState() {
@@ -113,12 +129,36 @@ class _WakeRingingScreenState extends State<WakeRingingScreen> {
     _clockTimer = Timer.periodic(const Duration(seconds: 1), (_) {
       if (mounted) setState(() => _now = DateTime.now());
     });
+    if (widget.testMode) unawaited(_startTestSound());
     _loadAndSpeak();
+  }
+
+  Future<void> _startTestSound() async {
+    final player = ap.AudioPlayer();
+    _testAlarmPlayer = player;
+    await player.setReleaseMode(ap.ReleaseMode.loop);
+    await player.setVolume(0.65);
+    final sound = wakeSoundById(widget.testSoundId ?? kDefaultWakeSoundId);
+    try {
+      await player.play(
+        ap.AssetSource(sound.assetPath.replaceFirst('assets/', '')),
+      );
+    } catch (_) {}
   }
 
   Future<void> _loadAndSpeak() async {
     final override = widget.messagesOverride;
-    final catalog = override ?? await _resolveCatalog();
+    List<WakeMessage> catalog;
+    if (override != null) {
+      catalog = override;
+    } else {
+      try {
+        final local = await WakeMotivationCatalog.load();
+        catalog = local.map((item) => item.toMessage()).toList(growable: false);
+      } catch (_) {
+        catalog = await _resolveCatalog();
+      }
+    }
     if (!mounted) return;
     final picked = await _selector.pick(catalog);
     if (!mounted) return;
@@ -126,9 +166,15 @@ class _WakeRingingScreenState extends State<WakeRingingScreen> {
     if (picked != null) {
       // La sonnerie native reste prioritaire. La motivation arrive après un
       // court délai, afin de ne jamais parler par-dessus le signal d'alarme.
-      _motivationTimer = Timer(const Duration(seconds: 8), () {
-        if (mounted && !_acting) unawaited(_voice.speak(picked));
-      });
+      _motivationTimer = Timer(
+        Duration(seconds: widget.testMode ? 3 : 8),
+        () async {
+          if (!mounted || _acting) return;
+          if (widget.testMode) unawaited(_testAlarmPlayer?.stop());
+          if (!widget.testMode) await _channel.stopRinging();
+          if (mounted && !_acting) unawaited(_voice.speak(picked));
+        },
+      );
     }
   }
 
@@ -147,6 +193,7 @@ class _WakeRingingScreenState extends State<WakeRingingScreen> {
   void dispose() {
     _clockTimer?.cancel();
     _motivationTimer?.cancel();
+    unawaited(_testAlarmPlayer?.stop());
     unawaited(_voice.stop());
     super.dispose();
   }
@@ -159,6 +206,7 @@ class _WakeRingingScreenState extends State<WakeRingingScreen> {
     if (_acting) return;
     setState(() => _acting = true);
     _motivationTimer?.cancel();
+    unawaited(_testAlarmPlayer?.stop());
     await _voice.stop();
     await _channel.stopRinging();
     if (!mounted) return;
@@ -170,7 +218,9 @@ class _WakeRingingScreenState extends State<WakeRingingScreen> {
     // réveil). Fire-and-forget, jamais bloquant pour la transition vers
     // « Belle journée » : aucune erreur réseau ne doit retarder l'écran
     // suivant.
-    unawaited(RewardsScope.maybeReadOf(context)?.claim('wake_completed'));
+    if (!widget.testMode) {
+      unawaited(RewardsScope.maybeReadOf(context)?.claim('wake_completed'));
+    }
     Navigator.of(context).pushReplacement(
       MaterialPageRoute(builder: (_) => const WakeAfterScreen()),
     );
@@ -180,9 +230,10 @@ class _WakeRingingScreenState extends State<WakeRingingScreen> {
     if (_acting) return;
     setState(() => _acting = true);
     _motivationTimer?.cancel();
+    unawaited(_testAlarmPlayer?.stop());
     await _voice.stop();
     await _channel.stopRinging();
-    await _channel.snoozeAlarm(minutes: 10);
+    if (!widget.testMode) await _channel.snoozeAlarm(minutes: 10);
     if (!mounted) return;
     // `pop()` DIRECT — jamais `maybePop()` : l'écran est volontairement
     // couvert par `PopScope(canPop: false)` (retour système bloqué), ce qui
@@ -204,8 +255,17 @@ class _WakeRingingScreenState extends State<WakeRingingScreen> {
               fit: BoxFit.cover,
               errorBuilder: (_, _, _) => const SizedBox.shrink(),
             ),
-            Container(
-              color: AuryelColors.backgroundDeep.withValues(alpha: 0.82),
+            DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    AuryelColors.backgroundDeep.withValues(alpha: 0.22),
+                    AuryelColors.backgroundDeep.withValues(alpha: 0.62),
+                  ],
+                ),
+              ),
             ),
             SafeArea(
               child: Padding(
@@ -280,22 +340,23 @@ class _WakeRingingScreenState extends State<WakeRingingScreen> {
                       ),
                     ),
                     const SizedBox(height: 22),
-                    TextButton.icon(
-                      onPressed: _acting ? null : _snooze,
-                      icon: const PhosphorIcon(
-                        PhosphorIconsRegular.clockClockwise,
-                        size: 16,
-                        color: AuryelColors.textMuted,
-                      ),
-                      label: Text(
-                        'Répéter dans 10 min',
-                        style: AuryelText.body(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
+                    if (!widget.testMode)
+                      TextButton.icon(
+                        onPressed: _acting ? null : _snooze,
+                        icon: const PhosphorIcon(
+                          PhosphorIconsRegular.clockClockwise,
+                          size: 16,
                           color: AuryelColors.textMuted,
                         ),
+                        label: Text(
+                          'Répéter dans 10 min',
+                          style: AuryelText.body(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: AuryelColors.textMuted,
+                          ),
+                        ),
                       ),
-                    ),
                     const SizedBox(height: 8),
                   ],
                 ),
@@ -308,11 +369,6 @@ class _WakeRingingScreenState extends State<WakeRingingScreen> {
   }
 
   String get _wakeImageAsset {
-    const images = [
-      'assets/images/wake/reveil_aube_lac_brume_01.jpg',
-      'assets/images/wake/reveil_foret_bouleaux_etang_03.jpg',
-      'assets/images/wake/reveil_ocean_plage_aube_01.jpg',
-    ];
-    return images[(_now.day + _now.hour) % images.length];
+    return wakeImageAssets[(_now.day + _now.hour) % wakeImageAssets.length];
   }
 }
