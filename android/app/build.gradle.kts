@@ -72,6 +72,8 @@ android {
         // meta.properties absent -> SDK Meta non initialisé côté Dart.
         manifestPlaceholders["metaAppId"] = resolvedMetaAppId
         manifestPlaceholders["metaClientToken"] = resolvedMetaClientToken
+        manifestPlaceholders["adMobAppId"] =
+            "ca-app-pub-3940256099942544~3347511713"
     }
 
     signingConfigs {
@@ -86,6 +88,10 @@ android {
     }
 
     buildTypes {
+        debug {
+            manifestPlaceholders["adMobAppId"] =
+                "ca-app-pub-3940256099942544~3347511713"
+        }
         release {
             // Clé d'upload Auryel uniquement — plus AUCUN repli sur la clé debug.
             signingConfig = signingConfigs.getByName("release")
@@ -100,6 +106,8 @@ android {
             isShrinkResources = false
             // release n'est jamais debuggable (défaut AGP) — rendu explicite.
             isDebuggable = false
+            manifestPlaceholders["adMobAppId"] =
+                "ca-app-pub-6355299363807052~4131926439"
         }
     }
 }

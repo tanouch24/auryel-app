@@ -143,6 +143,25 @@ class RewardsController extends ChangeNotifier {
     }
   }
 
+  /// Appelé uniquement après le callback de récompense AdMob. L'event id
+  /// distingue les affichages réellement récompensés et protège les retries.
+  Future<RewardClaimResult?> claimRewardedAd(String eventId) async {
+    if (_disposed) return null;
+    final token = await _token();
+    if (token == null || token.isEmpty || _disposed) return null;
+    try {
+      final result = await _api.claimAction(
+        bearer: token,
+        actionKey: 'rewarded_ad_completed',
+        eventId: eventId,
+      );
+      await refresh();
+      return result;
+    } catch (_) {
+      return null;
+    }
+  }
+
   /// GROS CHANTIER AURYEL (Prompt 3/5) — CONSULTATION EXPRESS : débloque du
   /// temps de consultation contre des Étoiles. `idempotencyKey` DOIT être
   /// STABLE pour une même tentative d'achat — c'est L'APPELANT (l'écran) qui

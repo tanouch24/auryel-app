@@ -31,6 +31,7 @@ import 'notifications/notification_coordinator.dart';
 import 'notifications/notification_payload.dart';
 import 'notifications/push_token_registrar.dart';
 import 'analytics/meta_events.dart';
+import 'ads/ad_service.dart';
 import 'state/meta_consent_controller.dart';
 import 'screens/splash_screen.dart';
 import 'state/auryel_state.dart';
@@ -60,6 +61,8 @@ void main() async {
   );
   final metaConsent = MetaConsentController(events: metaEvents);
   unawaited(metaConsent.load());
+  // AdMob/UMP : initialisation non bloquante et fail-open.
+  unawaited(AuryelAds.instance.initialize());
 
   final apiClient = ApiClient();
   final consultationApi = ConsultationApi(apiClient);
@@ -259,6 +262,7 @@ class _AuryelAppState extends State<AuryelApp> with WidgetsBindingObserver {
   /// Affiche une notif locale quand un message FCM arrive app au premier plan
   /// (Android n'affiche rien tout seul). `null` si aucun coordinateur (tests).
   StreamSubscription<NotificationPayload>? _foregroundSub;
+  bool _wasBackgrounded = false;
 
   @override
   void initState() {
@@ -283,6 +287,9 @@ class _AuryelAppState extends State<AuryelApp> with WidgetsBindingObserver {
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.paused) {
+      _wasBackgrounded = true;
+    }
     // Retour de l'arrière-plan : une seule resynchro par passage au premier
     // plan — portefeuille (`/state`) ET liste des consultations (`/list`, J6-F2)
     // pour que « Consultations en cours » reflète l'activité la plus récente.
@@ -292,6 +299,17 @@ class _AuryelAppState extends State<AuryelApp> with WidgetsBindingObserver {
       widget.wellbeingProgram?.refresh();
       widget.wellbeingEbooks?.refresh();
       widget.rewards?.refresh();
+      if (_wasBackgrounded) {
+        _wasBackgrounded = false;
+        unawaited(
+          AuryelAds.instance.showAppOpenIfEligible(
+            isFree: widget.consultation.quota?.isPremium != true,
+            authenticated: widget.auth.isSignedIn,
+            onboardingComplete: widget.state.onboardingCompleted,
+            blocked: widget.consultation.hasActiveSession,
+          ),
+        );
+      }
     }
   }
 

@@ -51,6 +51,7 @@ dependencies:
   # StoreKit). Déclenché UNIQUEMENT par un tap explicite de l'utilisateur,
   # jamais de pop-up automatique, aucun review gating, aucune récompense.
   in_app_review: ^2.0.10
+  google_mobile_ads: ^9.1.0
   # Push Android (FCM). L'app démarre SANS Firebase configuré : sans
   # google-services.json + plugin Google Services, `Firebase.initializeApp()`
   # échoue proprement et le service passe en état « indisponible » (aucun crash,

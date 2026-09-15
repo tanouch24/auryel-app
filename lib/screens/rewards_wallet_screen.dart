@@ -1,15 +1,17 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:phosphor_icons/phosphor_icons.dart';
 
+import '../ads/ad_service.dart';
 import '../api/rewards_api.dart';
 import '../state/auth_controller.dart';
 import '../state/consultation_controller.dart';
 import '../state/rewards_controller.dart';
 import '../theme/auryel_theme.dart';
 import 'daily_challenge_screen.dart';
-import 'home_screen.dart';
-import 'meditation_library_screen.dart';
 import 'premium_screen.dart';
+import 'tirage_screen.dart';
 
 /// Libellés d'affichage des règles Étoiles — le SERVEUR décide QUELLES règles
 /// sont actives et COMBIEN elles rapportent (`RewardRule.starsAmount`) ; ce
@@ -164,6 +166,13 @@ class _RewardsWalletScreenState extends State<RewardsWalletScreen>
                     children: [
                       _BackHeader(),
                       const SizedBox(height: 8),
+                      if (ConsultationScope.maybeReadOf(context)
+                              ?.quota
+                              ?.isPremium ==
+                          false) ...[
+                        _RewardedAdCard(controller: c),
+                        const SizedBox(height: 14),
+                      ],
                       _BalanceBlock(controller: c),
                       const SizedBox(height: 14),
                       _NextTierBlock(controller: c),
@@ -182,8 +191,6 @@ class _RewardsWalletScreenState extends State<RewardsWalletScreen>
                       _SpendSection(controller: c),
                       const SizedBox(height: 14),
                       _MonthlyConversionCap(controller: c),
-                      const SizedBox(height: 16),
-                      _StreakSection(controller: c),
                       if (ConsultationScope.maybeReadOf(context)
                               ?.quota
                               ?.isPremium !=
@@ -647,9 +654,10 @@ class _RulesSection extends StatelessWidget {
 
   void _openActivity(BuildContext context, String ruleKey) {
     final Widget? destination = switch (ruleKey) {
-      'daily_card_completed' || 'share_completed' => const HomeScreen(),
-      'meditation_completed' => const MeditationLibraryScreen(),
       'mini_game_completed' => const DailyChallengeScreen(),
+      'tarot_completed' => const TirageScreen(),
+      'share_completed' => null,
+      'wake_completed' => null,
       _ => null,
     };
     if (destination != null) {
@@ -663,15 +671,14 @@ class _RulesSection extends StatelessWidget {
     return ListenableBuilder(
       listenable: controller,
       builder: (context, _) {
-        // UNIQUEMENT les règles ACTIVES renvoyées par le serveur — une action
-        // future désactivée (mini-jeux, AdMob) n'apparaît jamais ici.
+        // UNIQUEMENT les règles V4 actives renvoyées par le serveur.
         final rules = controller.rules
-            // AdMob is intentionally outside this release. If an older/newer
-            // server happens to expose the rule, do not present a fake action.
             .where(
               (r) =>
-                  r.ruleKey != 'streak_7_days' &&
-                  r.ruleKey != 'rewarded_ad_completed',
+                  r.ruleKey == 'mini_game_completed' ||
+                  r.ruleKey == 'tarot_completed' ||
+                  r.ruleKey == 'wake_completed' ||
+                  r.ruleKey == 'share_completed',
             )
             .toList(growable: false);
         return _SectionCard(
@@ -691,13 +698,8 @@ class _RulesSection extends StatelessWidget {
                       _RuleRow(
                         rule: rule,
                         onTap: switch (rule.ruleKey) {
-                          'daily_card_completed' ||
-                          'share_completed' ||
-                          'meditation_completed' ||
-                          'mini_game_completed' => () => _openActivity(
-                            context,
-                            rule.ruleKey,
-                          ),
+                          'tarot_completed' || 'mini_game_completed' =>
+                            () => _openActivity(context, rule.ruleKey),
                           _ => null,
                         },
                       ),
@@ -707,6 +709,103 @@ class _RulesSection extends StatelessWidget {
                 ),
         );
       },
+    );
+  }
+}
+
+class _RewardedAdCard extends StatefulWidget {
+  const _RewardedAdCard({required this.controller});
+
+  final RewardsController controller;
+
+  @override
+  State<_RewardedAdCard> createState() => _RewardedAdCardState();
+}
+
+class _RewardedAdCardState extends State<_RewardedAdCard> {
+  bool _busy = false;
+  String? _message;
+
+  Future<void> _watch() async {
+    if (_busy) return;
+    setState(() {
+      _busy = true;
+      _message = null;
+    });
+    final eventId = generateIdempotencyKey('ad');
+    final shown = await AuryelAds.instance.showRewarded(
+      onReward: () async {
+        final result = await widget.controller.claimRewardedAd(eventId);
+        if (mounted) {
+          setState(() {
+            _message = result?.awarded == true
+                ? '+${result!.starsAwarded} Étoiles reçues'
+                : 'Récompense déjà enregistrée ou indisponible.';
+          });
+        }
+      },
+    );
+    if (!mounted) return;
+    setState(() {
+      _busy = false;
+      if (!shown && _message == null) {
+        _message = 'Annonce indisponible pour le moment.';
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final ready = AuryelAds.instance.rewardedReady;
+    return Container(
+      key: const Key('rewarded-ad-card'),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: AuryelColors.gold.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: AuryelColors.gold.withValues(alpha: 0.45)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            'Regarde une publicité et augmente ton temps de consultation',
+            style: AuryelText.body(
+              fontSize: 15,
+              fontWeight: FontWeight.w700,
+              color: AuryelColors.textCream,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'Chaque publicité terminée te rapporte +6 Étoiles. Cumule tes Étoiles et échange-les contre du temps avec ton conseiller.',
+            style: AuryelText.body(
+              fontSize: 12,
+              color: AuryelColors.textSecondary,
+              height: 1.35,
+            ),
+          ),
+          const SizedBox(height: 12),
+          ElevatedButton(
+            key: const Key('watch-rewarded-ad'),
+            onPressed: ready && !_busy ? _watch : null,
+            child: Text(
+              _busy ? 'Chargement…' : 'Regarder une publicité · +6 ⭐',
+            ),
+          ),
+          if (_message != null) ...[
+            const SizedBox(height: 6),
+            Text(
+              _message!,
+              textAlign: TextAlign.center,
+              style: AuryelText.body(
+                fontSize: 11,
+                color: AuryelColors.goldLight,
+              ),
+            ),
+          ],
+        ],
+      ),
     );
   }
 }
@@ -1082,48 +1181,6 @@ void _showExpressSuccessDialog(
       ],
     ),
   );
-}
-
-class _StreakSection extends StatelessWidget {
-  const _StreakSection({required this.controller});
-
-  final RewardsController controller;
-
-  @override
-  Widget build(BuildContext context) {
-    return ListenableBuilder(
-      listenable: controller,
-      builder: (context, _) {
-        final streak = controller.streak;
-        return _SectionCard(
-          title: 'Série actuelle',
-          icon: PhosphorIconsRegular.fire,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                '🔥 ${streak.currentStreak} jour${streak.currentStreak > 1 ? 's' : ''}',
-                style: AuryelText.body(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                  color: AuryelColors.textCream,
-                ),
-              ),
-              const SizedBox(height: 6),
-              Text(
-                'Encore ${streak.nextRewardInDays} jour'
-                '${streak.nextRewardInDays > 1 ? 's' : ''} pour gagner +50 ⭐',
-                style: AuryelText.body(
-                  fontSize: 12.5,
-                  color: AuryelColors.textMuted,
-                ),
-              ),
-            ],
-          ),
-        );
-      },
-    );
-  }
 }
 
 class _HistorySection extends StatelessWidget {

@@ -360,10 +360,15 @@ class RewardsApi {
   Future<RewardClaimResult> claimAction({
     required String bearer,
     required String actionKey,
+    String? eventId,
   }) async {
-    final json = await _client.postJson('/api/app/rewards/claim', {
-      'action_key': actionKey,
-    }, bearer: bearer);
+    final body = <String, dynamic>{'action_key': actionKey};
+    if (eventId != null) body['event_id'] = eventId;
+    final json = await _client.postJson(
+      '/api/app/rewards/claim',
+      body,
+      bearer: bearer,
+    );
     return RewardClaimResult.fromJson(json);
   }
 

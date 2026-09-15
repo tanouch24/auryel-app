@@ -36,8 +36,8 @@ RewardsController _rewards() => RewardsController(
             'stars_balance': 235,
             'rules': [
               {
-                'rule_key': 'meditation_completed',
-                'stars_amount': 10,
+                'rule_key': 'tarot_completed',
+                'stars_amount': 2,
                 'daily_limit': 1,
               },
             ],
@@ -113,7 +113,7 @@ void main() {
       '235',
     );
     expect(find.textContaining('Plus que 165 ⭐'), findsOneWidget);
-    expect(find.text('Méditation'), findsOneWidget);
-    expect(find.text('+10 ⭐'), findsOneWidget);
+    expect(find.text('Méditation'), findsNothing);
+    expect(find.text('+2 ⭐'), findsOneWidget);
   });
 }
