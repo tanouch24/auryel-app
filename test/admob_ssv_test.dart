@@ -10,4 +10,19 @@ void main() {
     expect(options.userId, 'user-uuid');
     expect(options.customData, 'session-uuid');
   });
+
+  test('la configuration publique utilise le nouveau compte Rewarded', () {
+    expect(
+      AuryelAds.instance.productionRewardedUnitId,
+      'ca-app-pub-9787163762873138/6173561021',
+    );
+    expect(
+      AuryelAds.instance.productionBannerUnitId,
+      'ca-app-pub-9787163762873138/9130449740',
+    );
+    expect(
+      AuryelAds.instance.rewardedUnitId,
+      'ca-app-pub-3940256099942544/5224354917',
+    );
+  });
 }

@@ -815,8 +815,8 @@ class _RewardedAdCardState extends State<_RewardedAdCard> {
         if (mounted) {
           setState(() {
             _message = credited
-                ? '+6 Étoiles reçues'
-                : 'Récompense en cours de validation.';
+                ? '+12 Étoiles reçues'
+                : 'Validation de vos 12 Étoiles en cours.';
           });
         }
       },
@@ -854,7 +854,7 @@ class _RewardedAdCardState extends State<_RewardedAdCard> {
           ),
           const SizedBox(height: 6),
           Text(
-            'Chaque publicité terminée te rapporte +6 Étoiles. Cumule tes Étoiles et échange-les contre du temps avec ton conseiller.',
+            'Chaque publicité terminée te rapporte +12 Étoiles. Cumule tes Étoiles et échange-les contre du temps avec ton conseiller.',
             style: AuryelText.body(
               fontSize: 12,
               color: AuryelColors.textSecondary,

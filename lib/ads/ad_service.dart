@@ -19,9 +19,9 @@ class AuryelAds {
   static const _rewardedTest = 'ca-app-pub-3940256099942544/5224354917';
   static const _appOpenTest = 'ca-app-pub-3940256099942544/9257395921';
   static const _bannerTest = 'ca-app-pub-3940256099942544/6300978111';
-  static const _rewardedProduction = 'ca-app-pub-6355299363807052/1344137680';
-  static const _appOpenProduction = 'ca-app-pub-6355299363807052/4516417311';
-  static const _bannerProduction = 'ca-app-pub-6355299363807052/5857419144';
+  static const _rewardedProduction = 'ca-app-pub-9787163762873138/6173561021';
+  static const _appOpenProduction = 'ca-app-pub-9787163762873138/7440384547';
+  static const _bannerProduction = 'ca-app-pub-9787163762873138/9130449740';
 
   RewardedAd? _rewarded;
   AppOpenAd? _appOpen;
@@ -33,6 +33,9 @@ class AuryelAds {
   String get rewardedUnitId => kDebugMode ? _rewardedTest : _rewardedProduction;
   String get appOpenUnitId => kDebugMode ? _appOpenTest : _appOpenProduction;
   String get bannerUnitId => kDebugMode ? _bannerTest : _bannerProduction;
+  String get productionRewardedUnitId => _rewardedProduction;
+  String get productionAppOpenUnitId => _appOpenProduction;
+  String get productionBannerUnitId => _bannerProduction;
   bool get canRequestAds => _canRequestAds;
   bool get rewardedReady => _rewarded != null;
   bool get rewardedShowing => _rewardedShowing;

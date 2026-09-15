@@ -31,6 +31,7 @@ import '../widgets/auryel_wordmark.dart';
 import '../widgets/daily_message_sheet.dart';
 import '../widgets/gold_button.dart';
 import '../widgets/main_nav_scope.dart';
+import '../widgets/auryel_banner.dart';
 import 'dashboard_screen.dart';
 import 'premium_screen.dart';
 import 'rewards_wallet_screen.dart';
@@ -139,9 +140,10 @@ class HomeScreen extends StatelessWidget {
                         .animate()
                         .fadeIn(delay: 260.ms, duration: 500.ms),
                     const SizedBox(height: 16),
-                    const _WellbeingJourneyCta()
-                        .animate()
-                        .fadeIn(delay: 300.ms, duration: 500.ms),
+                    const _WellbeingJourneyCta().animate().fadeIn(
+                      delay: 300.ms,
+                      duration: 500.ms,
+                    ),
                     const SizedBox(height: 10),
                     (consultation == null
                             ? _TimeAvailableBlock(
@@ -173,6 +175,15 @@ class HomeScreen extends StatelessWidget {
                         .fadeIn(delay: 400.ms, duration: 500.ms),
                     const SizedBox(height: 10),
                     const _StarsDiscoveryHint(),
+                    const SizedBox(height: 4),
+                    consultation == null
+                        ? const SizedBox.shrink()
+                        : ListenableBuilder(
+                            listenable: consultation,
+                            builder: (context, _) => AuryelBanner(
+                              isPremium: consultation.quota?.isPremium,
+                            ),
+                          ),
                   ],
                 ),
               ),
@@ -216,9 +227,8 @@ class _StarsDiscoveryHintState extends State<_StarsDiscoveryHint> {
     } catch (_) {}
     if (!mounted) return;
     setState(() => _seen = true);
-    Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => const RewardsWalletScreen()),
-    );
+    Navigator.of(context)
+        .push(MaterialPageRoute(builder: (_) => const RewardsWalletScreen()));
   }
 
   @override

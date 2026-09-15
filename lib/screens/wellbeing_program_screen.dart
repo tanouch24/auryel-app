@@ -5,7 +5,9 @@ import '../api/wellbeing_program_api.dart';
 import '../api/wellbeing_ebooks_api.dart';
 import '../state/wellbeing_program_controller.dart';
 import '../state/wellbeing_ebooks_controller.dart';
+import '../state/consultation_controller.dart';
 import '../theme/auryel_theme.dart';
+import '../widgets/auryel_banner.dart';
 import 'consultation_screen.dart';
 
 class WellbeingProgramScreen extends StatefulWidget {
@@ -364,5 +366,23 @@ class _WellbeingProgramScreenState extends State<WellbeingProgramScreen> {
     ),
   );
 
-  Widget _scaffold(Widget body) => Scaffold(appBar: AppBar(), body: body);
+  Widget _scaffold(Widget body) {
+    final consultation = ConsultationScope.maybeReadOf(context);
+    final banner = consultation == null
+        ? const SizedBox.shrink()
+        : ListenableBuilder(
+            listenable: consultation,
+            builder: (context, _) =>
+                AuryelBanner(isPremium: consultation.quota?.isPremium),
+          );
+    return Scaffold(
+      appBar: AppBar(),
+      body: Column(
+        children: [
+          Expanded(child: body),
+          banner,
+        ],
+      ),
+    );
+  }
 }
