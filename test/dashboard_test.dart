@@ -313,10 +313,10 @@ void main() {
     await t.pump();
     await t.pump(const Duration(milliseconds: 50));
 
-    expect(find.text('MES ÉTOILES'), findsOneWidget);
-    expect(find.text('Ton solde est disponible dans l’espace Étoiles.'), findsOneWidget);
+    expect(find.text('Voir ma consultation gratuite'), findsOneWidget);
+    expect(find.textContaining('Étoile'), findsNothing);
     expect(find.text('3 jours de partage'), findsNothing);
-    expect(find.text('MES RÉCOMPENSES'), findsNothing);
+    expect(find.text('MES ÉTOILES'), findsNothing);
     expect(find.text('Ta pensée du jour'), findsNothing);
     // CORRECTIF PRODUIT — ancienne promesse retirée (univers Étoiles) ; sans
     // RewardsScope câblé (comme ici), CTA neutre, aucun montant inventé.
@@ -517,12 +517,12 @@ void main() {
     expect(find.byType(RewardsWalletScreen), findsNothing);
   });
 
-  testWidgets('Mes Étoiles — le raccourci du dashboard ouvre le wallet', (t) async {
+  testWidgets('Consultation gratuite — le raccourci du dashboard ouvre l’écran', (t) async {
     await t.pumpWidget(_dash());
     await t.pump();
 
-    await t.ensureVisible(find.text('Voir mes missions'));
-    await t.tap(find.text('Voir mes missions'));
+    await t.ensureVisible(find.text('Voir ma consultation gratuite'));
+    await t.tap(find.text('Voir ma consultation gratuite'));
     await t.pumpAndSettle();
 
     expect(find.byType(RewardsWalletScreen), findsOneWidget);

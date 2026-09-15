@@ -297,8 +297,7 @@ class _JeuAuryelScreenState extends State<JeuAuryelScreen> {
           ),
           const SizedBox(height: 8),
           Text(
-            'Retrouve les paires cachées. Termine vite pour gagner des '
-            'Étoiles.',
+            'Retrouve les paires cachées et termine la partie à ton rythme.',
             textAlign: TextAlign.center,
             style: AuryelText.body(
               fontSize: 12.5,

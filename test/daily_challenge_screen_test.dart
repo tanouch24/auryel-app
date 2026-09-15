@@ -54,7 +54,7 @@ void main() {
     await t.pump();
 
     expect(find.text('Défi du jour'), findsOneWidget);
-    expect(find.text('Termine un mini-jeu aujourd’hui : +15 ⭐'), findsOneWidget);
+    expect(find.text('Termine un mini-jeu aujourd’hui pour le plaisir.'), findsOneWidget);
     expect(find.text('Le Jeu Auryel'), findsOneWidget);
     expect(find.text('Suite intuitive'), findsOneWidget);
     expect(find.text('Carte cachée'), findsOneWidget);

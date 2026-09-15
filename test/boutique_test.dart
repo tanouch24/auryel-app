@@ -279,8 +279,8 @@ void main() {
     );
     await t.pump();
 
-    await t.ensureVisible(find.text('Voir mes missions'));
-    await t.tap(find.text('Voir mes missions'));
+    await t.ensureVisible(find.text('Voir ma consultation gratuite'));
+    await t.tap(find.text('Voir ma consultation gratuite'));
     await t.pumpAndSettle();
 
     expect(find.byType(RewardsWalletScreen), findsOneWidget);

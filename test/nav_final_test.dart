@@ -263,7 +263,7 @@ void main() {
       await t.pumpWidget(_dashboard(showBackButton: false));
       await t.pumpAndSettle();
 
-      expect(find.textContaining('Étoiles'), findsWidgets);
+      expect(find.text('Voir ma consultation gratuite'), findsOneWidget);
       expect(find.text('Découvrir Auryel'), findsNothing);
       await t.ensureVisible(find.text('Supprimer mon compte'));
       expect(find.text('Supprimer mon compte'), findsOneWidget);

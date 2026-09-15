@@ -156,8 +156,9 @@ void main() {
     await t.pumpWidget(_hostWithRewards(rewards));
     await t.pump(const Duration(seconds: 1));
 
-    expect(find.text('Partage cette pensée et gagne +15 ⭐'), findsOneWidget);
-    expect(find.text(_shareCta), findsNothing); // CTA neutre remplacé
+    expect(find.text('Partage cette pensée avec tes proches'), findsOneWidget);
+    expect(find.textContaining('⭐'), findsNothing);
+    expect(find.text(_shareCta), findsOneWidget); // CTA de partage conservé
   });
 
   testWidgets('C ter. tap sur le CTA ouvre l\'aperçu de LA publication du jour '

@@ -435,7 +435,7 @@ void main() {
     // TIMER-D.2 — Premium : achat prioritaire et missions en alternative.
     expect(find.text('Ton temps de consultation est terminé.'), findsOneWidget);
     expect(find.text('Acheter du temps'), findsOneWidget);
-    expect(find.text('Voir mes missions ⭐'), findsOneWidget);
+    expect(find.text('Consultation gratuite'), findsOneWidget);
     expect(find.text('Premium — 4,99 €/mois'), findsNothing);
     expect(find.textContaining('consultations de 2 h'), findsNothing);
     expect(find.textContaining('4 consultations'), findsNothing);
@@ -471,7 +471,7 @@ void main() {
         findsOneWidget,
       );
       expect(find.text('Acheter du temps'), findsOneWidget);
-      expect(find.text('Voir mes missions ⭐'), findsOneWidget);
+      expect(find.text('Consultation gratuite'), findsOneWidget);
       expect(find.textContaining('4 consultations'), findsNothing);
       expect(find.textContaining('consultations de 2 h'), findsNothing);
     },

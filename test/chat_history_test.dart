@@ -320,7 +320,8 @@ void main() {
     await t.pump();
     await t.pump();
     await t.pump(const Duration(seconds: 2));
-    expect(e.postBodies.single, {'message': 'je continue quand même'});
+    expect(e.postBodies.single['message'], 'je continue quand même');
+    expect(e.postBodies.single['idempotency_key'], isA<String>());
     expect(find.text('Réponse conseiller'), findsOneWidget);
 
     // Retry historique -> 2e GET, messages injectés, bandeau disparu.
@@ -356,10 +357,9 @@ void main() {
       await t.pump();
       await t.pump();
 
-      expect(e.postBodies.single, {
-        'message': 'à propos du tirage',
-        'tirage_id': 'tir-77',
-      });
+      expect(e.postBodies.single['message'], 'à propos du tirage');
+      expect(e.postBodies.single['tirage_id'], 'tir-77');
+      expect(e.postBodies.single['idempotency_key'], isA<String>());
       e.consultation.dispose();
     },
   );
@@ -456,10 +456,9 @@ void main() {
     await t.pump();
     await t.pump();
 
-    expect(e.postBodies.single, {
-      'message': 'bonjour Ezra',
-      'consultation_id': 'c-ezra',
-    });
+    expect(e.postBodies.single['message'], 'bonjour Ezra');
+    expect(e.postBodies.single['consultation_id'], 'c-ezra');
+    expect(e.postBodies.single['idempotency_key'], isA<String>());
     e.consultation.dispose();
   });
 
@@ -485,11 +484,10 @@ void main() {
     await t.pump();
     await t.pump();
 
-    expect(e.postBodies.single, {
-      'message': 'à propos du tirage',
-      'consultation_id': 'c-ezra',
-      'tirage_id': 'tir-9',
-    });
+    expect(e.postBodies.single['message'], 'à propos du tirage');
+    expect(e.postBodies.single['consultation_id'], 'c-ezra');
+    expect(e.postBodies.single['tirage_id'], 'tir-9');
+    expect(e.postBodies.single['idempotency_key'], isA<String>());
     e.consultation.dispose();
   });
 }

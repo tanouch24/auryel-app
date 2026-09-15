@@ -139,8 +139,8 @@ void main() {
 
     expect(s.completeCalls, 1);
     expect(find.text('Bravo'), findsOneWidget);
-    expect(find.text('Tu as gagné 15 ⭐.'), findsOneWidget);
-    expect(find.textContaining('solde d’Étoiles a été mis à jour'),
+    expect(find.text('Ta partie est terminée.'), findsOneWidget);
+    expect(find.textContaining('Les jeux restent des fonctionnalités de contenu.'),
         findsOneWidget);
     expect(find.text('Rejouer'), findsOneWidget);
     expect(find.text('Changer de niveau'), findsOneWidget);
@@ -168,7 +168,7 @@ void main() {
 
     expect(find.text('Partie terminée'), findsOneWidget);
     expect(
-      find.text('Termine en moins de 20 secondes pour gagner 15 ⭐.'),
+      find.text('Termine en moins de 20 secondes pour réussir la partie.'),
       findsOneWidget,
     );
     expect(find.text('Rejouer'), findsOneWidget);
@@ -192,9 +192,9 @@ void main() {
     await _winCurrentGame(t);
 
     expect(find.text('Partie terminée'), findsOneWidget);
-    expect(find.text('Tu as déjà obtenu la récompense mini-jeu du jour.'),
+    expect(find.text('Cette partie est déjà terminée.'),
         findsOneWidget);
-    expect(find.text('Reviens demain pour une nouvelle récompense.'),
+    expect(find.text('Reviens demain pour une nouvelle partie.'),
         findsOneWidget);
   });
 

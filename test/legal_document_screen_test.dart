@@ -92,7 +92,10 @@ void main() {
     expect(premium, contains('ne sont pas disponibles à ce jour'));
     expect(premium, contains('bonus non contractuels'));
     expect(premium, contains('20 minutes de consultation offertes'));
-    expect(premium, contains('+12 Étoiles par publicité validée'));
+    expect(premium, contains('une question complète'));
+    expect(premium, contains('dix publicités'));
+    expect(premium, contains('cinq minutes'));
+    expect(premium, isNot(contains('Étoiles')));
     expect(premium, isNot(contains('30 jours = 15 minutes')));
     expect(premium, isNot(contains('30 jours de partage = 1 heure')));
 

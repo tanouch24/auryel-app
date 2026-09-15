@@ -937,7 +937,7 @@ void main() {
         );
         expect(find.text('Premium — 4,99 €/mois'), findsNothing);
         expect(find.text('Acheter du temps'), findsOneWidget);
-        expect(find.text('Voir mes missions ⭐'), findsOneWidget);
+        expect(find.text('Consultation gratuite'), findsOneWidget);
         expect(rig.controller.active, isNull);
         // TIMER-D.1 — le corps du 402 resynchronise `time` (0) + `quota`.
         expect(rig.controller.time!.totalRemainingSeconds, 0);

@@ -138,7 +138,8 @@ void main() {
     await _confirm(tester);
     await tester.pumpAndSettle();
 
-    expect(e.msgBodies.single, {'message': 'bonjour'});
+      expect(e.msgBodies.single['message'], 'bonjour');
+      expect(e.msgBodies.single['idempotency_key'], isA<String>());
   });
 
   testWidgets(
@@ -155,11 +156,14 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(e.msgBodies.length, 1);
-      expect(e.msgBodies[0], {'message': 'premier', 'tirage_id': 'tir-42'});
+      expect(e.msgBodies[0]['message'], 'premier');
+      expect(e.msgBodies[0]['tirage_id'], 'tir-42');
+      expect(e.msgBodies[0]['idempotency_key'], isA<String>());
 
       await _send(tester, 'deuxième');
       expect(e.msgBodies.length, 2);
-      expect(e.msgBodies[1], {'message': 'deuxième'}); // plus de tirage_id
+      expect(e.msgBodies[1]['message'], 'deuxième'); // plus de tirage_id
+      expect(e.msgBodies[1]['tirage_id'], isNull);
     },
   );
 
@@ -179,12 +183,14 @@ void main() {
     await _confirm(tester);
     await tester.pumpAndSettle();
 
-    expect(e.msgBodies[0], {'message': 'msg', 'tirage_id': 'tir-net'});
+    expect(e.msgBodies[0]['message'], 'msg');
+    expect(e.msgBodies[0]['tirage_id'], 'tir-net');
     // retry
     await tester.tap(find.byIcon(Icons.send_rounded));
     await tester.pumpAndSettle();
     expect(e.msgBodies.length, 2);
-    expect(e.msgBodies[1], {'message': 'msg', 'tirage_id': 'tir-net'});
+    expect(e.msgBodies[1]['message'], 'msg');
+    expect(e.msgBodies[1]['tirage_id'], 'tir-net');
   });
 
   testWidgets('E. 1er POST 5xx : retry conserve tirage_id', (tester) async {
@@ -229,7 +235,8 @@ void main() {
     await _confirm(tester);
     await tester.pumpAndSettle();
 
-    expect(e.msgBodies[0], {'message': 'msg', 'tirage_id': 'tir-402'});
+    expect(e.msgBodies[0]['message'], 'msg');
+    expect(e.msgBodies[0]['tirage_id'], 'tir-402');
     final st = tester.state(find.byType(ChatScreen));
     expect((st as dynamic).debugPendingTirageId, 'tir-402');
   });
@@ -260,6 +267,7 @@ void main() {
     // On peut réessayer : le 2e POST part sans tirage_id et réussit.
     await tester.tap(find.byIcon(Icons.send_rounded));
     await tester.pumpAndSettle();
-    expect(e.msgBodies.last, {'message': 'msg'});
+    expect(e.msgBodies.last['message'], 'msg');
+    expect(e.msgBodies.last['idempotency_key'], isA<String>());
   });
 }

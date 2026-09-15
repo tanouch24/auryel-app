@@ -106,8 +106,8 @@ void main() {
       await t.pumpAndSettle();
 
       expect(finishCalled, isTrue);
-      expect(find.text('Bravo'), findsOneWidget);
-      expect(find.text('Tu as gagné 15 ⭐.'), findsOneWidget);
+      expect(find.text('Manche terminée'), findsOneWidget);
+      expect(find.text('Bien joué, ta partie est terminée.'), findsOneWidget);
       // Jamais de vocabulaire casino/pari.
       expect(find.textContaining('gagnant'), findsNothing);
       expect(find.textContaining('chance'), findsNothing);
