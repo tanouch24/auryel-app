@@ -107,7 +107,7 @@ android {
             // release n'est jamais debuggable (défaut AGP) — rendu explicite.
             isDebuggable = false
             manifestPlaceholders["adMobAppId"] =
-                "ca-app-pub-6355299363807052~4131926439"
+                "ca-app-pub-9787163762873138~1938355437"
         }
     }
 }
