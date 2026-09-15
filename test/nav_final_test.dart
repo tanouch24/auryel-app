@@ -102,22 +102,23 @@ void main() {
   // NAVIGATION (5 cas)
   // -------------------------------------------------------------------------
   group('Navigation V1', () {
-    testWidgets('N1 — les 5 onglets finaux sont présents (Réveil remplace Mon '
-        'compte), Boutique retirée', (t) async {
+    testWidgets('N1 — les 5 onglets finaux sont présents avec Boutique', (
+      t,
+    ) async {
       await t.pumpWidget(_shell());
       await t.pumpAndSettle();
 
       expect(_tab('Accueil'), findsOneWidget);
       expect(_tab('Bien-être'), findsOneWidget);
       expect(_tab('Consultation'), findsOneWidget);
-      expect(_tab('Méditation'), findsOneWidget);
+      expect(_tab('Boutique'), findsOneWidget);
       expect(_tab('Réveil'), findsOneWidget);
-      expect(_tab('Boutique'), findsNothing);
+      expect(_tab('Méditation'), findsNothing);
       expect(_tab('Mon compte'), findsNothing);
     });
 
     testWidgets('N2 — CONSULTATION est au centre (index 2) entre Bien-être '
-        'et Méditation', (t) async {
+        'et Boutique', (t) async {
       await t.pumpWidget(_shell());
       await t.pumpAndSettle();
 
@@ -125,7 +126,7 @@ void main() {
         t.getCenter(_tab('Accueil')).dx,
         t.getCenter(_tab('Bien-être')).dx,
         t.getCenter(_tab('Consultation')).dx,
-        t.getCenter(_tab('Méditation')).dx,
+        t.getCenter(_tab('Boutique')).dx,
         t.getCenter(_tab('Réveil')).dx,
       ];
       final sorted = [...xs]..sort();
@@ -220,7 +221,9 @@ void main() {
       await t.pumpAndSettle();
       expect(find.byKey(const Key('auryel-bottom-tab-bar')), findsOneWidget);
       expect(find.text('Consultation'), findsOneWidget);
-      expect(find.text('Méditation'), findsOneWidget);
+      expect(find.text('Bien-être'), findsOneWidget);
+      expect(find.text('Boutique'), findsOneWidget);
+      expect(find.text('Méditation'), findsNothing);
     });
 
     testWidgets('H3 — l\'accès consultation passe par l\'onglet dédié', (

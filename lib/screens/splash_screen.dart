@@ -12,6 +12,8 @@ import '../state/profile_restore.dart';
 import '../state/session_profile_gate.dart';
 import '../state/rewards_controller.dart';
 import '../state/wellbeing_controller.dart';
+import '../state/wellbeing_program_controller.dart';
+import '../state/wellbeing_ebooks_controller.dart';
 import '../theme/auryel_theme.dart';
 import 'adult_gate.dart';
 import 'intro_video_screen.dart';
@@ -48,6 +50,8 @@ class _SplashScreenState extends State<SplashScreen> {
     final auth = AuthScope.of(context);
     final consultation = ConsultationScope.of(context);
     final wellbeing = WellbeingScope.maybeOf(context);
+    final wellbeingProgram = WellbeingProgramScope.maybeOf(context);
+    final wellbeingEbooks = WellbeingEbooksScope.maybeOf(context);
     final rewards = RewardsScope.maybeOf(context);
     final introSeenFuture = IntroVideoStore().hasSeen();
     await Future.wait([
@@ -81,6 +85,8 @@ class _SplashScreenState extends State<SplashScreen> {
       // « Mon parcours bien-être » écoutent la MÊME instance partagée
       // (WellbeingScope) et se reconstruisent dès que cette réponse arrive.
       if (wellbeing != null) unawaited(wellbeing.refresh());
+      if (wellbeingProgram != null) unawaited(wellbeingProgram.refresh());
+      if (wellbeingEbooks != null) unawaited(wellbeingEbooks.refresh());
       // GROS CHANTIER AURYEL (Prompt 2/5) — ÉTOILES : même logique non
       // bloquante, même instance partagée (RewardsScope).
       if (rewards != null) unawaited(rewards.refresh());

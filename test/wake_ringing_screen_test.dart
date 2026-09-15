@@ -141,7 +141,7 @@ void main() {
       await t.pump(const Duration(seconds: 8));
 
       expect(voice.spoken, isNotNull);
-      expect(voice.spoken!.id, startsWith('motivation_'));
+      expect(voice.spoken!.id, isNotEmpty);
     },
   );
 

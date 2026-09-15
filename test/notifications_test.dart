@@ -206,16 +206,16 @@ void main() {
         kTabHome,
       );
     });
-    test('2 — daily_meditation -> Méditation (3)', () {
+    test('2 — daily_meditation -> Bien-être (1)', () {
       expect(
         router.routeFor(NotificationType.dailyMeditation)!.tabIndex,
-        kTabMeditation,
+        kTabBienEtre,
       );
     });
-    test('3 — weekly_sleep -> Méditation (3)', () {
+    test('3 — weekly_sleep -> Bien-être (1)', () {
       expect(
         router.routeFor(NotificationType.weeklySleep)!.tabIndex,
-        kTabMeditation,
+        kTabBienEtre,
       );
     });
     test('4 — personal_guidance -> Consultation (2), requiresAuth', () {
@@ -233,7 +233,10 @@ void main() {
       expect(router.routeFor(NotificationType.unknown), isNull);
     });
     test('ebook_monthly -> Bien-être (1)', () {
-      expect(router.routeFor(NotificationType.ebookMonthly)!.tabIndex, kTabBienEtre);
+      expect(
+        router.routeFor(NotificationType.ebookMonthly)!.tabIndex,
+        kTabBienEtre,
+      );
     });
     test('8 — aucune route ne cible un onglet hors 0..4 (jamais Boutique)', () {
       for (final t in NotificationType.values) {
@@ -311,18 +314,21 @@ void main() {
       coord.dispose();
     });
 
-    test('13 — token null (même connecté) -> registrar jamais appelé', () async {
-      final reg = _RecordingRegistrar();
-      final coord = NotificationCoordinator(
-        service: _FakeNotificationService(token: null),
-        registrar: reg,
-        isSignedIn: () => true,
-      );
-      await coord.start();
-      await Future<void>.delayed(Duration.zero);
-      expect(reg.registered, isEmpty);
-      coord.dispose();
-    });
+    test(
+      '13 — token null (même connecté) -> registrar jamais appelé',
+      () async {
+        final reg = _RecordingRegistrar();
+        final coord = NotificationCoordinator(
+          service: _FakeNotificationService(token: null),
+          registrar: reg,
+          isSignedIn: () => true,
+        );
+        await coord.start();
+        await Future<void>.delayed(Duration.zero);
+        expect(reg.registered, isEmpty);
+        coord.dispose();
+      },
+    );
 
     test('14 — connecté : token initial + refresh -> registrar.register '
         'appelé', () async {
@@ -343,29 +349,31 @@ void main() {
       coord.dispose();
     });
 
-    test('14b — déconnecté : le jeton est bufferisé, register PAS appelé, '
-        'puis onSignedIn() le flush ; unregisterCurrent() désenregistre',
-        () async {
-      final fake = _FakeNotificationService(token: 'tok-buf');
-      final reg = _RecordingRegistrar();
-      var signedIn = false;
-      final coord = NotificationCoordinator(
-        service: fake,
-        registrar: reg,
-        isSignedIn: () => signedIn,
-      );
-      await coord.start();
-      await Future<void>.delayed(Duration.zero);
-      expect(reg.registered, isEmpty); // pas de session -> rien envoyé
+    test(
+      '14b — déconnecté : le jeton est bufferisé, register PAS appelé, '
+      'puis onSignedIn() le flush ; unregisterCurrent() désenregistre',
+      () async {
+        final fake = _FakeNotificationService(token: 'tok-buf');
+        final reg = _RecordingRegistrar();
+        var signedIn = false;
+        final coord = NotificationCoordinator(
+          service: fake,
+          registrar: reg,
+          isSignedIn: () => signedIn,
+        );
+        await coord.start();
+        await Future<void>.delayed(Duration.zero);
+        expect(reg.registered, isEmpty); // pas de session -> rien envoyé
 
-      signedIn = true;
-      await coord.onSignedIn();
-      expect(reg.registered, contains('tok-buf'));
+        signedIn = true;
+        await coord.onSignedIn();
+        expect(reg.registered, contains('tok-buf'));
 
-      await coord.unregisterCurrent();
-      expect(reg.unregistered, contains('tok-buf'));
-      coord.dispose();
-    });
+        await coord.unregisterCurrent();
+        expect(reg.unregistered, contains('tok-buf'));
+        coord.dispose();
+      },
+    );
 
     test('NoopPushTokenRegistrar — n\'échoue jamais', () async {
       const reg = NoopPushTokenRegistrar();
@@ -384,20 +392,20 @@ void main() {
       expect(idx, kTabHome);
     });
 
-    testWidgets('2 — initial daily_meditation -> onglet 3', (t) async {
+    testWidgets('2 — initial daily_meditation -> Bien-être', (t) async {
       final fake = _FakeNotificationService(
         initial: _payload('daily_meditation'),
       );
-      expect(await _pumpShell(t, fake), kTabMeditation);
+      expect(await _pumpShell(t, fake), kTabBienEtre);
     });
 
-    testWidgets('3 — onMessageOpened weekly_sleep -> onglet 3', (t) async {
+    testWidgets('3 — onMessageOpened weekly_sleep -> Bien-être', (t) async {
       final fake = _FakeNotificationService();
       await _pumpShell(t, fake);
       expect(_currentIndex(t), kTabHome);
       fake.emitOpened(_payload('weekly_sleep'));
       await t.pumpAndSettle();
-      expect(_currentIndex(t), kTabMeditation);
+      expect(_currentIndex(t), kTabBienEtre);
     });
 
     testWidgets('4/10 — personal_guidance (connecté) -> onglet 2', (t) async {

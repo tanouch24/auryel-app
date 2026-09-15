@@ -66,37 +66,35 @@ void main() {
     ShopCartStore.debugResetInstance();
     _cart = ShopCartStore(autoLoad: false);
   });
-  testWidgets('A/B/C/D — bottom nav V1 = 5 onglets, Boutique retirée de la '
-      'navigation (son code reste dans le repo)', (t) async {
+  testWidgets('A/B/C/D — bottom nav V1 = 5 onglets avec Boutique', (t) async {
     await t.pumpWidget(_nav());
     await t.pumpAndSettle();
 
     expect(_tab('Accueil'), findsOneWidget);
     expect(_tab('Bien-être'), findsOneWidget);
     expect(_tab('Consultation'), findsOneWidget);
-    expect(_tab('Méditation'), findsOneWidget);
+    expect(_tab('Boutique'), findsOneWidget);
     expect(_tab('Réveil'), findsOneWidget);
 
-    expect(_tab('Boutique'), findsNothing);
+    expect(_tab('Méditation'), findsNothing);
     expect(_tab('Bibliothèque'), findsNothing);
     expect(_tab('Mon espace'), findsNothing);
   });
 
-  testWidgets('E — V1 : la Boutique n\'est plus reliée à la bottom nav — aucun '
+  testWidgets('E — V1 : la Boutique expose seulement son écran bientôt disponible — aucun '
       'catalogue / prix / panier exposé par la coquille', (t) async {
     await t.pumpWidget(_nav());
     await t.pumpAndSettle();
 
-    // Aucun onglet, aucun écran boutique monté par la navigation.
-    expect(_tab('Boutique'), findsNothing);
-    expect(find.byType(BoutiqueComingSoonScreen), findsNothing);
+    expect(_tab('Boutique'), findsOneWidget);
+    await t.tap(_tab('Boutique'));
+    await t.pumpAndSettle();
+    expect(find.byType(BoutiqueComingSoonScreen), findsOneWidget);
     expect(find.byType(BoutiqueScreen), findsNothing);
     expect(find.byType(CartScreen), findsNothing);
     expect(find.byType(ProductDetailScreen), findsNothing);
     expect(find.byTooltip('Mon panier'), findsNothing);
-    // Le shell monte désormais l'offre Premium dans Home ; ce n'est pas un
-    // produit Boutique. Les produits/panier Boutique restent absents.
-    expect(find.textContaining('4,99 €/mois'), findsOneWidget);
+    // Les produits/panier Boutique restent absents de l'écran V1.
     for (final p in kShopProducts) {
       expect(find.text(p.name), findsNothing, reason: p.name);
     }
@@ -109,8 +107,7 @@ void main() {
       await t.pumpWidget(const MaterialApp(home: BoutiqueComingSoonScreen()));
       await t.pumpAndSettle();
 
-      expect(find.text('À venir'), findsOneWidget);
-      expect(find.textContaining('bientôt'), findsNothing);
+      expect(find.text('Bientôt disponible'), findsOneWidget);
       expect(find.textContaining('jours'), findsNothing);
       expect(find.textContaining('202'), findsNothing); // pas d'année/date
     },

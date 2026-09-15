@@ -7,15 +7,17 @@ import 'package:phosphor_icons/phosphor_icons.dart';
 
 import '../data/content_repository.dart';
 import '../data/wake_message.dart';
-import '../data/wake_message_catalog.dart';
 import '../data/wake_message_selector.dart';
-import '../data/wake_motivation.dart';
+import '../data/wake_message_catalog.dart';
 import '../data/wake_sound_catalog.dart';
-import '../data/wake_image_catalog.dart';
 import '../data/wake_alarm_prefs.dart';
+import '../data/meditation_item.dart';
+import '../data/relaxation_video.dart';
+import '../data/wake_meditation_selector.dart';
 import '../services/wake_alarm_channel.dart';
 import '../state/rewards_controller.dart';
 import '../theme/auryel_theme.dart';
+import '../widgets/relaxation_video_background.dart';
 import 'wake_after_screen.dart';
 
 /// Lit le message vocal du Réveil Auryel : MP3 pré-généré (R2) si
@@ -99,9 +101,12 @@ class WakeRingingScreen extends StatefulWidget {
   /// Test uniquement : lecteur vocal injecté (aucun canal plateforme réel).
   final WakeVoicePlayer? voicePlayer;
   final WakeAlarmChannel? alarmChannel;
-  final WakeMessageSelector? messageSelector;
 
-  /// Test uniquement : catalogue de messages injecté (sans [ContentScope]).
+  /// Anciennes injections conservées dans la signature pour compatibilité des
+  /// tests/routeurs ; le Réveil V1 utilise désormais le catalogue Méditation.
+  @Deprecated('Le Réveil utilise le catalogue Méditation')
+  final WakeMessageSelector? messageSelector;
+  @Deprecated('Le Réveil utilise le catalogue Méditation')
   final List<WakeMessage>? messagesOverride;
   final DateTime? now;
   final bool testMode;
@@ -116,10 +121,9 @@ class _WakeRingingScreenState extends State<WakeRingingScreen> {
       widget.voicePlayer ?? DefaultWakeVoicePlayer();
   late final WakeAlarmChannel _channel =
       widget.alarmChannel ?? MethodChannelWakeAlarm();
-  late final WakeMessageSelector _selector =
-      widget.messageSelector ?? WakeMessageSelector();
-
-  WakeMessage? _message;
+  MeditationItem? _meditation;
+  RelaxationVideo? _video;
+  late final WakeMeditationSelection _selection = WakeMeditationSelection();
   Timer? _clockTimer;
   Timer? _motivationTimer;
   DateTime _now = DateTime.now();
@@ -133,19 +137,8 @@ class _WakeRingingScreenState extends State<WakeRingingScreen> {
     _clockTimer = Timer.periodic(const Duration(seconds: 1), (_) {
       if (mounted) setState(() => _now = DateTime.now());
     });
-    if (widget.testMode) unawaited(_startTestSound());
-    _loadAndSpeak();
-  }
-
-  Future<void> _startTestSound() async {
-    await _alarmPlayer.setReleaseMode(ap.ReleaseMode.loop);
-    await _alarmPlayer.setVolume(0.65);
-    final sound = wakeSoundById(widget.testSoundId ?? kDefaultWakeSoundId);
-    try {
-      await _alarmPlayer.play(
-        ap.AssetSource(sound.assetPath.replaceFirst('assets/', '')),
-      );
-    } catch (_) {}
+    unawaited(_startLoopingAlarm());
+    _loadAndPlayMeditation();
   }
 
   Future<void> _startLoopingAlarm() async {
@@ -160,55 +153,59 @@ class _WakeRingingScreenState extends State<WakeRingingScreen> {
     } catch (_) {}
   }
 
-  Future<void> _loadAndSpeak() async {
-    final override = widget.messagesOverride;
-    List<WakeMessage> catalog;
-    if (override != null) {
-      catalog = override;
-    } else {
-      try {
-        final local = await WakeMotivationCatalog.load();
-        catalog = local.map((item) => item.toMessage()).toList(growable: false);
-      } catch (_) {
-        catalog = await _resolveCatalog();
-      }
-    }
-    if (!mounted) return;
-    final picked = await _selector.pick(catalog);
-    if (!mounted) return;
-    setState(() => _message = picked);
-    if (picked != null) {
-      // La sonnerie native reste prioritaire. La motivation arrive après un
-      // court délai, afin de ne jamais parler par-dessus le signal d'alarme.
-      _motivationTimer = Timer(
-        Duration(seconds: widget.testMode ? 3 : 8),
-        () async {
-          if (!mounted || _acting) return;
-          // The native notification has already been stopped below for a
-          // real alarm. The local player is best-effort here so a platform
-          // audio teardown can never delay the motivation or the controls.
-          unawaited(_alarmPlayer.stop());
-          if (!widget.testMode) await _channel.stopRinging();
-          if (!mounted || _acting) return;
-          await _voice.speak(picked);
-          // La motivation est une interruption temporaire. Une vraie alarme
-          // reste active jusqu'à Éteindre ou Snooze, même si le MP3 de la
-          // sonnerie est court et même si la voix vient de finir.
-          if (mounted && !_acting) unawaited(_startLoopingAlarm());
-        },
-      );
-    }
+  Future<void> _loadAndPlayMeditation() async {
+    final content = ContentScope.maybeOf(context);
+    final picked = content == null
+        ? _legacyTestMeditation()
+        : await _selection.pick(content, widget.now ?? DateTime.now());
+    if (!mounted || picked == null) return;
+    setState(() {
+      _meditation = picked.item;
+      _video = picked.video;
+    });
+    // La méditation démarre après un court signal local en mode test. En vrai,
+    // le signal natif a déjà réveillé le téléphone ; l'audio reste prioritaire
+    // et le visuel vidéo demeure muet.
+    _motivationTimer = Timer(
+      Duration(seconds: widget.testMode ? 2 : 5),
+      () async {
+        if (!mounted || _acting) return;
+        unawaited(_alarmPlayer.stop());
+        if (!widget.testMode) await _channel.stopRinging();
+        if (!mounted || _acting) return;
+        final item = _meditation;
+        if (item == null) return;
+        final message = WakeMessage(
+          id: item.id,
+          text: item.description.isEmpty ? item.title : item.description,
+          audioUrl: item.audioUrl,
+          audioAsset: item.assetPath.isEmpty ? null : item.assetPath,
+        );
+        await _voice.speak(message);
+        if (mounted && !_acting) unawaited(_startLoopingAlarm());
+      },
+    );
   }
 
-  Future<List<WakeMessage>> _resolveCatalog() async {
-    final content = ContentScope.maybeOf(context);
-    if (content == null) return WakeMessageCatalog.items;
-    try {
-      final list = await content.wakeMessages();
-      return list.isEmpty ? WakeMessageCatalog.items : list;
-    } catch (_) {
-      return WakeMessageCatalog.items;
-    }
+  // Compatibilité uniquement pour les tests/écrans isolés qui ne montent pas
+  // ContentScope. Le parcours réel passe toujours par ContentRepository.
+  ({MeditationItem item, RelaxationVideo? video})? _legacyTestMeditation() {
+    final legacy = widget.messagesOverride;
+    final message = legacy?.isNotEmpty == true
+        ? legacy!.first
+        : WakeMessageCatalog.items.first;
+    return (
+      item: MeditationItem(
+        id: message.id,
+        title: message.text,
+        description: message.text,
+        assetPath: message.audioAsset ?? '',
+        audioUrl: message.audioUrl,
+        duration: Duration.zero,
+        category: MeditationCategory.detente,
+      ),
+      video: null,
+    );
   }
 
   @override
@@ -273,11 +270,20 @@ class _WakeRingingScreenState extends State<WakeRingingScreen> {
         body: Stack(
           fit: StackFit.expand,
           children: [
-            Image.asset(
-              _wakeImageAsset,
-              fit: BoxFit.cover,
-              errorBuilder: (_, _, _) => const SizedBox.shrink(),
-            ),
+            if (_video != null)
+              RelaxationVideoStage(
+                video: _video,
+                active: !_acting,
+                borderRadius: BorderRadius.zero,
+                caption: _meditation?.title,
+                fallback: Image.asset(_wakeImageAsset, fit: BoxFit.cover),
+              )
+            else
+              Image.asset(
+                _wakeImageAsset,
+                fit: BoxFit.cover,
+                errorBuilder: (_, _, _) => const SizedBox.shrink(),
+              ),
             DecoratedBox(
               decoration: BoxDecoration(
                 gradient: LinearGradient(
@@ -319,7 +325,7 @@ class _WakeRingingScreenState extends State<WakeRingingScreen> {
                     ),
                     const SizedBox(height: 28),
                     Text(
-                      _message?.text ?? 'Prends un instant pour toi.',
+                      _meditation?.title ?? 'Prends un instant pour toi.',
                       textAlign: TextAlign.center,
                       style: AuryelText.body(
                         fontSize: 16,
@@ -391,7 +397,6 @@ class _WakeRingingScreenState extends State<WakeRingingScreen> {
     );
   }
 
-  String get _wakeImageAsset {
-    return wakeImageAssets[(_now.day + _now.hour) % wakeImageAssets.length];
-  }
+  String get _wakeImageAsset =>
+      'assets/images/wake/reveil_aube_lac_brume_01.jpg';
 }

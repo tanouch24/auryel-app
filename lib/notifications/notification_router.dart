@@ -31,8 +31,8 @@ class NotificationRoute {
 /// Traduit un [NotificationType] en onglet. Table figée V1 :
 ///
 ///   daily_thought       -> Accueil        (0)
-///   daily_meditation    -> Méditation     (3)
-///   weekly_sleep        -> Méditation     (3)
+///   daily_meditation    -> Bien-être      (1, le lecteur reste une route interne)
+///   weekly_sleep        -> Bien-être      (1)
 ///   personal_guidance   -> Consultation   (2, requiresAuth)
 ///   weekly_life_lesson  -> Accueil        (0)   (pas de destination dédiée V1)
 ///   inconnu             -> null           (aucune navigation)
@@ -46,7 +46,7 @@ class NotificationRouter {
         return const NotificationRoute(tabIndex: kTabHome);
       case NotificationType.dailyMeditation:
       case NotificationType.weeklySleep:
-        return const NotificationRoute(tabIndex: kTabMeditation);
+        return const NotificationRoute(tabIndex: kTabBienEtre);
       case NotificationType.personalGuidance:
         return const NotificationRoute(
           tabIndex: kTabConsultation,

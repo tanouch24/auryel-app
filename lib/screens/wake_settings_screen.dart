@@ -2,12 +2,13 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
-import 'package:audioplayers/audioplayers.dart';
+
+import '../data/wake_sound_catalog.dart';
+
 import 'package:permission_handler/permission_handler.dart';
 import 'package:phosphor_icons/phosphor_icons.dart';
 
 import '../data/wake_alarm_prefs.dart';
-import '../data/wake_sound_catalog.dart';
 import '../services/wake_alarm_channel.dart';
 import '../theme/auryel_theme.dart';
 import '../widgets/main_nav_scope.dart';
@@ -50,43 +51,19 @@ class _WakeSettingsScreenState extends State<WakeSettingsScreen>
   WakeAlarmSettings _settings = WakeAlarmSettings.defaults;
   bool _loading = true;
   bool _awaitingPermission = false;
-  final AudioPlayer _previewPlayer = AudioPlayer();
-  String? _previewingSoundId;
-  StreamSubscription<void>? _previewCompleteSubscription;
   int? _lastNavIndex;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    _previewCompleteSubscription = _previewPlayer.onPlayerComplete.listen((_) {
-      if (mounted) setState(() => _previewingSoundId = null);
-    });
     _load();
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
-    unawaited(_stopPreview());
-    _previewCompleteSubscription?.cancel();
-    _previewPlayer.dispose();
     super.dispose();
-  }
-
-  Future<void> _stopPreview() async {
-    try {
-      await _previewPlayer.stop();
-    } catch (_) {}
-    if (mounted && _previewingSoundId != null) {
-      setState(() => _previewingSoundId = null);
-    }
-  }
-
-  @override
-  void deactivate() {
-    unawaited(_stopPreview());
-    super.deactivate();
   }
 
   @override
@@ -105,9 +82,7 @@ class _WakeSettingsScreenState extends State<WakeSettingsScreen>
     final nav = MainNavScope.maybeOf(context);
     if (nav != null &&
         nav.currentIndex != _lastNavIndex &&
-        nav.currentIndex != kTabReveil) {
-      unawaited(_stopPreview());
-    }
+        nav.currentIndex != kTabReveil) {}
     _lastNavIndex = nav?.currentIndex;
   }
 
@@ -136,24 +111,7 @@ class _WakeSettingsScreenState extends State<WakeSettingsScreen>
     }
   }
 
-  Future<void> _preview(WakeSoundOption sound) async {
-    if (_previewingSoundId == sound.id) {
-      await _stopPreview();
-      return;
-    }
-    await _stopPreview();
-    if (mounted) setState(() => _previewingSoundId = sound.id);
-    try {
-      await _previewPlayer.play(
-        AssetSource(sound.assetPath.replaceFirst('assets/', '')),
-      );
-    } catch (_) {
-      if (mounted) setState(() => _previewingSoundId = null);
-    }
-  }
-
   Future<void> _testWake() async {
-    await _stopPreview();
     if (!mounted) return;
     await Navigator.of(context).push(
       MaterialPageRoute(
@@ -161,7 +119,6 @@ class _WakeSettingsScreenState extends State<WakeSettingsScreen>
             WakeRingingScreen(testMode: true, testSoundId: _settings.soundId),
       ),
     );
-    await _stopPreview();
   }
 
   Future<void> _tryEnable() async {
@@ -447,73 +404,6 @@ class _WakeSettingsScreenState extends State<WakeSettingsScreen>
                           ),
                       ],
                     ),
-                    const SizedBox(height: 18),
-                    Align(
-                      alignment: Alignment.centerLeft,
-                      child: Text(
-                        'SONNERIE',
-                        style: AuryelText.body(
-                          fontSize: 10,
-                          fontWeight: FontWeight.w600,
-                          color: AuryelColors.textMuted,
-                          letterSpacing: 0.8,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    for (final sound in wakeSoundOptions)
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: 6),
-                        child: InkWell(
-                          onTap: () async {
-                            await _stopPreview();
-                            await _persist(
-                              _settings.copyWith(soundId: sound.id),
-                            );
-                          },
-                          borderRadius: BorderRadius.circular(10),
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 5),
-                            child: Row(
-                              children: [
-                                Icon(
-                                  _settings.soundId == sound.id
-                                      ? Icons.radio_button_checked
-                                      : Icons.radio_button_unchecked,
-                                  size: 20,
-                                  color: _settings.soundId == sound.id
-                                      ? AuryelColors.goldLight
-                                      : AuryelColors.textMuted,
-                                ),
-                                const SizedBox(width: 8),
-                                Expanded(
-                                  child: Text(
-                                    sound.label,
-                                    style: AuryelText.body(
-                                      fontSize: 12.5,
-                                      color: AuryelColors.textCream,
-                                    ),
-                                  ),
-                                ),
-                                TextButton.icon(
-                                  onPressed: () => _preview(sound),
-                                  icon: Icon(
-                                    _previewingSoundId == sound.id
-                                        ? Icons.stop_circle_outlined
-                                        : Icons.play_circle_outline,
-                                    color: AuryelColors.goldLight,
-                                  ),
-                                  label: Text(
-                                    _previewingSoundId == sound.id
-                                        ? 'Arrêter'
-                                        : 'Écouter',
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ),
                   ],
                 ),
               ),

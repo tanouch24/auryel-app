@@ -85,8 +85,9 @@ void main() {
       find.textContaining("Choisis l'heure de ton réveil"),
       findsOneWidget,
     );
-    expect(find.text('Réveil doux'), findsOneWidget);
-    expect(find.text('Cloche douce'), findsOneWidget);
+    expect(find.text('Sonnerie'), findsNothing);
+    expect(find.text('Écouter la sonnerie'), findsNothing);
+    expect(find.text('Tester mon réveil'), findsOneWidget);
     expect(find.text('07:00'), findsOneWidget);
     expect(
       t.widget<Switch>(find.byKey(const Key('wake-enabled-switch'))).value,

@@ -71,7 +71,7 @@ class BoutiqueComingSoonScreen extends StatelessWidget {
                   ),
                   const SizedBox(height: 12),
                   Text(
-                    'À venir',
+                    'Bientôt disponible',
                     textAlign: TextAlign.center,
                     style: AuryelText.display(
                       fontSize: 30,

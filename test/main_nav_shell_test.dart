@@ -18,7 +18,7 @@ import 'package:auryel/data/token_store.dart';
 import 'package:auryel/screens/consultation_screen.dart';
 import 'package:auryel/screens/dashboard_screen.dart';
 import 'package:auryel/screens/home_screen.dart';
-import 'package:auryel/screens/meditation_feed_screen.dart';
+import 'package:auryel/screens/boutique_coming_soon_screen.dart';
 import 'package:auryel/screens/tirage_screen.dart';
 import 'package:auryel/screens/wellbeing_program_screen.dart';
 import 'package:auryel/screens/wake_settings_screen.dart';
@@ -86,8 +86,8 @@ void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
 
   testWidgets(
-    'nav V2 (feed méditation + réveil vocal) : 5 onglets Accueil · Tirage & '
-    'Jeu · Consultation · Méditation · Réveil (Consultation au centre), '
+    'nav V3 : 5 onglets Accueil · Bien-être · Consultation · Boutique · Réveil '
+    '(Consultation au centre), '
     '« Mon compte » a QUITTÉ la barre du bas',
     (tester) async {
       await tester.pumpWidget(_wrap());
@@ -96,10 +96,10 @@ void main() {
       expect(_tab('Accueil'), findsOneWidget);
       expect(_tab('Bien-être'), findsOneWidget);
       expect(_tab('Consultation'), findsOneWidget);
-      expect(_tab('Méditation'), findsOneWidget);
+      expect(_tab('Boutique'), findsOneWidget);
       expect(_tab('Réveil'), findsOneWidget);
       // Boutique retirée de la bottom nav V1 ; Mon compte n'y est plus (V2).
-      expect(_tab('Boutique'), findsNothing);
+      expect(_tab('Méditation'), findsNothing);
       expect(_tab('Bibliothèque'), findsNothing);
       expect(_tab('Mon espace'), findsNothing);
       expect(_tab('Mon compte'), findsNothing);
@@ -107,17 +107,17 @@ void main() {
       // Ordre visuel : Consultation au centre (index 2), Réveil en dernier.
       final tirageX = tester.getCenter(_tab('Bien-être')).dx;
       final consultX = tester.getCenter(_tab('Consultation')).dx;
-      final meditX = tester.getCenter(_tab('Méditation')).dx;
+      final boutiqueX = tester.getCenter(_tab('Boutique')).dx;
       final reveilX = tester.getCenter(_tab('Réveil')).dx;
       expect(consultX, greaterThan(tirageX));
-      expect(meditX, greaterThan(consultX));
-      expect(reveilX, greaterThan(meditX));
+      expect(boutiqueX, greaterThan(consultX));
+      expect(reveilX, greaterThan(boutiqueX));
     },
   );
 
   testWidgets(
     'Accueil -> HomeScreen ; Bien-être -> programme ; Consultation -> feed ; '
-    'Méditation -> bibliothèque ; Réveil -> réglages ; bouton d\'en-tête '
+    'Boutique -> bientôt disponible ; Réveil -> réglages ; bouton d\'en-tête '
     '« Mon compte » -> Dashboard ; retour Accueil',
     (tester) async {
       await tester.pumpWidget(_wrap());
@@ -154,10 +154,11 @@ void main() {
       expect(find.byType(ConsultationScreen), findsOneWidget);
       expect(find.text('Consultations en cours'), findsOneWidget);
 
-      // Méditation : le FEED vertical (1 page = 1 séance + son visuel auto).
-      await tester.tap(_tab('Méditation'));
+      // Boutique : V1 sans produit ni paiement.
+      await tester.tap(_tab('Boutique'));
       await tester.pumpAndSettle();
-      expect(find.byType(MeditationFeedScreen), findsOneWidget);
+      expect(find.byType(BoutiqueComingSoonScreen), findsOneWidget);
+      expect(find.text('Bientôt disponible'), findsOneWidget);
 
       // Réveil : nouvel onglet, écran de réglages.
       await tester.tap(_tab('Réveil'));

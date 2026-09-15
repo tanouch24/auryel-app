@@ -9,7 +9,7 @@ import '../notifications/notification_router.dart';
 import '../notifications/notification_service.dart';
 import '../screens/consultation_screen.dart';
 import '../screens/home_screen.dart';
-import '../screens/meditation_feed_screen.dart';
+import '../screens/boutique_coming_soon_screen.dart';
 import '../screens/wellbeing_program_screen.dart';
 import '../screens/wake_settings_screen.dart';
 import '../state/auth_controller.dart';
@@ -24,16 +24,17 @@ export 'main_nav_scope.dart'
         kTabHome,
         kTabBienEtre,
         kTabConsultation,
+        kTabBoutique,
         kTabMeditation,
         kTabReveil;
 
 /// Coquille de navigation V2 (CORRECTIF « feed méditation + réveil vocal ») :
-/// 5 onglets — Accueil · Bien-être · CONSULTATION · Méditation · RÉVEIL.
+/// 5 onglets — Accueil · Bien-être · CONSULTATION · Boutique · RÉVEIL.
 /// CONSULTATION est AU CENTRE (index 2) et mise en avant visuellement (icône
 /// + relief doré). « Mon compte » QUITTE la barre du bas : accessible depuis
 /// le nouvel en-tête de l'Accueil (voir `home_screen.dart`), qui ouvre le
-/// Dashboard existant. La Boutique n'est plus un onglet V1 (son code reste
-/// dans le repo pour plus tard).
+/// Dashboard existant. Le lecteur Méditation reste accessible par ses routes
+/// internes et depuis les missions ; la Boutique occupe l'onglet principal.
 class MainNavShell extends StatefulWidget {
   const MainNavShell({super.key, this.notificationsOverride});
 
@@ -52,7 +53,7 @@ class _MainNavShellState extends State<MainNavShell> {
     HomeScreen(),
     WellbeingProgramScreen(),
     ConsultationScreen(),
-    MeditationFeedScreen(),
+    BoutiqueComingSoonScreen(),
     WakeSettingsScreen(),
   ];
 
@@ -175,9 +176,9 @@ class _AuryelTabBar extends StatelessWidget {
       activeIcon: PhosphorIconsFill.sparkle,
     ),
     (
-      label: 'Méditation',
-      icon: PhosphorIconsRegular.flowerLotus,
-      activeIcon: PhosphorIconsFill.flowerLotus,
+      label: 'Boutique',
+      icon: PhosphorIconsRegular.storefront,
+      activeIcon: PhosphorIconsFill.storefront,
     ),
     (
       label: 'Réveil',

@@ -1,8 +1,7 @@
 import 'package:flutter/widgets.dart';
 
-/// Index des onglets de [MainNavShell] (stables, partagés avec l'Accueil et les
-/// tests). Navigation : Accueil · Bien-être · CONSULTATION · Méditation ·
-/// RÉVEIL. « Mon compte » QUITTE la
+/// Index des onglets de [MainNavShell]. Navigation : Accueil · Bien-être ·
+/// Consultation · Boutique · Réveil. « Mon compte » QUITTE la
 /// barre du bas : accessible depuis le nouvel en-tête bien visible de
 /// l'Accueil (voir `home_screen.dart`), qui ouvre directement le Dashboard
 /// existant (aucun onglet dédié). (La Boutique n'est plus un onglet V1 — son
@@ -13,8 +12,11 @@ const int kTabBienEtre = 1;
 // désormais le Programme Bien-être, jamais l’ancien hub Tirage & Jeu.
 const int kTabTirage = kTabBienEtre;
 const int kTabConsultation = 2;
-const int kTabMeditation = 3;
+const int kTabBoutique = 3;
 const int kTabReveil = 4; // Réveil Auryel
+
+/// Compatibilité des routes/deep-links historiques vers le lecteur Méditation.
+const int kTabMeditation = kTabBoutique;
 
 /// Permet à un écran (ex. l'Accueil, depuis « Tes missions du jour ») de
 /// demander un changement d'onglet SANS reconstruire la barre de navigation, et

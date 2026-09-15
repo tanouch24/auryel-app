@@ -389,12 +389,27 @@ class ConsultationStateResponse {
   factory ConsultationStateResponse.fromJson(Map<String, dynamic> json) {
     final c = json['consultation'];
     final q = json['quota'];
+    final rawTime = json['time'];
+    // Compatibilité avec la courte période où le backend exposait le bucket
+    // bienvenue au niveau racine. On ne synthétise rien : ces valeurs doivent
+    // être présentes dans la réponse serveur et les clés canoniques restent
+    // prioritaires dès que le bloc `time` existe.
+    final timeJson = rawTime is Map<String, dynamic>
+        ? rawTime
+        : {
+            if (json.containsKey('welcome_seconds'))
+              'first_free_remaining_seconds': json['welcome_seconds'],
+            if (json.containsKey('welcome_remaining_seconds'))
+              'first_free_remaining_seconds': json['welcome_remaining_seconds'],
+            if (json.containsKey('consultation_seconds'))
+              'total_remaining_seconds': json['consultation_seconds'],
+          };
     return ConsultationStateResponse(
       consultation: c is Map<String, dynamic>
           ? ConsultationDto.fromJson(c)
           : null,
       quota: q is Map<String, dynamic> ? QuotaDto.fromJson(q) : QuotaDto.empty,
-      time: ConsultationTimeState.maybeFromJson(json['time']),
+      time: timeJson.isEmpty ? null : ConsultationTimeState.fromJson(timeJson),
     );
   }
 }

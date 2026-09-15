@@ -27,6 +27,7 @@ class MeditationItem {
     required this.duration,
     required this.category,
     this.audioUrl,
+    this.videoUrl,
   });
 
   /// Slug stable — sert de clé et de nom de fichier attendu
@@ -46,6 +47,11 @@ class MeditationItem {
   /// URL audio DISTANTE (catalogue backend). `null` pour le catalogue
   /// embarqué. Ignorée si elle n'est pas une URL `http(s)` exploitable.
   final String? audioUrl;
+
+  /// Vidéo associée lorsqu'elle est publiée par le catalogue méditations.
+  /// Les anciens catalogues peuvent l'omettre ; l'appelant peut alors utiliser
+  /// le catalogue partagé des vidéos d'ambiance comme repli visuel.
+  final String? videoUrl;
 
   /// Durée annoncée de la séance (indicative tant que l'audio n'est pas monté).
   final Duration duration;
@@ -101,6 +107,10 @@ class MeditationItem {
           : '',
       assetPath: (asset is String && asset.isNotEmpty) ? asset : '',
       audioUrl: (url is String && url.isNotEmpty) ? url : null,
+      videoUrl:
+          (j['video_url'] is String && (j['video_url'] as String).isNotEmpty)
+          ? (j['video_url'] as String).trim()
+          : null,
       duration: duration,
       category: _categoryFrom(j['category']),
     );

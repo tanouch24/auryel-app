@@ -438,7 +438,7 @@ void main() {
   testWidgets(
     'S/T — bottom nav V2 : « Mon compte » a QUITTÉ la barre du bas — le '
     'bouton d\'en-tête Accueil réutilise le Dashboard (une seule '
-    'implémentation), Boutique absente',
+    'implémentation), Boutique présente',
     (t) async {
       await t.pumpWidget(
         AuryelStateScope(
@@ -460,12 +460,12 @@ void main() {
         'Accueil',
         'Bien-être',
         'Consultation',
-        'Méditation',
+        'Boutique',
         'Réveil',
       ]) {
         expect(tab(label), findsOneWidget);
       }
-      expect(tab('Boutique'), findsNothing);
+      expect(tab('Méditation'), findsNothing);
       expect(tab('Bibliothèque'), findsNothing);
       expect(tab('Mon compte'), findsNothing);
 

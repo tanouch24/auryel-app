@@ -34,6 +34,7 @@ import 'dashboard_screen.dart';
 import 'premium_screen.dart';
 import 'rewards_wallet_screen.dart';
 import 'wellbeing_program_screen.dart';
+import 'meditation_feed_screen.dart';
 import 'tirage_jeu_screen.dart';
 
 /// Reset DEBUG uniquement (geste caché — appui long sur l'icône profil,
@@ -1112,10 +1113,11 @@ class _MissionsSectionState extends State<_MissionsSection>
         // sur une activité de consultation réelle).
         _goTab(kTabConsultation);
       case 'moment':
-        // Ouvre l'onglet Méditation. La mission ne se coche PAS ici :
-        // uniquement sur un démarrage vidéo RÉELLEMENT confirmé (cf.
-        // MeditationScreen / règle « Prends ton temps »).
-        _goTab(kTabMeditation);
+        // Le lecteur reste une route interne depuis le nouveau parcours ; il
+        // ne réapparaît pas comme onglet principal.
+        Navigator.of(
+          context,
+        ).push(MaterialPageRoute(builder: (_) => const MeditationFeedScreen()));
     }
     if (mounted) await _refresh();
   }
