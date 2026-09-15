@@ -9,6 +9,24 @@ ServerSideVerificationOptions rewardedSsvOptions({
   required String customData,
 }) => ServerSideVerificationOptions(userId: userId, customData: customData);
 
+/// Règles synchrones d'éligibilité d'une App Open. La décision reste séparée
+/// du chargement asynchrone afin d'être testable et de garantir qu'un statut
+/// Premium inconnu (transmis ici comme `isFree: false`) fail-open vers l'app.
+bool appOpenEligibility({
+  required bool canRequestAds,
+  required bool rewardedShowing,
+  required bool isFree,
+  required bool authenticated,
+  required bool onboardingComplete,
+  required bool blocked,
+}) =>
+    canRequestAds &&
+    !rewardedShowing &&
+    isFree &&
+    authenticated &&
+    onboardingComplete &&
+    !blocked;
+
 /// Façade unique AdMob. Les écrans ne manipulent jamais directement le SDK.
 /// En debug, seuls les identifiants de test Google sont utilisés.
 class AuryelAds {
@@ -194,12 +212,14 @@ class AuryelAds {
     required bool onboardingComplete,
     required bool blocked,
   }) async {
-    if (!_canRequestAds ||
-        _rewardedShowing ||
-        !isFree ||
-        !authenticated ||
-        !onboardingComplete ||
-        blocked) {
+    if (!appOpenEligibility(
+      canRequestAds: _canRequestAds,
+      rewardedShowing: _rewardedShowing,
+      isFree: isFree,
+      authenticated: authenticated,
+      onboardingComplete: onboardingComplete,
+      blocked: blocked,
+    )) {
       return;
     }
     final prefs = await SharedPreferences.getInstance();

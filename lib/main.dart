@@ -303,7 +303,12 @@ class _AuryelAppState extends State<AuryelApp> with WidgetsBindingObserver {
         _wasBackgrounded = false;
         unawaited(
           AuryelAds.instance.showAppOpenIfEligible(
-            isFree: widget.consultation.quota?.isPremium != true,
+            // Le statut Premium inconnu ne doit jamais être traité comme
+            // Free : une App Open ne peut être tentée qu'après un état quota
+            // réellement fourni par le backend.
+            isFree:
+                widget.consultation.quota != null &&
+                widget.consultation.quota!.isPremium == false,
             authenticated: widget.auth.isSignedIn,
             onboardingComplete: widget.state.onboardingCompleted,
             blocked: widget.consultation.hasActiveSession,

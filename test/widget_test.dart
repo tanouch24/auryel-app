@@ -108,7 +108,9 @@ AuryelApp _app({required AuryelState state, required AuthController auth}) =>
     );
 
 Future<void> _bootSplash(WidgetTester tester) async {
-  await tester.pump(const Duration(milliseconds: 2100)); // délai mini du splash
+  // Le splash Flutter ne contient plus de délai artificiel : le splash natif
+  // laisse place dès que la restauration et le routage sont prêts.
+  await tester.pump();
   await tester.pumpAndSettle();
 }
 
@@ -190,7 +192,6 @@ void main() {
     (tester) async {
       final state = AuryelState(repository: LocalOnboardingRepository());
       await tester.pumpWidget(_app(state: state, auth: _auth()));
-      expect(find.text('AURYEL'), findsOneWidget);
       await _bootSplash(tester);
       // Nouvel ordre : le premier écran est le prénom, plus le conseiller.
       expect(find.text('Comment veux-tu qu’on t’appelle ?'), findsOneWidget);

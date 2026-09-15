@@ -1,7 +1,6 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
-import 'package:flutter_animate/flutter_animate.dart';
 
 import '../data/intro_video_store.dart';
 import '../services/wake_alarm_channel.dart';
@@ -21,9 +20,13 @@ import 'onboarding/email_auth_screen.dart';
 import 'onboarding/first_name_screen.dart';
 import 'wake_ringing_screen.dart';
 
-/// Écran d'ouverture : le wordmark s'illumine, court et élégant (~2s), pendant
-/// que la session est restaurée en arrière-plan, puis fondu vers l'écran
-/// approprié. Vu à chaque lancement — ne doit jamais lasser.
+/// Pont de démarrage Flutter entre le splash natif et le premier écran utile.
+///
+/// Le splash système Android porte l'identité de lancement. Cet écran ne
+/// réaffiche donc aucun logo : il garde uniquement le fond Auryel pendant la
+/// restauration asynchrone de session, puis route vers la présentation ou
+/// l'application. Cela évite la séquence native → wordmark Flutter → vidéo
+/// d'introduction, qui donnait l'impression d'un double lancement.
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key, this.wakeAlarmChannel});
 
@@ -46,7 +49,8 @@ class _SplashScreenState extends State<SplashScreen> {
   }
 
   Future<void> _boot() async {
-    // Restauration de session + durée mini de splash, en parallèle.
+    // La durée du splash natif dépend du démarrage réel. Aucune temporisation
+    // artificielle : la présentation apparaît dès que le routage est prêt.
     final auth = AuthScope.of(context);
     final consultation = ConsultationScope.of(context);
     final wellbeing = WellbeingScope.maybeOf(context);
@@ -54,10 +58,7 @@ class _SplashScreenState extends State<SplashScreen> {
     final wellbeingEbooks = WellbeingEbooksScope.maybeOf(context);
     final rewards = RewardsScope.maybeOf(context);
     final introSeenFuture = IntroVideoStore().hasSeen();
-    await Future.wait([
-      auth.restore(),
-      Future<void>.delayed(const Duration(milliseconds: 2000)),
-    ]);
+    await auth.restore();
     final introSeen = await introSeenFuture;
     if (!mounted) return;
     // Resynchro de l'état consultation UNIQUEMENT une fois la session restaurée
@@ -216,129 +217,9 @@ class _SplashScreenState extends State<SplashScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: const BoxDecoration(
-        gradient: AuryelColors.backgroundGradient,
-      ),
-      child: Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Stack(
-              alignment: Alignment.center,
-              children: [
-                _Halo()
-                    .animate()
-                    .fadeIn(duration: 1300.ms, curve: Curves.easeOut)
-                    .scale(
-                      begin: const Offset(0.55, 0.55),
-                      end: const Offset(1, 1),
-                      duration: 1500.ms,
-                      curve: Curves.easeOutCubic,
-                    ),
-                _SplashWordmark()
-                    .animate()
-                    .fadeIn(
-                      delay: 150.ms,
-                      duration: 850.ms,
-                      curve: Curves.easeOut,
-                    )
-                    .slideY(
-                      begin: 0.06,
-                      end: 0,
-                      delay: 150.ms,
-                      duration: 850.ms,
-                      curve: Curves.easeOutCubic,
-                    ),
-              ],
-            ),
-            const SizedBox(height: 22),
-            _SplashOrnament()
-                .animate()
-                .fadeIn(delay: 950.ms, duration: 450.ms)
-                .scaleXY(
-                  begin: 0,
-                  end: 1,
-                  delay: 950.ms,
-                  duration: 500.ms,
-                  curve: Curves.easeOutCubic,
-                ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _Halo extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: 280,
-      height: 280,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        gradient: RadialGradient(
-          colors: [
-            AuryelColors.gold.withValues(alpha: 0.22),
-            AuryelColors.gold.withValues(alpha: 0.0),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _SplashWordmark extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return ShaderMask(
-      shaderCallback: (bounds) =>
-          AuryelColors.goldGradient.createShader(bounds),
-      child: Text(
-        'AURYEL',
-        style: AuryelText.display(
-          fontSize: 38,
-          fontWeight: FontWeight.w600,
-          color: Colors.white,
-          letterSpacing: 9,
-        ),
-      ),
-    );
-  }
-}
-
-class _SplashOrnament extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Container(
-          width: 26,
-          height: 1,
-          color: AuryelColors.gold.withValues(alpha: 0.45),
-        ),
-        Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 10),
-          child: Transform.rotate(
-            angle: 0.785398,
-            child: Container(
-              width: 7,
-              height: 7,
-              decoration: BoxDecoration(
-                gradient: AuryelColors.goldGradient,
-                borderRadius: BorderRadius.circular(1.5),
-              ),
-            ),
-          ),
-        ),
-        Container(
-          width: 26,
-          height: 1,
-          color: AuryelColors.gold.withValues(alpha: 0.45),
-        ),
-      ],
+    return const DecoratedBox(
+      decoration: BoxDecoration(gradient: AuryelColors.backgroundGradient),
+      child: SizedBox.expand(),
     );
   }
 }

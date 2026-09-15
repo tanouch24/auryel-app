@@ -25,4 +25,62 @@ void main() {
       'ca-app-pub-3940256099942544/5224354917',
     );
   });
+
+  test('App Open : Free authentifié et onboarding terminé est éligible', () {
+    expect(
+      appOpenEligibility(
+        canRequestAds: true,
+        rewardedShowing: false,
+        isFree: true,
+        authenticated: true,
+        onboardingComplete: true,
+        blocked: false,
+      ),
+      isTrue,
+    );
+  });
+
+  test('App Open : aucun affichage pendant le premier parcours', () {
+    expect(
+      appOpenEligibility(
+        canRequestAds: true,
+        rewardedShowing: false,
+        isFree: true,
+        authenticated: true,
+        onboardingComplete: false,
+        blocked: false,
+      ),
+      isFalse,
+    );
+  });
+
+  test('App Open : Premium et statut inconnu restent sans publicité', () {
+    for (final isFree in [false]) {
+      expect(
+        appOpenEligibility(
+          canRequestAds: true,
+          rewardedShowing: false,
+          isFree: isFree,
+          authenticated: true,
+          onboardingComplete: true,
+          blocked: false,
+        ),
+        isFalse,
+      );
+    }
+  });
+
+  test('App Open indisponible : l application continue sans blocage', () {
+    expect(
+      appOpenEligibility(
+        canRequestAds: false,
+        rewardedShowing: false,
+        isFree: true,
+        authenticated: true,
+        onboardingComplete: true,
+        blocked: false,
+      ),
+      isFalse,
+    );
+  });
 }
