@@ -40,14 +40,18 @@ class DefaultWakeVoicePlayer implements WakeVoicePlayer {
     final asset = message.audioAsset;
     if (asset != null && asset.isNotEmpty) {
       try {
+        final completed = _player.onPlayerComplete.first;
         await _player.play(ap.AssetSource(asset.replaceFirst('assets/', '')));
+        await completed;
         return;
       } catch (_) {}
     }
     final url = message.audioUrl;
     if (url != null && url.isNotEmpty) {
       try {
+        final completed = _player.onPlayerComplete.first;
         await _player.play(ap.UrlSource(url));
+        await completed;
         return;
       } catch (_) {
         /* échec MP3 -> repli TTS ci-dessous, jamais un réveil muet */
@@ -120,7 +124,7 @@ class _WakeRingingScreenState extends State<WakeRingingScreen> {
   Timer? _motivationTimer;
   DateTime _now = DateTime.now();
   bool _acting = false;
-  ap.AudioPlayer? _testAlarmPlayer;
+  late final ap.AudioPlayer _alarmPlayer = ap.AudioPlayer();
 
   @override
   void initState() {
@@ -134,13 +138,23 @@ class _WakeRingingScreenState extends State<WakeRingingScreen> {
   }
 
   Future<void> _startTestSound() async {
-    final player = ap.AudioPlayer();
-    _testAlarmPlayer = player;
-    await player.setReleaseMode(ap.ReleaseMode.loop);
-    await player.setVolume(0.65);
+    await _alarmPlayer.setReleaseMode(ap.ReleaseMode.loop);
+    await _alarmPlayer.setVolume(0.65);
     final sound = wakeSoundById(widget.testSoundId ?? kDefaultWakeSoundId);
     try {
-      await player.play(
+      await _alarmPlayer.play(
+        ap.AssetSource(sound.assetPath.replaceFirst('assets/', '')),
+      );
+    } catch (_) {}
+  }
+
+  Future<void> _startLoopingAlarm() async {
+    if (_acting || !mounted) return;
+    final sound = wakeSoundById(widget.testSoundId ?? kDefaultWakeSoundId);
+    try {
+      await _alarmPlayer.setReleaseMode(ap.ReleaseMode.loop);
+      await _alarmPlayer.setVolume(0.65);
+      await _alarmPlayer.play(
         ap.AssetSource(sound.assetPath.replaceFirst('assets/', '')),
       );
     } catch (_) {}
@@ -170,9 +184,17 @@ class _WakeRingingScreenState extends State<WakeRingingScreen> {
         Duration(seconds: widget.testMode ? 3 : 8),
         () async {
           if (!mounted || _acting) return;
-          if (widget.testMode) unawaited(_testAlarmPlayer?.stop());
+          // The native notification has already been stopped below for a
+          // real alarm. The local player is best-effort here so a platform
+          // audio teardown can never delay the motivation or the controls.
+          unawaited(_alarmPlayer.stop());
           if (!widget.testMode) await _channel.stopRinging();
-          if (mounted && !_acting) unawaited(_voice.speak(picked));
+          if (!mounted || _acting) return;
+          await _voice.speak(picked);
+          // La motivation est une interruption temporaire. Une vraie alarme
+          // reste active jusqu'à Éteindre ou Snooze, même si le MP3 de la
+          // sonnerie est court et même si la voix vient de finir.
+          if (mounted && !_acting) unawaited(_startLoopingAlarm());
         },
       );
     }
@@ -193,8 +215,9 @@ class _WakeRingingScreenState extends State<WakeRingingScreen> {
   void dispose() {
     _clockTimer?.cancel();
     _motivationTimer?.cancel();
-    unawaited(_testAlarmPlayer?.stop());
+    unawaited(_alarmPlayer.stop());
     unawaited(_voice.stop());
+    unawaited(_alarmPlayer.dispose());
     super.dispose();
   }
 
@@ -206,7 +229,7 @@ class _WakeRingingScreenState extends State<WakeRingingScreen> {
     if (_acting) return;
     setState(() => _acting = true);
     _motivationTimer?.cancel();
-    unawaited(_testAlarmPlayer?.stop());
+    unawaited(_alarmPlayer.stop());
     await _voice.stop();
     await _channel.stopRinging();
     if (!mounted) return;
@@ -230,7 +253,7 @@ class _WakeRingingScreenState extends State<WakeRingingScreen> {
     if (_acting) return;
     setState(() => _acting = true);
     _motivationTimer?.cancel();
-    unawaited(_testAlarmPlayer?.stop());
+    unawaited(_alarmPlayer.stop());
     await _voice.stop();
     await _channel.stopRinging();
     if (!widget.testMode) await _channel.snoozeAlarm(minutes: 10);

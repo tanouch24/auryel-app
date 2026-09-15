@@ -58,7 +58,16 @@ class ConsultationTimeState {
       purchasedRemainingSeconds;
 
   factory ConsultationTimeState.fromJson(Map<String, dynamic> json) {
-    final ff = _clampPos(_int(json['first_free_remaining_seconds']));
+    // A short-lived production compatibility response used
+    // `welcome_seconds`/`welcome_remaining_seconds` for the same server
+    // bucket. Accept those aliases only when the canonical key is absent;
+    // the backend remains the authority and no welcome time is invented.
+    final firstFreeRaw = json.containsKey('first_free_remaining_seconds')
+        ? json['first_free_remaining_seconds']
+        : (json.containsKey('welcome_remaining_seconds')
+              ? json['welcome_remaining_seconds']
+              : json['welcome_seconds']);
+    final ff = _clampPos(_int(firstFreeRaw));
     final pr = _clampPos(_int(json['premium_remaining_seconds']));
     final ea = _clampPos(_int(json['earned_remaining_seconds']));
     final pu = _clampPos(_int(json['purchased_remaining_seconds']));

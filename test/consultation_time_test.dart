@@ -73,6 +73,16 @@ void main() {
       expect(t.hasTime, isTrue);
     });
 
+    test('compatibilité welcome_seconds : conserve les 20 minutes serveur', () {
+      final state = ConsultationTimeState.fromJson({
+        'welcome_seconds': 1200,
+        'premium_remaining_seconds': 0,
+        'purchased_remaining_seconds': 0,
+      });
+      expect(state.firstFreeRemainingSeconds, 1200);
+      expect(state.totalRemainingSeconds, 1200);
+    });
+
     test('C. Premium : premium=28800, total=28800', () {
       final t = ConsultationTimeState.fromJson({
         'first_free_remaining_seconds': 0,
