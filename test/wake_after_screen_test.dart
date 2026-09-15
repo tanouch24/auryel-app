@@ -104,7 +104,11 @@ _Env _env({List<Map<String, dynamic>> threads = const []}) {
   return (auth: auth, controller: controller, posts: posts, openBodies: openBodies);
 }
 
-Future<void> _pump(WidgetTester tester, _Env e) async {
+Future<void> _pump(
+  WidgetTester tester,
+  _Env e, {
+  String? pendingContext,
+}) async {
   addTearDown(e.controller.dispose);
   final state = AuryelState(
     repository: LocalOnboardingRepository(),
@@ -126,7 +130,10 @@ Future<void> _pump(WidgetTester tester, _Env e) async {
         child: ConsultationScope(
           controller: e.controller,
           child: MaterialApp(
-            home: WakeAfterScreen(selectorAudioOverride: _FakeAudio()),
+            home: WakeAfterScreen(
+              selectorAudioOverride: _FakeAudio(),
+              pendingContext: pendingContext,
+            ),
           ),
         ),
       ),
@@ -163,6 +170,27 @@ void main() {
       expect(find.byType(WakeAfterScreen), findsNothing);
     },
   );
+
+  testWidgets('le contexte réveil devient un brouillon unique du chat', (
+    tester,
+  ) async {
+    final e = _env();
+    await _pump(
+      tester,
+      e,
+      pendingContext: 'Je viens de terminer mon réveil Auryel.',
+    );
+
+    await tester.tap(find.text('Parler à mon conseiller'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Parler avec Séléna'));
+    await tester.pumpAndSettle();
+    await tester.pump(const Duration(milliseconds: 200));
+    await tester.pumpAndSettle();
+
+    final chat = tester.widget<ChatScreen>(find.byType(ChatScreen));
+    expect(chat.initialMessage, 'Je viens de terminer mon réveil Auryel.');
+  });
 
   testWidgets(
     '« Parler à mon conseiller » ouvre le SÉLECTEUR (jamais un conseiller '

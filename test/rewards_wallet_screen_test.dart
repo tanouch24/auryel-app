@@ -41,6 +41,91 @@ Widget _host(RewardsController rewards) =>
     MaterialApp(home: RewardsWalletScreen(controller: rewards));
 
 void main() {
+  test('une transaction serveur du jour marque la mission comme réalisée', () {
+    final now = DateTime(2026, 9, 15, 12);
+    final wallet = RewardWallet.fromJson({
+      'stars_balance': 2,
+      'rules': [
+        {
+          'rule_key': 'mini_game_completed',
+          'stars_amount': 2,
+          'daily_limit': 1,
+        },
+        {'rule_key': 'tarot_completed', 'stars_amount': 2, 'daily_limit': 1},
+        {'rule_key': 'wake_completed', 'stars_amount': 2, 'daily_limit': 1},
+        {'rule_key': 'share_completed', 'stars_amount': 2, 'daily_limit': 1},
+      ],
+      'recent_transactions': [
+        {
+          'delta_stars': 2,
+          'balance_after': 2,
+          'reason': 'mini_game_completed',
+          'created_at': '2026-09-15T06:00:00Z',
+        },
+        {
+          'delta_stars': 2,
+          'balance_after': 4,
+          'reason': 'tarot_completed',
+          'created_at': '2026-09-15T07:00:00Z',
+        },
+        {
+          'delta_stars': 2,
+          'balance_after': 6,
+          'reason': 'wake_completed',
+          'created_at': '2026-09-15T08:00:00Z',
+        },
+        {
+          'delta_stars': 2,
+          'balance_after': 8,
+          'reason': 'share_completed',
+          'created_at': '2026-09-15T09:00:00Z',
+        },
+      ],
+    });
+
+    expect(wallet.hasClaimedToday('mini_game_completed', now: now), isTrue);
+    expect(wallet.hasClaimedToday('tarot_completed', now: now), isTrue);
+    expect(wallet.hasClaimedToday('wake_completed', now: now), isTrue);
+    expect(wallet.hasClaimedToday('share_completed', now: now), isTrue);
+    expect(wallet.hasClaimedToday('rewarded_ad_completed', now: now), isFalse);
+    expect(
+      wallet.hasClaimedToday('tarot_completed', now: DateTime(2026, 9, 16, 12)),
+      isFalse,
+    );
+  });
+
+  testWidgets('mission réalisée affiche le statut et masque Ouvrir', (t) async {
+    final now = DateTime.now().toUtc();
+    final rewards = _rewards(
+      (_) async => _json({
+        'stars_balance': 2,
+        'rules': [
+          {'rule_key': 'tarot_completed', 'stars_amount': 2, 'daily_limit': 1},
+          {
+            'rule_key': 'mini_game_completed',
+            'stars_amount': 2,
+            'daily_limit': 1,
+          },
+        ],
+        'recent_transactions': [
+          {
+            'delta_stars': 2,
+            'balance_after': 2,
+            'reason': 'tarot_completed',
+            'created_at': now.toIso8601String(),
+          },
+        ],
+      }),
+    );
+    addTearDown(rewards.dispose);
+    await t.pumpWidget(_host(rewards));
+    await t.pump();
+    await t.pump();
+
+    expect(find.text('Fait pour aujourd’hui ✓'), findsOneWidget);
+    expect(find.text('Ouvrir'), findsOneWidget);
+  });
+
   testWidgets(
     'affiche le solde et les règles V4 actives ainsi que l’historique',
     (t) async {

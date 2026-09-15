@@ -195,6 +195,25 @@ class RewardWallet {
   final int monthlyMinutesLimit;
   final int monthlyMinutesRemaining;
 
+  /// Indique si le serveur a déjà crédité [ruleKey] aujourd'hui.
+  ///
+  /// Le wallet ne reçoit pas encore une projection dédiée des claims du jour.
+  /// Les transactions qu'il expose restent toutefois la source serveur
+  /// existante : on ne consulte que les crédits de la règle concernée et la
+  /// date locale de leur horodatage serveur. [now] est injectable pour les
+  /// tests.
+  bool hasClaimedToday(String ruleKey, {DateTime? now}) {
+    final today = (now ?? DateTime.now()).toLocal();
+    return recentTransactions.any((transaction) {
+      final createdAt = transaction.createdAt?.toLocal();
+      return transaction.reason == ruleKey &&
+          createdAt != null &&
+          createdAt.year == today.year &&
+          createdAt.month == today.month &&
+          createdAt.day == today.day;
+    });
+  }
+
   factory RewardWallet.fromJson(Map<String, dynamic> json) {
     final rawRules = json['rules'];
     final rules = rawRules is List

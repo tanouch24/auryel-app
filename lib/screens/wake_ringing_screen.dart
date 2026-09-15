@@ -96,7 +96,11 @@ class _WakeRingingScreenState extends State<WakeRingingScreen> {
       unawaited(RewardsScope.maybeReadOf(context)?.claim('wake_completed'));
     }
     Navigator.of(context).pushReplacement(
-      MaterialPageRoute(builder: (_) => const WakeAfterScreen()),
+      MaterialPageRoute(
+        builder: (_) => const WakeAfterScreen(
+          pendingContext: 'Je viens de terminer mon réveil Auryel.',
+        ),
+      ),
     );
   }
 

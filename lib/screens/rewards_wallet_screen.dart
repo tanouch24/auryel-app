@@ -594,10 +594,11 @@ class _SectionCard extends StatelessWidget {
 /// que « Comment gagner des Étoiles » soit enfin compréhensible d'un coup
 /// d'œil (nom / récompense / description / limite éventuelle).
 class _RuleRow extends StatelessWidget {
-  const _RuleRow({required this.rule, this.onTap});
+  const _RuleRow({required this.rule, this.onTap, this.completedToday = false});
 
   final RewardRule rule;
   final VoidCallback? onTap;
+  final bool completedToday;
 
   @override
   Widget build(BuildContext context) {
@@ -655,7 +656,19 @@ class _RuleRow extends StatelessWidget {
               ),
             ),
           ],
-          if (onTap != null) ...[
+          if (completedToday)
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: Text(
+                'Fait pour aujourd’hui ✓',
+                style: AuryelText.body(
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w700,
+                  color: AuryelColors.goldLight,
+                ),
+              ),
+            )
+          else if (onTap != null) ...[
             const SizedBox(height: 6),
             Align(
               alignment: Alignment.centerRight,
@@ -725,8 +738,15 @@ class _RulesSection extends StatelessWidget {
                     for (final rule in rules) ...[
                       _RuleRow(
                         rule: rule,
+                        completedToday:
+                            controller.wallet?.hasClaimedToday(rule.ruleKey) ??
+                            false,
                         onTap: switch (rule.ruleKey) {
-                          'tarot_completed' || 'mini_game_completed' =>
+                          'tarot_completed' || 'mini_game_completed'
+                              when !(controller.wallet?.hasClaimedToday(
+                                    rule.ruleKey,
+                                  ) ??
+                                  false) =>
                             () => _openActivity(context, rule.ruleKey),
                           _ => null,
                         },

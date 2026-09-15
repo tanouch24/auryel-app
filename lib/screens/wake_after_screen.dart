@@ -21,12 +21,20 @@ import '../widgets/main_nav_shell.dart';
 /// [ConsultationController.openAdvisor] / [ChatScreen], rien de spécifique
 /// ici.
 class WakeAfterScreen extends StatefulWidget {
-  const WakeAfterScreen({super.key, this.selectorAudioOverride});
+  const WakeAfterScreen({
+    super.key,
+    this.selectorAudioOverride,
+    this.pendingContext,
+  });
 
   /// Test uniquement : lecteur audio du sélecteur de conseiller injecté
   /// (aucun canal plateforme réel en test) — même mécanisme que
   /// `TirageScreen.selectorAudioOverride`.
   final AdvisorAudio? selectorAudioOverride;
+
+  /// Brouillon contextuel à remettre au chat après un réveil réel. Il reste
+  /// soumis à l'envoi explicite de l'utilisateur et n'est jamais envoyé ici.
+  final String? pendingContext;
 
   @override
   State<WakeAfterScreen> createState() => _WakeAfterScreenState();
@@ -81,8 +89,11 @@ class _WakeAfterScreenState extends State<WakeAfterScreen> {
     if (known != null) {
       navigator.pushReplacement(
         MaterialPageRoute(
-          builder: (_) =>
-              ChatScreen(consultationId: known.id, advisor: picked),
+          builder: (_) => ChatScreen(
+            consultationId: known.id,
+            advisor: picked,
+            initialMessage: widget.pendingContext,
+          ),
         ),
       );
       return;
@@ -97,7 +108,11 @@ class _WakeAfterScreenState extends State<WakeAfterScreen> {
       if (!mounted) return;
       navigator.pushReplacement(
         MaterialPageRoute(
-          builder: (_) => ChatScreen(consultationId: dto.id, advisor: picked),
+          builder: (_) => ChatScreen(
+            consultationId: dto.id,
+            advisor: picked,
+            initialMessage: widget.pendingContext,
+          ),
         ),
       );
     } on ApiUnauthorizedException {
