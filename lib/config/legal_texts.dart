@@ -383,15 +383,17 @@ ou une réinstallation.
 
 RÉCOMPENSES — NON CONTRACTUELLES
 
-L'heure offerte est accordée une fois par compte selon les règles décidées
-par le serveur ; elle n'est pas cumulable par création de comptes multiples.
-La récompense de partage (« 30 jours de partage = 1 heure »), le parcours
-bien-être (« 30 jours = 15 minutes ») et le Jeu Auryel (5 à 15 minutes selon
-la difficulté, dans la limite de 30 minutes par période de 7 jours) créditent
-un temps de consultation UNIQUEMENT lorsque le serveur confirme le crédit ;
-ce sont des bonus non contractuels, sans valeur monétaire, qui ne font pas
-partie des prestations garanties de l'abonnement et ne sont jamais
-convertibles en argent.
+Chaque compte reçoit une seule fois 20 minutes de consultation offertes,
+selon les règles décidées par le serveur ; ce cadeau n'est pas recrédité lors
+d'un passage Premium et n'est pas cumulable par création de comptes multiples.
+Les Étoiles peuvent être gagnées notamment grâce aux publicités Rewarded
+(+12 Étoiles par publicité validée), aux mini-jeux, au tirage, au réveil et au
+partage, selon les limites quotidiennes définies par le serveur. Elles peuvent
+être converties en temps de consultation dans la limite de 30 minutes par
+mois. Ces avantages constituent des bonus non contractuels, sans valeur
+monétaire, ne font pas
+partie des prestations garanties de l'abonnement et ne sont jamais convertibles
+en argent.
 
 HEURE SUPPLÉMENTAIRE
 
