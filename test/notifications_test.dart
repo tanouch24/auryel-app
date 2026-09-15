@@ -238,6 +238,13 @@ void main() {
         kTabBienEtre,
       );
     });
+    test('wellbeing_daily -> Bien-être (1)', () {
+      final payload = NotificationPayload.fromData(const {
+        'type': 'wellbeing_daily',
+      });
+      expect(payload.type, NotificationType.wellbeingDaily);
+      expect(router.routeFor(payload.type)!.tabIndex, kTabBienEtre);
+    });
     test('8 — aucune route ne cible un onglet hors 0..4 (jamais Boutique)', () {
       for (final t in NotificationType.values) {
         final r = router.routeFor(t);

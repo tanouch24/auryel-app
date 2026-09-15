@@ -33,6 +33,40 @@ class AuryelAds {
   bool get rewardedReady => _rewarded != null;
   bool get rewardedShowing => _rewardedShowing;
 
+  /// Décision de confidentialité fournie par Google UMP.
+  Future<bool> privacyOptionsRequired() async {
+    try {
+      return await ConsentInformation.instance
+              .getPrivacyOptionsRequirementStatus() ==
+          PrivacyOptionsRequirementStatus.required;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// Ouvre le formulaire officiel UMP quand il est requis/disponible.
+  Future<bool> showPrivacyOptions() async {
+    try {
+      final result = Completer<bool>();
+      await ConsentForm.showPrivacyOptionsForm((error) {
+        if (!result.isCompleted) result.complete(error == null);
+      });
+      final shown = await result.future.timeout(
+        const Duration(seconds: 8),
+        onTimeout: () => false,
+      );
+      if (!shown) return false;
+      _canRequestAds = await ConsentInformation.instance.canRequestAds();
+      if (_canRequestAds) {
+        _loadRewarded();
+        _loadAppOpen();
+      }
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
   Future<void> initialize() async {
     if (_initializing) return;
     _initializing = true;
