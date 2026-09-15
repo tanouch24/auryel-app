@@ -14,6 +14,7 @@ class WakeAlarmSettings {
     required this.hour,
     required this.minute,
     required this.days,
+    this.soundId = kDefaultWakeSoundId,
   });
 
   final bool enabled;
@@ -22,12 +23,14 @@ class WakeAlarmSettings {
 
   /// `Calendar.DAY_OF_WEEK` (1=dimanche..7=samedi). Vide -> tous les jours.
   final Set<int> days;
+  final String soundId;
 
   static const WakeAlarmSettings defaults = WakeAlarmSettings(
     enabled: false,
     hour: 7,
     minute: 0,
     days: {},
+    soundId: kDefaultWakeSoundId,
   );
 
   WakeAlarmSettings copyWith({
@@ -35,13 +38,17 @@ class WakeAlarmSettings {
     int? hour,
     int? minute,
     Set<int>? days,
+    String? soundId,
   }) => WakeAlarmSettings(
     enabled: enabled ?? this.enabled,
     hour: hour ?? this.hour,
     minute: minute ?? this.minute,
     days: days ?? this.days,
+    soundId: soundId ?? this.soundId,
   );
 }
+
+const String kDefaultWakeSoundId = 'freesound_community-wake-up-33353';
 
 /// Persistance locale des réglages du Réveil Auryel.
 class WakeAlarmPrefsStore {
@@ -51,6 +58,7 @@ class WakeAlarmPrefsStore {
   static const String _hourKey = 'auryel.wake_alarm.hour';
   static const String _minuteKey = 'auryel.wake_alarm.minute';
   static const String _daysKey = 'auryel.wake_alarm.days';
+  static const String _soundKey = 'auryel.wake_alarm.sound';
 
   final SharedPreferences? _injected;
 
@@ -70,6 +78,7 @@ class WakeAlarmPrefsStore {
         hour: p.getInt(_hourKey) ?? WakeAlarmSettings.defaults.hour,
         minute: p.getInt(_minuteKey) ?? WakeAlarmSettings.defaults.minute,
         days: days ?? WakeAlarmSettings.defaults.days,
+        soundId: p.getString(_soundKey) ?? kDefaultWakeSoundId,
       );
     } catch (_) {
       return WakeAlarmSettings.defaults;
@@ -86,6 +95,7 @@ class WakeAlarmPrefsStore {
         _daysKey,
         settings.days.map((d) => d.toString()).toList(),
       );
+      await p.setString(_soundKey, settings.soundId);
     } catch (_) {
       /* réglage local best-effort — le natif reste la source d'exécution */
     }

@@ -5,6 +5,10 @@ import 'package:flutter/services.dart';
 /// de plateforme réel en test). Toute méthode est best-effort : un échec de
 /// canal ne doit jamais faire planter l'app ni bloquer les réglages.
 abstract class WakeAlarmChannel {
+  /// Mémorise le choix dans le stockage natif pour que les receivers puissent
+  /// l'utiliser sans démarrer Flutter.
+  Future<void> setAlarmSound(String soundId) async {}
+
   /// `true` si l'app peut programmer une alarme EXACTE. Toujours `true` avant
   /// Android 12 (permission spéciale inexistante).
   Future<bool> canScheduleExactAlarms();
@@ -52,6 +56,15 @@ class MethodChannelWakeAlarm implements WakeAlarmChannel {
     : _channel = channel ?? const MethodChannel('auryel/wake_alarm');
 
   final MethodChannel _channel;
+
+  @override
+  Future<void> setAlarmSound(String soundId) async {
+    try {
+      await _channel.invokeMethod('setAlarmSound', {'soundId': soundId});
+    } catch (_) {
+      /* compatible avec une ancienne build native */
+    }
+  }
 
   @override
   Future<bool> canScheduleExactAlarms() async {
@@ -132,9 +145,7 @@ class MethodChannelWakeAlarm implements WakeAlarmChannel {
   @override
   Future<bool> consumeWakeRingingLaunch() async {
     try {
-      return (await _channel.invokeMethod<bool>(
-            'consumeWakeRingingLaunch',
-          )) ??
+      return (await _channel.invokeMethod<bool>('consumeWakeRingingLaunch')) ??
           false;
     } catch (_) {
       return false;

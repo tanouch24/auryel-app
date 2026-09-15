@@ -28,8 +28,10 @@ object AlarmScheduler {
     private const val KEY_HOUR = "hour"
     private const val KEY_MINUTE = "minute"
     private const val KEY_DAYS = "days" // Set<String> de Calendar.DAY_OF_WEEK (1=dimanche..7=samedi)
+    private const val KEY_SOUND = "sound"
     private const val KEY_SNOOZE_EPOCH = "snooze_epoch_millis"
     const val EXTRA_WAKE_RINGING = "auryel.wake_ringing"
+    const val DEFAULT_SOUND = "wake_freesound_community_wake_up_33353"
 
     private fun prefs(ctx: Context) =
         ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
@@ -75,6 +77,13 @@ object AlarmScheduler {
         prefs(ctx).edit().putBoolean(KEY_ENABLED, false).remove(KEY_SNOOZE_EPOCH).apply()
         cancelSystemAlarm(ctx)
     }
+
+    fun setSound(ctx: Context, soundId: String) {
+        prefs(ctx).edit().putString(KEY_SOUND, soundId).apply()
+    }
+
+    fun soundResourceName(ctx: Context): String =
+        prefs(ctx).getString(KEY_SOUND, DEFAULT_SOUND) ?: DEFAULT_SOUND
 
     private fun cancelSystemAlarm(ctx: Context) {
         try {

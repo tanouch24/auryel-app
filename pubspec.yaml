@@ -102,6 +102,8 @@ flutter:
     - assets/images/tarot/
     - assets/images/tarot_card_back.png
     - assets/images/tarot_table_blank.png
+    - assets/wake_sounds/
+    - assets/images/wake/
     - assets/pensees/pensees_100_site.json
     - assets/pensees/publications/
 

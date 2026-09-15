@@ -14,6 +14,11 @@ class _FakeChannel implements WakeAlarmChannel {
   ({bool enabled, int hour, int minute, List<int> days})? lastSaved;
 
   @override
+  Future<void> setAlarmSound(String soundId) async {
+    calls.add('setAlarmSound:$soundId');
+  }
+
+  @override
   Future<bool> canScheduleExactAlarms() async {
     calls.add('canScheduleExactAlarms');
     return canScheduleExact;
@@ -80,8 +85,13 @@ void main() {
       find.textContaining("Choisis l'heure de ton réveil"),
       findsOneWidget,
     );
+    expect(find.text('Réveil doux'), findsOneWidget);
+    expect(find.text('Cloche douce'), findsOneWidget);
     expect(find.text('07:00'), findsOneWidget);
-    expect(t.widget<Switch>(find.byKey(const Key('wake-enabled-switch'))).value, isFalse);
+    expect(
+      t.widget<Switch>(find.byKey(const Key('wake-enabled-switch'))).value,
+      isFalse,
+    );
   });
 
   testWidgets(
@@ -89,7 +99,9 @@ void main() {
     'switch coché',
     (t) async {
       final channel = _FakeChannel(canScheduleExact: true);
-      final store = WakeAlarmPrefsStore(prefs: await SharedPreferences.getInstance());
+      final store = WakeAlarmPrefsStore(
+        prefs: await SharedPreferences.getInstance(),
+      );
       await t.pumpWidget(_host(channel: channel, store: store));
       await t.pumpAndSettle();
 
@@ -98,7 +110,10 @@ void main() {
 
       expect(channel.calls, contains('saveAlarm'));
       expect(channel.lastSaved!.enabled, isTrue);
-      expect(t.widget<Switch>(find.byKey(const Key('wake-enabled-switch'))).value, isTrue);
+      expect(
+        t.widget<Switch>(find.byKey(const Key('wake-enabled-switch'))).value,
+        isTrue,
+      );
       final reloaded = await store.load();
       expect(reloaded.enabled, isTrue);
     },
@@ -108,37 +123,45 @@ void main() {
     'désactiver -> cancelAlarm appelé, réglage local persisté désactivé',
     (t) async {
       final channel = _FakeChannel(canScheduleExact: true);
-      final store = WakeAlarmPrefsStore(prefs: await SharedPreferences.getInstance());
+      final store = WakeAlarmPrefsStore(
+        prefs: await SharedPreferences.getInstance(),
+      );
       await store.save(WakeAlarmSettings.defaults.copyWith(enabled: true));
       await t.pumpWidget(_host(channel: channel, store: store));
       await t.pumpAndSettle();
-      expect(t.widget<Switch>(find.byKey(const Key('wake-enabled-switch'))).value, isTrue);
+      expect(
+        t.widget<Switch>(find.byKey(const Key('wake-enabled-switch'))).value,
+        isTrue,
+      );
 
       await t.tap(find.byKey(const Key('wake-enabled-switch')));
       await t.pumpAndSettle();
 
       expect(channel.calls, contains('cancelAlarm'));
-      expect(t.widget<Switch>(find.byKey(const Key('wake-enabled-switch'))).value, isFalse);
+      expect(
+        t.widget<Switch>(find.byKey(const Key('wake-enabled-switch'))).value,
+        isFalse,
+      );
       expect((await store.load()).enabled, isFalse);
     },
   );
 
-  testWidgets(
-    'permission exacte MANQUANTE -> dialogue d\'autorisation, PAS de '
-    'saveAlarm immédiat, switch reste décoché',
-    (t) async {
-      final channel = _FakeChannel(canScheduleExact: false);
-      await t.pumpWidget(_host(channel: channel));
-      await t.pumpAndSettle();
+  testWidgets('permission exacte MANQUANTE -> dialogue d\'autorisation, PAS de '
+      'saveAlarm immédiat, switch reste décoché', (t) async {
+    final channel = _FakeChannel(canScheduleExact: false);
+    await t.pumpWidget(_host(channel: channel));
+    await t.pumpAndSettle();
 
-      await t.tap(find.byKey(const Key('wake-enabled-switch')));
-      await t.pumpAndSettle();
+    await t.tap(find.byKey(const Key('wake-enabled-switch')));
+    await t.pumpAndSettle();
 
-      expect(find.text('Autorisation nécessaire'), findsOneWidget);
-      expect(channel.calls, isNot(contains('saveAlarm')));
-      expect(t.widget<Switch>(find.byKey(const Key('wake-enabled-switch'))).value, isFalse);
-    },
-  );
+    expect(find.text('Autorisation nécessaire'), findsOneWidget);
+    expect(channel.calls, isNot(contains('saveAlarm')));
+    expect(
+      t.widget<Switch>(find.byKey(const Key('wake-enabled-switch'))).value,
+      isFalse,
+    );
+  });
 
   testWidgets(
     '« Ouvrir les réglages » demande la permission système, ne crashe jamais',
@@ -168,12 +191,17 @@ void main() {
     await t.pumpAndSettle();
 
     expect(find.text('Autorisation nécessaire'), findsNothing);
-    expect(t.widget<Switch>(find.byKey(const Key('wake-enabled-switch'))).value, isFalse);
+    expect(
+      t.widget<Switch>(find.byKey(const Key('wake-enabled-switch'))).value,
+      isFalse,
+    );
   });
 
   testWidgets('choisir un jour le persiste dans le réglage', (t) async {
     final channel = _FakeChannel();
-    final store = WakeAlarmPrefsStore(prefs: await SharedPreferences.getInstance());
+    final store = WakeAlarmPrefsStore(
+      prefs: await SharedPreferences.getInstance(),
+    );
     await t.pumpWidget(_host(channel: channel, store: store));
     await t.pumpAndSettle();
 
@@ -187,7 +215,9 @@ void main() {
   testWidgets('réglage déjà activé au chargement -> saveAlarm réarmé '
       'avec ce réglage', (t) async {
     final channel = _FakeChannel();
-    final store = WakeAlarmPrefsStore(prefs: await SharedPreferences.getInstance());
+    final store = WakeAlarmPrefsStore(
+      prefs: await SharedPreferences.getInstance(),
+    );
     await store.save(
       const WakeAlarmSettings(enabled: true, hour: 6, minute: 15, days: {2, 3}),
     );
@@ -195,6 +225,9 @@ void main() {
     await t.pumpAndSettle();
 
     expect(find.text('06:15'), findsOneWidget);
-    expect(t.widget<Switch>(find.byKey(const Key('wake-enabled-switch'))).value, isTrue);
+    expect(
+      t.widget<Switch>(find.byKey(const Key('wake-enabled-switch'))).value,
+      isTrue,
+    );
   });
 }

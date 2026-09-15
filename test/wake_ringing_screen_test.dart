@@ -35,6 +35,9 @@ class _FakeChannel implements WakeAlarmChannel {
   int? lastSnoozeMinutes;
 
   @override
+  Future<void> setAlarmSound(String soundId) async {}
+
+  @override
   Future<bool> canScheduleExactAlarms() async => true;
   @override
   Future<void> requestExactAlarmPermission() async {}
@@ -107,15 +110,17 @@ void main() {
         home: WakeRingingScreen(
           voicePlayer: voice,
           alarmChannel: channel,
-          messagesOverride: const [WakeMessage(id: 'x', text: 'Douce phrase du matin.')],
+          messagesOverride: const [
+            WakeMessage(id: 'x', text: 'Douce phrase du matin.'),
+          ],
           now: DateTime(2026, 1, 1, 6, 45),
         ),
       ),
     );
     await t.pump();
-    await t.pump(const Duration(milliseconds: 50));
-
     expect(find.text('06:45'), findsOneWidget);
+    await t.pump(const Duration(seconds: 8));
+
     expect(find.text('Douce phrase du matin.'), findsOneWidget);
     expect(voice.calls, contains('speak:x'));
   });
@@ -134,7 +139,7 @@ void main() {
         ),
       );
       await t.pump();
-      await t.pump(const Duration(milliseconds: 50));
+      await t.pump(const Duration(seconds: 8));
 
       expect(voice.spoken, isNotNull);
       expect(

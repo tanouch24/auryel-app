@@ -57,6 +57,10 @@ class MainActivity : FlutterActivity() {
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, channelName)
             .setMethodCallHandler { call, result ->
                 when (call.method) {
+                    "setAlarmSound" -> {
+                        AlarmScheduler.setSound(this, call.argument<String>("soundId") ?: AlarmScheduler.DEFAULT_SOUND)
+                        result.success(null)
+                    }
                     "canScheduleExactAlarms" ->
                         result.success(AlarmScheduler.canScheduleExactAlarms(this))
 

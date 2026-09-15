@@ -14,7 +14,12 @@ void main() {
   });
 
   test('copyWith ne modifie que les champs fournis', () {
-    const s = WakeAlarmSettings(enabled: true, hour: 6, minute: 30, days: {2, 3});
+    const s = WakeAlarmSettings(
+      enabled: true,
+      hour: 6,
+      minute: 30,
+      days: {2, 3},
+    );
     final next = s.copyWith(hour: 8);
     expect(next.hour, 8);
     expect(next.enabled, isTrue);
@@ -22,14 +27,19 @@ void main() {
     expect(next.days, {2, 3});
   });
 
-  test('load() sans donnée persistée -> repli sur les valeurs par défaut', () async {
-    final store = WakeAlarmPrefsStore(prefs: await SharedPreferences.getInstance());
-    final loaded = await store.load();
-    expect(loaded.enabled, WakeAlarmSettings.defaults.enabled);
-    expect(loaded.hour, WakeAlarmSettings.defaults.hour);
-    expect(loaded.minute, WakeAlarmSettings.defaults.minute);
-    expect(loaded.days, WakeAlarmSettings.defaults.days);
-  });
+  test(
+    'load() sans donnée persistée -> repli sur les valeurs par défaut',
+    () async {
+      final store = WakeAlarmPrefsStore(
+        prefs: await SharedPreferences.getInstance(),
+      );
+      final loaded = await store.load();
+      expect(loaded.enabled, WakeAlarmSettings.defaults.enabled);
+      expect(loaded.hour, WakeAlarmSettings.defaults.hour);
+      expect(loaded.minute, WakeAlarmSettings.defaults.minute);
+      expect(loaded.days, WakeAlarmSettings.defaults.days);
+    },
+  );
 
   test('save() puis load() restitue EXACTEMENT le réglage persisté', () async {
     final prefs = await SharedPreferences.getInstance();
@@ -49,6 +59,21 @@ void main() {
     expect(reloaded.days, {2, 4, 6});
   });
 
+  test('le choix de sonnerie est persisté avec les autres réglages', () async {
+    final prefs = await SharedPreferences.getInstance();
+    const settings = WakeAlarmSettings(
+      enabled: true,
+      hour: 6,
+      minute: 20,
+      days: {2, 6},
+      soundId: 'lesiakower-dreamscape-alarm-clock-117680',
+    );
+    await WakeAlarmPrefsStore(prefs: prefs).save(settings);
+
+    final loaded = await WakeAlarmPrefsStore(prefs: prefs).load();
+    expect(loaded.soundId, settings.soundId);
+  });
+
   test('ensemble de jours VIDE persiste bien vide (tous les jours)', () async {
     final prefs = await SharedPreferences.getInstance();
     final store = WakeAlarmPrefsStore(prefs: prefs);
@@ -57,19 +82,18 @@ void main() {
     expect(reloaded.days, isEmpty);
   });
 
-  test(
-    'l\'heure locale n\'est jamais envoyée au backend — persistance '
-    '100% SharedPreferences, aucune dépendance réseau',
-    () async {
-      final prefs = await SharedPreferences.getInstance();
-      final store = WakeAlarmPrefsStore(prefs: prefs);
-      await store.save(
-        const WakeAlarmSettings(enabled: true, hour: 5, minute: 15, days: {}),
-      );
-      // Les seules clés écrites sont locales (`auryel.wake_alarm.*`).
-      final keys = prefs.getKeys().where((k) => k.startsWith('auryel.wake_alarm'));
-      expect(keys, isNotEmpty);
-      expect(prefs.getKeys().every((k) => !k.contains('http')), isTrue);
-    },
-  );
+  test('l\'heure locale n\'est jamais envoyée au backend — persistance '
+      '100% SharedPreferences, aucune dépendance réseau', () async {
+    final prefs = await SharedPreferences.getInstance();
+    final store = WakeAlarmPrefsStore(prefs: prefs);
+    await store.save(
+      const WakeAlarmSettings(enabled: true, hour: 5, minute: 15, days: {}),
+    );
+    // Les seules clés écrites sont locales (`auryel.wake_alarm.*`).
+    final keys = prefs.getKeys().where(
+      (k) => k.startsWith('auryel.wake_alarm'),
+    );
+    expect(keys, isNotEmpty);
+    expect(prefs.getKeys().every((k) => !k.contains('http')), isTrue);
+  });
 }

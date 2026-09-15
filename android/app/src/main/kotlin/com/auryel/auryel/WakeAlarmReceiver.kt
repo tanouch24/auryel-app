@@ -8,6 +8,8 @@ import android.content.Context
 import android.content.Intent
 import android.os.Build
 import android.os.PowerManager
+import android.media.AudioAttributes
+import android.net.Uri
 import androidx.core.app.NotificationCompat
 
 /**
@@ -39,7 +41,13 @@ class WakeAlarmReceiver : BroadcastReceiver() {
     }
 
     private fun postFullScreenAlarm(context: Context) {
-        val channelId = "auryel_wake_alarm"
+        // Le son et la vibration sont portés par le canal natif Android : ils
+        // démarrent dans le receiver, même si Flutter n'est pas encore prêt.
+        // Un canal distinct par son est nécessaire car Android fige le son
+        // d'un NotificationChannel après sa création.
+        val resourceName = AlarmScheduler.soundResourceName(context)
+        val resourceId = context.resources.getIdentifier(resourceName, "raw", context.packageName)
+        val channelId = "auryel_wake_alarm_$resourceName"
         val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val channel = NotificationChannel(
@@ -47,6 +55,15 @@ class WakeAlarmReceiver : BroadcastReceiver() {
             ).apply {
                 description = "Sonnerie du Réveil Auryel"
                 setBypassDnd(false)
+                if (resourceId != 0) {
+                    val soundUri = Uri.parse("android.resource://${context.packageName}/$resourceId")
+                    setSound(soundUri, AudioAttributes.Builder()
+                        .setUsage(AudioAttributes.USAGE_ALARM)
+                        .setContentType(AudioAttributes.CONTENT_TYPE_MUSIC)
+                        .build())
+                }
+                enableVibration(true)
+                vibrationPattern = longArrayOf(0, 700, 500, 700, 1200)
             }
             nm.createNotificationChannel(channel)
         }
@@ -75,10 +92,9 @@ class WakeAlarmReceiver : BroadcastReceiver() {
             .build()
         nm.notify(1002, notification)
 
-        // Tentative directe en complément (fonctionne bien sur la plupart des
-        // constructeurs quand l'app est déjà en arrière-plan) : n'a aucun
-        // effet néfaste si le système la bloque, la notification plein écran
-        // ci-dessus reste le chemin garanti.
+        // Tentative directe en complément lorsque Android l'autorise. Le
+        // Full Screen Intent reste le mécanisme principal compatible écran
+        // verrouillé et le canal garde un son local si l'activité est bloquée.
         try {
             context.startActivity(fullScreenIntent)
         } catch (_: Exception) {

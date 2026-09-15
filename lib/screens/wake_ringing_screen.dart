@@ -102,6 +102,7 @@ class _WakeRingingScreenState extends State<WakeRingingScreen> {
 
   WakeMessage? _message;
   Timer? _clockTimer;
+  Timer? _motivationTimer;
   DateTime _now = DateTime.now();
   bool _acting = false;
 
@@ -122,7 +123,13 @@ class _WakeRingingScreenState extends State<WakeRingingScreen> {
     final picked = await _selector.pick(catalog);
     if (!mounted) return;
     setState(() => _message = picked);
-    if (picked != null) unawaited(_voice.speak(picked));
+    if (picked != null) {
+      // La sonnerie native reste prioritaire. La motivation arrive après un
+      // court délai, afin de ne jamais parler par-dessus le signal d'alarme.
+      _motivationTimer = Timer(const Duration(seconds: 8), () {
+        if (mounted && !_acting) unawaited(_voice.speak(picked));
+      });
+    }
   }
 
   Future<List<WakeMessage>> _resolveCatalog() async {
@@ -139,6 +146,7 @@ class _WakeRingingScreenState extends State<WakeRingingScreen> {
   @override
   void dispose() {
     _clockTimer?.cancel();
+    _motivationTimer?.cancel();
     unawaited(_voice.stop());
     super.dispose();
   }
@@ -150,6 +158,7 @@ class _WakeRingingScreenState extends State<WakeRingingScreen> {
   Future<void> _turnOff() async {
     if (_acting) return;
     setState(() => _acting = true);
+    _motivationTimer?.cancel();
     await _voice.stop();
     await _channel.stopRinging();
     if (!mounted) return;
@@ -170,6 +179,7 @@ class _WakeRingingScreenState extends State<WakeRingingScreen> {
   Future<void> _snooze() async {
     if (_acting) return;
     setState(() => _acting = true);
+    _motivationTimer?.cancel();
     await _voice.stop();
     await _channel.stopRinging();
     await _channel.snoozeAlarm(minutes: 10);
@@ -186,103 +196,123 @@ class _WakeRingingScreenState extends State<WakeRingingScreen> {
     return PopScope(
       canPop: false,
       child: Scaffold(
-        body: Container(
-          decoration: const BoxDecoration(
-            gradient: AuryelColors.backgroundGradient,
-          ),
-          child: SafeArea(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 24),
-              child: Column(
-                children: [
-                  const SizedBox(height: 12),
-                  Text(
-                    'AURYEL · RÉVEIL',
-                    style: AuryelText.body(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w600,
-                      color: AuryelColors.goldLight,
-                      letterSpacing: 3,
+        body: Stack(
+          fit: StackFit.expand,
+          children: [
+            Image.asset(
+              _wakeImageAsset,
+              fit: BoxFit.cover,
+              errorBuilder: (_, _, _) => const SizedBox.shrink(),
+            ),
+            Container(
+              color: AuryelColors.backgroundDeep.withValues(alpha: 0.82),
+            ),
+            SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 28,
+                  vertical: 24,
+                ),
+                child: Column(
+                  children: [
+                    const SizedBox(height: 12),
+                    Text(
+                      'AURYEL · RÉVEIL',
+                      style: AuryelText.body(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: AuryelColors.goldLight,
+                        letterSpacing: 3,
+                      ),
                     ),
-                  ),
-                  const Spacer(),
-                  Text(
-                    _timeLabel,
-                    style: AuryelText.display(
-                      fontSize: 64,
-                      fontWeight: FontWeight.w600,
-                      color: AuryelColors.textCream,
+                    const Spacer(),
+                    Text(
+                      _timeLabel,
+                      style: AuryelText.display(
+                        fontSize: 64,
+                        fontWeight: FontWeight.w600,
+                        color: AuryelColors.textCream,
+                      ),
                     ),
-                  ),
-                  const SizedBox(height: 28),
-                  Text(
-                    _message?.text ?? 'Prends un instant pour toi.',
-                    textAlign: TextAlign.center,
-                    style: AuryelText.body(
-                      fontSize: 16,
-                      height: 1.5,
-                      color: AuryelColors.textSecondary,
+                    const SizedBox(height: 28),
+                    Text(
+                      _message?.text ?? 'Prends un instant pour toi.',
+                      textAlign: TextAlign.center,
+                      style: AuryelText.body(
+                        fontSize: 16,
+                        height: 1.5,
+                        color: AuryelColors.textSecondary,
+                      ),
                     ),
-                  ),
-                  const Spacer(),
-                  Semantics(
-                    button: true,
-                    label: 'Éteindre le réveil',
-                    child: Material(
-                      color: Colors.transparent,
-                      shape: const CircleBorder(),
-                      child: InkWell(
-                        customBorder: const CircleBorder(),
-                        onTap: _acting ? null : _turnOff,
-                        child: Ink(
-                          width: 112,
-                          height: 112,
-                          decoration: const BoxDecoration(
-                            shape: BoxShape.circle,
-                            gradient: AuryelColors.goldGradient,
-                          ),
-                          child: const Icon(
-                            Icons.alarm_off_rounded,
-                            size: 46,
-                            color: AuryelColors.backgroundDeep,
+                    const Spacer(),
+                    Semantics(
+                      button: true,
+                      label: 'Éteindre le réveil',
+                      child: Material(
+                        color: Colors.transparent,
+                        shape: const CircleBorder(),
+                        child: InkWell(
+                          customBorder: const CircleBorder(),
+                          onTap: _acting ? null : _turnOff,
+                          child: Ink(
+                            width: 112,
+                            height: 112,
+                            decoration: const BoxDecoration(
+                              shape: BoxShape.circle,
+                              gradient: AuryelColors.goldGradient,
+                            ),
+                            child: const Icon(
+                              Icons.alarm_off_rounded,
+                              size: 46,
+                              color: AuryelColors.backgroundDeep,
+                            ),
                           ),
                         ),
                       ),
                     ),
-                  ),
-                  const SizedBox(height: 10),
-                  Text(
-                    'Éteindre',
-                    style: AuryelText.body(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: AuryelColors.textCream,
-                    ),
-                  ),
-                  const SizedBox(height: 22),
-                  TextButton.icon(
-                    onPressed: _acting ? null : _snooze,
-                    icon: const PhosphorIcon(
-                      PhosphorIconsRegular.clockClockwise,
-                      size: 16,
-                      color: AuryelColors.textMuted,
-                    ),
-                    label: Text(
-                      'Répéter dans 10 min',
+                    const SizedBox(height: 10),
+                    Text(
+                      'Éteindre',
                       style: AuryelText.body(
                         fontSize: 13,
                         fontWeight: FontWeight.w600,
-                        color: AuryelColors.textMuted,
+                        color: AuryelColors.textCream,
                       ),
                     ),
-                  ),
-                  const SizedBox(height: 8),
-                ],
+                    const SizedBox(height: 22),
+                    TextButton.icon(
+                      onPressed: _acting ? null : _snooze,
+                      icon: const PhosphorIcon(
+                        PhosphorIconsRegular.clockClockwise,
+                        size: 16,
+                        color: AuryelColors.textMuted,
+                      ),
+                      label: Text(
+                        'Répéter dans 10 min',
+                        style: AuryelText.body(
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                          color: AuryelColors.textMuted,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                  ],
+                ),
               ),
             ),
-          ),
+          ],
         ),
       ),
     );
+  }
+
+  String get _wakeImageAsset {
+    const images = [
+      'assets/images/wake/reveil_aube_lac_brume_01.jpg',
+      'assets/images/wake/reveil_foret_bouleaux_etang_03.jpg',
+      'assets/images/wake/reveil_ocean_plage_aube_01.jpg',
+    ];
+    return images[(_now.day + _now.hour) % images.length];
   }
 }

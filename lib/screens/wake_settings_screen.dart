@@ -1,7 +1,12 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
+import 'package:audioplayers/audioplayers.dart';
+import 'package:permission_handler/permission_handler.dart';
 import 'package:phosphor_icons/phosphor_icons.dart';
 
 import '../data/wake_alarm_prefs.dart';
+import '../data/wake_sound_catalog.dart';
 import '../services/wake_alarm_channel.dart';
 import '../theme/auryel_theme.dart';
 
@@ -10,11 +15,7 @@ import '../theme/auryel_theme.dart';
 /// jours de semaine. Il ne choisit JAMAIS sa phrase, une catégorie ou une
 /// voix (sélection automatique côté [WakeMessageSelector]).
 class WakeSettingsScreen extends StatefulWidget {
-  const WakeSettingsScreen({
-    super.key,
-    this.channel,
-    this.prefsStore,
-  });
+  const WakeSettingsScreen({super.key, this.channel, this.prefsStore});
 
   /// Test uniquement : pont natif / stockage injectés.
   final WakeAlarmChannel? channel;
@@ -46,6 +47,8 @@ class _WakeSettingsScreenState extends State<WakeSettingsScreen>
   WakeAlarmSettings _settings = WakeAlarmSettings.defaults;
   bool _loading = true;
   bool _awaitingPermission = false;
+  final AudioPlayer _previewPlayer = AudioPlayer();
+  String? _previewingSoundId;
 
   @override
   void initState() {
@@ -57,6 +60,7 @@ class _WakeSettingsScreenState extends State<WakeSettingsScreen>
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _previewPlayer.dispose();
     super.dispose();
   }
 
@@ -82,6 +86,7 @@ class _WakeSettingsScreenState extends State<WakeSettingsScreen>
   Future<void> _persist(WakeAlarmSettings next) async {
     setState(() => _settings = next);
     await _store.save(next);
+    await _channel.setAlarmSound(wakeSoundById(next.soundId).nativeResource);
     if (next.enabled) {
       await _channel.saveAlarm(
         enabled: true,
@@ -94,7 +99,39 @@ class _WakeSettingsScreenState extends State<WakeSettingsScreen>
     }
   }
 
+  Future<void> _preview(WakeSoundOption sound) async {
+    if (_previewingSoundId == sound.id) {
+      await _previewPlayer.stop();
+      if (mounted) setState(() => _previewingSoundId = null);
+      return;
+    }
+    await _previewPlayer.stop();
+    if (mounted) setState(() => _previewingSoundId = sound.id);
+    try {
+      await _previewPlayer.play(
+        AssetSource(sound.assetPath.replaceFirst('assets/', '')),
+      );
+    } finally {
+      if (mounted) setState(() => _previewingSoundId = null);
+    }
+  }
+
   Future<void> _tryEnable() async {
+    if (Platform.isAndroid) {
+      final notification = await Permission.notification.request();
+      if (!notification.isGranted) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'Les notifications sont nécessaires pour faire sonner le réveil.',
+              ),
+            ),
+          );
+        }
+        return;
+      }
+    }
     final can = await _channel.canScheduleExactAlarms();
     if (!mounted) return;
     if (!can) {
@@ -102,7 +139,53 @@ class _WakeSettingsScreenState extends State<WakeSettingsScreen>
       await _showPermissionDialog();
       return;
     }
+    final fullScreen = await _channel.canUseFullScreenIntent();
+    if (!fullScreen) {
+      _awaitingPermission = true;
+      await _showFullScreenDialog();
+      return;
+    }
     await _persist(_settings.copyWith(enabled: true));
+  }
+
+  Future<void> _showFullScreenDialog() async {
+    if (!mounted) return;
+    await showDialog<void>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: AuryelColors.surface,
+        title: Text(
+          'Affichage sur écran verrouillé',
+          style: AuryelText.display(fontSize: 18, fontWeight: FontWeight.w600),
+        ),
+        content: Text(
+          'Pour afficher le réveil au-dessus de l’écran verrouillé, autorise les notifications plein écran dans les réglages.',
+          style: AuryelText.body(
+            fontSize: 13.5,
+            color: AuryelColors.textSecondary,
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Plus tard'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.of(ctx).pop();
+              _channel.requestFullScreenIntentPermission();
+            },
+            child: Text(
+              'Ouvrir les réglages',
+              style: AuryelText.body(
+                color: AuryelColors.goldLight,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _showPermissionDialog() async {
@@ -119,7 +202,10 @@ class _WakeSettingsScreenState extends State<WakeSettingsScreen>
           "Pour sonner à l'heure exacte, Auryel a besoin de l'autorisation "
           "système « Alarmes et rappels ». Active-la dans les réglages, "
           'puis reviens ici.',
-          style: AuryelText.body(fontSize: 13.5, color: AuryelColors.textSecondary),
+          style: AuryelText.body(
+            fontSize: 13.5,
+            color: AuryelColors.textSecondary,
+          ),
         ),
         actions: [
           TextButton(
@@ -153,7 +239,9 @@ class _WakeSettingsScreenState extends State<WakeSettingsScreen>
       initialTime: TimeOfDay(hour: _settings.hour, minute: _settings.minute),
     );
     if (picked == null) return;
-    await _persist(_settings.copyWith(hour: picked.hour, minute: picked.minute));
+    await _persist(
+      _settings.copyWith(hour: picked.hour, minute: picked.minute),
+    );
   }
 
   void _toggleDay(int day) {
@@ -178,7 +266,9 @@ class _WakeSettingsScreenState extends State<WakeSettingsScreen>
       );
     }
     return Container(
-      decoration: const BoxDecoration(gradient: AuryelColors.backgroundGradient),
+      decoration: const BoxDecoration(
+        gradient: AuryelColors.backgroundGradient,
+      ),
       child: SafeArea(
         child: SingleChildScrollView(
           padding: const EdgeInsets.fromLTRB(24, 24, 24, 32),
@@ -309,6 +399,65 @@ class _WakeSettingsScreenState extends State<WakeSettingsScreen>
                           ),
                       ],
                     ),
+                    const SizedBox(height: 18),
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text(
+                        'SONNERIE',
+                        style: AuryelText.body(
+                          fontSize: 10,
+                          fontWeight: FontWeight.w600,
+                          color: AuryelColors.textMuted,
+                          letterSpacing: 0.8,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    for (final sound in wakeSoundOptions)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 6),
+                        child: InkWell(
+                          onTap: () =>
+                              _persist(_settings.copyWith(soundId: sound.id)),
+                          borderRadius: BorderRadius.circular(10),
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(vertical: 5),
+                            child: Row(
+                              children: [
+                                Icon(
+                                  _settings.soundId == sound.id
+                                      ? Icons.radio_button_checked
+                                      : Icons.radio_button_unchecked,
+                                  size: 20,
+                                  color: _settings.soundId == sound.id
+                                      ? AuryelColors.goldLight
+                                      : AuryelColors.textMuted,
+                                ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    sound.label,
+                                    style: AuryelText.body(
+                                      fontSize: 12.5,
+                                      color: AuryelColors.textCream,
+                                    ),
+                                  ),
+                                ),
+                                IconButton(
+                                  tooltip: 'Aperçu',
+                                  onPressed: () => _preview(sound),
+                                  icon: Icon(
+                                    _previewingSoundId == sound.id
+                                        ? Icons.stop_circle_outlined
+                                        : Icons.play_circle_outline,
+                                    color: AuryelColors.goldLight,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
                   ],
                 ),
               ),
@@ -316,7 +465,10 @@ class _WakeSettingsScreenState extends State<WakeSettingsScreen>
               Text(
                 'En cas de report, le réveil sonne à nouveau 10 minutes plus '
                 'tard.',
-                style: AuryelText.body(fontSize: 11.5, color: AuryelColors.textMuted),
+                style: AuryelText.body(
+                  fontSize: 11.5,
+                  color: AuryelColors.textMuted,
+                ),
               ),
             ],
           ),
@@ -352,9 +504,7 @@ class _DayChip extends StatelessWidget {
               ? AuryelColors.gold.withValues(alpha: 0.22)
               : Colors.transparent,
           border: Border.all(
-            color: selected
-                ? AuryelColors.goldLight
-                : AuryelColors.warmBorder,
+            color: selected ? AuryelColors.goldLight : AuryelColors.warmBorder,
           ),
         ),
         child: Text(
