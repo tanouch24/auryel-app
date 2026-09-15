@@ -85,6 +85,7 @@ class _RewardsWalletScreenState extends State<RewardsWalletScreen>
     with WidgetsBindingObserver {
   RewardsController? _controller;
   bool _ownsController = false;
+  bool _firstFeedbackDialogOpen = false;
 
   @override
   void initState() {
@@ -127,7 +128,34 @@ class _RewardsWalletScreenState extends State<RewardsWalletScreen>
   }
 
   void _onControllerChange() {
-    if (mounted) setState(() {});
+    if (!mounted) return;
+    setState(() {});
+    if (_controller?.takeFirstStarFeedback() == true) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _showFirstStarFeedback();
+      });
+    }
+  }
+
+  Future<void> _showFirstStarFeedback() async {
+    if (!mounted || _firstFeedbackDialogOpen) return;
+    _firstFeedbackDialogOpen = true;
+    await showDialog<void>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('⭐ Première Étoile gagnée !'),
+        content: const Text(
+          'Continue tes missions pour débloquer du temps avec ton conseiller.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Voir mes Étoiles'),
+          ),
+        ],
+      ),
+    );
+    _firstFeedbackDialogOpen = false;
   }
 
   @override
@@ -741,7 +769,7 @@ class _RewardedAdCardState extends State<_RewardedAdCard> {
             _message = result?.awarded == true
                 ? '+${result!.starsAwarded} Étoiles reçues'
                 : 'Récompense déjà enregistrée ou indisponible.';
-          });
+            });
         }
       },
     );

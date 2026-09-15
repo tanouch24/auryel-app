@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:phosphor_icons/phosphor_icons.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 // Legacy mission widgets remain available to their dedicated flows, but are
 // intentionally not mounted on Home.
@@ -138,6 +139,10 @@ class HomeScreen extends StatelessWidget {
                         .animate()
                         .fadeIn(delay: 260.ms, duration: 500.ms),
                     const SizedBox(height: 16),
+                    const _WellbeingJourneyCta()
+                        .animate()
+                        .fadeIn(delay: 300.ms, duration: 500.ms),
+                    const SizedBox(height: 10),
                     (consultation == null
                             ? _TimeAvailableBlock(
                                 consultation: null,
@@ -166,21 +171,81 @@ class HomeScreen extends StatelessWidget {
                               ))
                         .animate()
                         .fadeIn(delay: 400.ms, duration: 500.ms),
-                    /* The old mission tiles deliberately do not belong on the
-                       Home anymore. Their real flows remain in their tabs and
-                       the active reward rules are listed in RewardsWallet. */
-                    /*
-                    const _WellbeingJourneyCta().animate().fadeIn(
-                      delay: 520.ms,
-                      duration: 500.ms,
-                    ),
-                    */
+                    const SizedBox(height: 10),
+                    const _StarsDiscoveryHint(),
                   ],
                 ),
               ),
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _StarsDiscoveryHint extends StatefulWidget {
+  const _StarsDiscoveryHint();
+
+  @override
+  State<_StarsDiscoveryHint> createState() => _StarsDiscoveryHintState();
+}
+
+class _StarsDiscoveryHintState extends State<_StarsDiscoveryHint> {
+  static const _key = 'auryel.stars.discovery_seen.v1';
+  bool _seen = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      if (!mounted) return;
+      setState(() => _seen = prefs.getBool(_key) ?? false);
+    } catch (_) {}
+  }
+
+  Future<void> _open() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setBool(_key, true);
+    } catch (_) {}
+    if (!mounted) return;
+    setState(() => _seen = true);
+    Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => const RewardsWalletScreen()),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (_seen) return const SizedBox.shrink();
+    return Material(
+      color: AuryelColors.surface.withValues(alpha: 0.72),
+      borderRadius: BorderRadius.circular(14),
+      child: InkWell(
+        key: const Key('home-stars-discovery-hint'),
+        borderRadius: BorderRadius.circular(14),
+        onTap: _open,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+          child: Row(
+            children: [
+              const Text('⭐', style: TextStyle(fontSize: 18)),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Text(
+                  'Gagne du temps de consultation\nDes missions t’attendent aujourd’hui →',
+                  style: AuryelText.body(fontSize: 12.5, height: 1.35),
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

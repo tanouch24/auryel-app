@@ -8,6 +8,7 @@ import 'package:auryel/data/shop_cart_store.dart';
 import 'package:auryel/data/shop_checkout_service.dart';
 import 'package:auryel/data/shop_product.dart';
 import 'package:auryel/screens/bibliotheque_screen.dart';
+import 'package:auryel/screens/rewards_wallet_screen.dart';
 import 'package:auryel/screens/boutique_coming_soon_screen.dart';
 import 'package:auryel/screens/boutique_screen.dart';
 import 'package:auryel/screens/cart_screen.dart';
@@ -269,8 +270,7 @@ void main() {
     expect(_cart.quantityFor('amethyste'), 1); // panier intact, rien consommé
   });
 
-  testWidgets('N — Dashboard « Voir mes tirages » ouvre toujours '
-      'BibliothequeScreen', (t) async {
+  testWidgets('N — Dashboard « Voir mes missions » ouvre le wallet Étoiles', (t) async {
     await t.pumpWidget(
       AuryelStateScope(
         state: _state(),
@@ -279,11 +279,11 @@ void main() {
     );
     await t.pump();
 
-    await t.ensureVisible(find.text('Voir mes tirages'));
-    await t.tap(find.text('Voir mes tirages'));
+    await t.ensureVisible(find.text('Voir mes missions'));
+    await t.tap(find.text('Voir mes missions'));
     await t.pumpAndSettle();
 
-    expect(find.byType(BibliothequeScreen), findsOneWidget);
+    expect(find.byType(RewardsWalletScreen), findsOneWidget);
   });
 
   testWidgets('O — BibliothequeScreen.showBackButton inchangé', (t) async {

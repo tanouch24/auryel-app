@@ -6,6 +6,7 @@ import 'dart:async';
 import 'dart:math';
 
 import 'package:flutter/widgets.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../api/api_client.dart';
 import '../api/rewards_api.dart';
@@ -42,6 +43,9 @@ class RewardsController extends ChangeNotifier {
   bool _busy = false;
   Object? _error;
   bool _disposed = false;
+  bool _firstStarFeedbackPending = false;
+
+  static const _firstStarFeedbackKey = 'auryel.first_star_feedback_seen.v1';
 
   /// `null` tant que le 1er chargement n'a pas abouti — jamais un solde
   /// inventé à 0 par défaut (le header retombe alors sur un état neutre).
@@ -118,6 +122,7 @@ class RewardsController extends ChangeNotifier {
         actionKey: actionKey,
       );
       if (result.awarded) {
+        await _markFirstStarIfNeeded(result);
         // Solde optimiste immédiat (le header réagit sans attendre un 2e
         // aller-retour), CONFIRMÉ juste après par [refresh] — jamais la
         // seule source affichée durablement.
@@ -155,11 +160,30 @@ class RewardsController extends ChangeNotifier {
         actionKey: 'rewarded_ad_completed',
         eventId: eventId,
       );
+      if (result.awarded) await _markFirstStarIfNeeded(result);
       await refresh();
       return result;
     } catch (_) {
       return null;
     }
+  }
+
+  Future<void> _markFirstStarIfNeeded(RewardClaimResult result) async {
+    if ((_wallet?.starsBalance ?? 0) != 0 || !result.awarded) return;
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      if (prefs.getBool(_firstStarFeedbackKey) == true) return;
+      _firstStarFeedbackPending = true;
+      await prefs.setBool(_firstStarFeedbackKey, true);
+    } catch (_) {
+      // Le feedback est facultatif et ne doit jamais bloquer la récompense.
+    }
+  }
+
+  bool takeFirstStarFeedback() {
+    final pending = _firstStarFeedbackPending;
+    _firstStarFeedbackPending = false;
+    return pending;
   }
 
   /// GROS CHANTIER AURYEL (Prompt 3/5) — CONSULTATION EXPRESS : débloque du

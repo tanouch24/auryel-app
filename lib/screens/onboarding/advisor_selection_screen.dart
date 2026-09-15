@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../data/advisor_audio.dart';
 import '../../state/auryel_state.dart';
 import '../../theme/auryel_theme.dart';
 import '../../widgets/advisors_carousel.dart';
@@ -21,6 +22,7 @@ class AdvisorSelectionScreen extends StatefulWidget {
 }
 
 class _AdvisorSelectionScreenState extends State<AdvisorSelectionScreen> {
+  late final AdvisorAudio _audio = AudioPlayersAdvisorAudio();
   String? _selected;
   bool _prefilled = false;
 
@@ -38,9 +40,17 @@ class _AdvisorSelectionScreenState extends State<AdvisorSelectionScreen> {
 
   void _continue() {
     if (_selected == null) return;
+    _audio.stop();
     AuryelStateScope.of(context).selectAdvisor(_selected!);
     Navigator.of(context)
         .push(MaterialPageRoute(builder: (_) => const AccountCreationScreen()));
+  }
+
+  @override
+  void dispose() {
+    _audio.stop();
+    _audio.dispose();
+    super.dispose();
   }
 
   @override
@@ -57,6 +67,8 @@ class _AdvisorSelectionScreenState extends State<AdvisorSelectionScreen> {
       onCta: _continue,
       child: Column(
         children: [
+          const _StarsOnboardingNote(),
+          const SizedBox(height: 14),
           GridView.builder(
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
@@ -72,7 +84,11 @@ class _AdvisorSelectionScreenState extends State<AdvisorSelectionScreen> {
               return _SelectableAdvisorTile(
                 advisor: advisor,
                 isSelected: advisor.name == _selected,
-                onTap: () => setState(() => _selected = advisor.name),
+                onTap: () {
+                  _audio.stop();
+                  setState(() => _selected = advisor.name);
+                },
+                onPlay: () => _audio.play(advisor.voicePath),
               );
             },
           ),
@@ -90,11 +106,13 @@ class _SelectableAdvisorTile extends StatelessWidget {
     required this.advisor,
     required this.isSelected,
     required this.onTap,
+    required this.onPlay,
   });
 
   final AdvisorInfo advisor;
   final bool isSelected;
   final VoidCallback onTap;
+  final VoidCallback onPlay;
 
   @override
   Widget build(BuildContext context) {
@@ -159,6 +177,15 @@ class _SelectableAdvisorTile extends StatelessWidget {
                   height: 1.2,
                 ),
               ),
+              Align(
+                alignment: Alignment.center,
+                child: TextButton.icon(
+                  key: Key('onboarding-play-${advisor.guideKey}'),
+                  onPressed: onPlay,
+                  icon: const Icon(Icons.play_arrow_rounded, size: 16),
+                  label: const Text('Écouter sa voix'),
+                ),
+              ),
               const SizedBox(height: 6),
               Expanded(
                 child: Text(
@@ -179,4 +206,23 @@ class _SelectableAdvisorTile extends StatelessWidget {
       ),
     );
   }
+}
+
+class _StarsOnboardingNote extends StatelessWidget {
+  const _StarsOnboardingNote();
+
+  @override
+  Widget build(BuildContext context) => Container(
+    width: double.infinity,
+    padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+    decoration: BoxDecoration(
+      color: AuryelColors.gold.withValues(alpha: 0.09),
+      borderRadius: BorderRadius.circular(14),
+      border: Border.all(color: AuryelColors.gold.withValues(alpha: 0.35)),
+    ),
+    child: const Text(
+      'Gagne des Étoiles. Débloque du temps de consultation. ⭐\n'
+      'Les activités Auryel peuvent te faire gagner des Étoiles. Cumule-les et transforme-les en temps avec ton conseiller, jusqu’à 30 minutes supplémentaires par mois.',
+    ),
+  );
 }

@@ -259,13 +259,12 @@ void main() {
       expect(find.text('Se déconnecter'), findsOneWidget);
     });
 
-    testWidgets('MC3 — replay « L\'expérience Auryel » + UI suppression de '
-        'compte présents', (t) async {
+    testWidgets('MC3 — espace compte nettoyé + suppression de compte présents', (t) async {
       await t.pumpWidget(_dashboard(showBackButton: false));
       await t.pumpAndSettle();
 
-      await t.ensureVisible(find.text('Découvrir Auryel'));
-      expect(find.text('Découvrir Auryel'), findsOneWidget);
+      expect(find.textContaining('Étoiles'), findsWidgets);
+      expect(find.text('Découvrir Auryel'), findsNothing);
       await t.ensureVisible(find.text('Supprimer mon compte'));
       expect(find.text('Supprimer mon compte'), findsOneWidget);
     });

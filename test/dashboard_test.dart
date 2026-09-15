@@ -22,7 +22,6 @@ import 'package:auryel/data/daily_thought.dart';
 import 'package:auryel/data/onboarding_record.dart';
 import 'package:auryel/data/onboarding_repository.dart';
 import 'package:auryel/data/token_store.dart';
-import 'package:auryel/screens/auryel_experience_screen.dart';
 import 'package:auryel/screens/bibliotheque_screen.dart';
 import 'package:auryel/screens/dashboard_screen.dart';
 import 'package:auryel/screens/home_screen.dart';
@@ -299,8 +298,7 @@ void main() {
     },
   );
 
-  testWidgets('I/J/K/L — Mon parcours + compteurs locaux, CORRECTIF PRODUIT : '
-      'plus de promesse « 1 h de consultation » ni de compteur 30 j', (
+  testWidgets('I/J/K/L — Mon espace expose les Étoiles sans ancien bloc rewards', (
     t,
   ) async {
     final prefs = await SharedPreferences.getInstance();
@@ -315,8 +313,8 @@ void main() {
     await t.pump();
     await t.pump(const Duration(milliseconds: 50));
 
-    expect(find.text('MON PARCOURS'), findsOneWidget);
-    expect(find.text('2 messages aimés'), findsOneWidget);
+    expect(find.text('MES ÉTOILES'), findsOneWidget);
+    expect(find.text('Ton solde est disponible dans l’espace Étoiles.'), findsOneWidget);
     expect(find.text('3 jours de partage'), findsNothing);
     expect(find.text('MES RÉCOMPENSES'), findsNothing);
     expect(find.text('Ta pensée du jour'), findsNothing);
@@ -481,34 +479,6 @@ void main() {
   // B10.1 — corrections Mes tirages / profil / récompenses
   // =========================================================================
 
-  testWidgets(
-    'EXP — « Découvrir Auryel » (Dashboard) ouvre l\'écran Expérience '
-    'en mode replay, sans casser le flag',
-    (t) async {
-      SharedPreferences.setMockInitialValues({
-        'auryel.experience_intro_seen.v1': true,
-      });
-      await t.pumpWidget(_dash());
-      await t.pump();
-
-      await t.ensureVisible(find.text('Découvrir Auryel'));
-      await t.tap(find.text('Découvrir Auryel'));
-      await t.pumpAndSettle();
-
-      expect(find.byType(AuryelExperienceScreen), findsOneWidget);
-      expect(find.text('Bienvenue dans Auryel'), findsOneWidget);
-      // CTA de replay, pas le CTA du parcours auto
-      expect(find.text('Retour à Auryel'), findsOneWidget);
-      expect(find.text('Découvrir Auryel'), findsNothing);
-
-      await t.tap(find.text('Retour à Auryel'));
-      await t.pumpAndSettle();
-      expect(find.byType(DashboardScreen), findsOneWidget);
-      final prefs = await SharedPreferences.getInstance();
-      expect(prefs.getBool('auryel.experience_intro_seen.v1'), isTrue);
-    },
-  );
-
   testWidgets('Programme Bien-être — point d’entrée ouvre le programme', (
     t,
   ) async {
@@ -547,24 +517,15 @@ void main() {
     expect(find.byType(RewardsWalletScreen), findsNothing);
   });
 
-  testWidgets('B10.1 A — « Voir mes tirages » ouvre la Bibliothèque AVEC une '
-      'flèche retour, qui ramène au Dashboard', (t) async {
+  testWidgets('Mes Étoiles — le raccourci du dashboard ouvre le wallet', (t) async {
     await t.pumpWidget(_dash());
     await t.pump();
 
-    await t.ensureVisible(find.text('Voir mes tirages'));
-    await t.tap(find.text('Voir mes tirages'));
+    await t.ensureVisible(find.text('Voir mes missions'));
+    await t.tap(find.text('Voir mes missions'));
     await t.pumpAndSettle();
 
-    expect(find.byType(BibliothequeScreen), findsOneWidget);
-    expect(find.byTooltip('Retour'), findsOneWidget);
-
-    await t.tap(find.byTooltip('Retour'));
-    await t.pumpAndSettle();
-
-    expect(find.byType(BibliothequeScreen), findsNothing);
-    expect(find.byType(DashboardScreen), findsOneWidget);
-    expect(find.text('Mon espace'), findsOneWidget);
+    expect(find.byType(RewardsWalletScreen), findsOneWidget);
   });
 
   testWidgets('B10.1 B — la Bibliothèque en onglet principal n\'a PAS de '

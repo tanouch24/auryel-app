@@ -223,6 +223,25 @@ const _confirmText =
     'ensuite de ton temps disponible.';
 
 void main() {
+  test('délai de présentation naturel borné selon la taille', () {
+    expect(
+      consultationReplyPresentationDelay('réponse courte').inSeconds,
+      1,
+    );
+    expect(
+      consultationReplyPresentationDelay('x' * 200).inSeconds,
+      3,
+    );
+    expect(
+      consultationReplyPresentationDelay('x' * 1000).inSeconds,
+      5,
+    );
+    expect(
+      consultationReplyPresentationDelay('x' * 1000, variationMs: 9000),
+      const Duration(seconds: 8),
+    );
+  });
+
   setUp(() => SharedPreferences.setMockInitialValues({}));
 
   // =========================================================================

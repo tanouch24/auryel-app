@@ -319,6 +319,7 @@ void main() {
     await t.tap(find.byIcon(Icons.send_rounded));
     await t.pump();
     await t.pump();
+    await t.pump(const Duration(seconds: 2));
     expect(e.postBodies.single, {'message': 'je continue quand même'});
     expect(find.text('Réponse conseiller'), findsOneWidget);
 

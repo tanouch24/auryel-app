@@ -27,7 +27,6 @@ import '../widgets/meta_consent_tile.dart';
 import '../widgets/daily_message_sheet.dart';
 import '../widgets/gold_button.dart';
 import 'advisor_chooser_screen.dart';
-import 'auryel_experience_screen.dart';
 import 'bibliotheque_screen.dart';
 import 'wellbeing_program_screen.dart';
 import 'legal_document_screen.dart';
@@ -447,9 +446,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         ),
                       ),
                 const SizedBox(height: 16),
-                _JourneySection(
-                  likedMessages: _likedMessages,
-                  likedTarot: _likedTarot,
+                _DashboardStarsSection(
+                  controller: RewardsScope.maybeReadOf(context),
                 ),
                 const SizedBox(height: 16),
                 _Section(
@@ -461,21 +459,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     onTap: () => Navigator.of(context).push(
                       MaterialPageRoute(
                         builder: (_) => const WellbeingProgramScreen(),
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 16),
-                _Section(
-                  title: 'L’expérience Auryel',
-                  icon: PhosphorIconsRegular.compassRose,
-                  child: _LinkRow(
-                    label: 'Découvrir Auryel',
-                    icon: PhosphorIconsRegular.sparkle,
-                    onTap: () => Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (_) =>
-                            const AuryelExperienceScreen(fromDashboard: true),
                       ),
                     ),
                   ),
@@ -998,8 +981,41 @@ class _SubscriptionSection extends StatelessWidget {
   }
 }
 
+class _DashboardStarsSection extends StatelessWidget {
+  const _DashboardStarsSection({required this.controller});
+
+  final RewardsController? controller;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = controller;
+    return _Section(
+      title: 'Mes Étoiles',
+      icon: PhosphorIconsRegular.star,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(
+            c == null ? 'Ton solde est disponible dans l’espace Étoiles.' : '${c.starsBalance} ⭐',
+            style: AuryelText.display(fontSize: 20, fontWeight: FontWeight.w600),
+          ),
+          const SizedBox(height: 8),
+          _LinkRow(
+            label: 'Voir mes missions',
+            icon: PhosphorIconsRegular.arrowRight,
+            onTap: () => Navigator.of(context).push(
+              MaterialPageRoute(builder: (_) => const RewardsWalletScreen()),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 // ---------------------------------------------------------------------------
-// Mon parcours
+// Mon parcours historique — conservé pour compatibilité des anciens hôtes de
+// test, mais il n’est plus monté dans Mon espace.
 // ---------------------------------------------------------------------------
 
 class _JourneySection extends StatelessWidget {

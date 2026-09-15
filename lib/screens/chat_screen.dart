@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../api/ai_report_api.dart';
@@ -13,6 +15,19 @@ import 'adult_gate.dart';
 import 'onboarding/email_auth_screen.dart';
 import 'premium_screen.dart';
 import 'rewards_wallet_screen.dart';
+
+/// Délai de présentation naturel après réception de la réponse réelle.
+/// Le réseau n’est jamais ralenti : seule l’apparition de la réponse est
+/// temporisée pendant que l’indicateur de saisie reste visible.
+Duration consultationReplyPresentationDelay(String reply, {int variationMs = 0}) {
+  final length = reply.trim().length;
+  final base = length < 120
+      ? 1800
+      : length < 420
+      ? 3200
+      : 5200;
+  return Duration(milliseconds: (base + variationMs).clamp(1500, 8000));
+}
 
 /// Chat réel connecté à `POST /api/consultation/message` (F3 + F4).
 ///
@@ -119,6 +134,8 @@ class _ChatScreenState extends State<ChatScreen> {
   bool _historyRequested = false;
   bool _historyLoading = false;
   bool _historyError = false;
+  Timer? _replyDelayTimer;
+  Completer<void>? _replyDelayCompleter;
 
   /// Exposé pour les tests.
   @visibleForTesting
@@ -262,6 +279,8 @@ class _ChatScreenState extends State<ChatScreen> {
 
   @override
   void dispose() {
+    _replyDelayTimer?.cancel();
+    _replyDelayCompleter?.complete();
     _input.dispose();
     _scroll.dispose();
     super.dispose();
@@ -320,6 +339,8 @@ class _ChatScreenState extends State<ChatScreen> {
         consultationId: widget.consultationId,
         tirageId: _pendingTirageId,
       );
+      if (!mounted) return;
+      await _waitBeforeShowingReply(res.reply);
       if (!mounted) return;
       // F4 — l'état renvoyé alimente aussi le state partagé de l'app.
       consultation?.updateFromMessageResponse(res);
@@ -390,6 +411,20 @@ class _ChatScreenState extends State<ChatScreen> {
     } catch (_) {
       _failNetwork('Une erreur est survenue. Réessaie.');
     }
+  }
+
+  Future<void> _waitBeforeShowingReply(String reply) {
+    final delay = consultationReplyPresentationDelay(reply);
+    final completer = Completer<void>();
+    _replyDelayTimer?.cancel();
+    _replyDelayCompleter?.complete();
+    _replyDelayCompleter = completer;
+    _replyDelayTimer = Timer(delay, () {
+      _replyDelayTimer = null;
+      _replyDelayCompleter = null;
+      if (!completer.isCompleted) completer.complete();
+    });
+    return completer.future;
   }
 
   QuotaDto? _quotaFrom(Map<String, dynamic> body) {
