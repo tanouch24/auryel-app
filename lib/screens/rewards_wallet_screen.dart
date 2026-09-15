@@ -760,16 +760,64 @@ class _RewardedAdCardState extends State<_RewardedAdCard> {
       _busy = true;
       _message = null;
     });
-    final eventId = generateIdempotencyKey('ad');
+    final auth = AuthScope.maybeOf(context);
+    final account = auth?.account;
+    final api = auth?.rewardsApi;
+    final token = auth == null ? null : await auth.currentToken();
+    String? sessionId;
+    try {
+      sessionId = auth == null || api == null || token == null
+          ? null
+          : await api.createAdmobRewardSession(token);
+    } catch (_) {
+      sessionId = null;
+    }
+    if (!mounted ||
+        sessionId == null ||
+        account == null ||
+        auth == null ||
+        api == null) {
+      if (mounted) {
+        setState(() {
+          _busy = false;
+          _message = 'Validation publicitaire indisponible pour le moment.';
+        });
+      }
+      return;
+    }
+    final verifiedSessionId = sessionId;
     final shown = await AuryelAds.instance.showRewarded(
+      ssvOptions: rewardedSsvOptions(
+        userId: account.userId,
+        customData: verifiedSessionId,
+      ),
       onReward: () async {
-        final result = await widget.controller.claimRewardedAd(eventId);
+        var credited = false;
+        for (var attempt = 0; attempt < 8 && mounted; attempt++) {
+          if (attempt > 0) {
+            await Future<void>.delayed(const Duration(seconds: 2));
+          }
+          final currentToken = await auth.currentToken();
+          if (currentToken == null) break;
+          try {
+            credited = await api.isAdmobRewardCredited(
+              bearer: currentToken,
+              sessionId: verifiedSessionId,
+            );
+          } catch (_) {
+            credited = false;
+          }
+          if (credited) {
+            await widget.controller.refresh();
+            break;
+          }
+        }
         if (mounted) {
           setState(() {
-            _message = result?.awarded == true
-                ? '+${result!.starsAwarded} Étoiles reçues'
-                : 'Récompense déjà enregistrée ou indisponible.';
-            });
+            _message = credited
+                ? '+6 Étoiles reçues'
+                : 'Récompense en cours de validation.';
+          });
         }
       },
     );

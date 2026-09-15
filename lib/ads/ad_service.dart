@@ -4,6 +4,11 @@ import 'package:flutter/foundation.dart';
 import 'package:google_mobile_ads/google_mobile_ads.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+ServerSideVerificationOptions rewardedSsvOptions({
+  required String userId,
+  required String customData,
+}) => ServerSideVerificationOptions(userId: userId, customData: customData);
+
 /// Façade unique AdMob. Les écrans ne manipulent jamais directement le SDK.
 /// En debug, seuls les identifiants de test Google sont utilisés.
 class AuryelAds {
@@ -120,7 +125,10 @@ class AuryelAds {
 
   /// Retourne true uniquement si une publicité a été présentée et que le SDK
   /// a émis le callback de récompense. Une fermeture anticipée ne récompense pas.
-  Future<bool> showRewarded({required Future<void> Function() onReward}) async {
+  Future<bool> showRewarded({
+    required Future<void> Function() onReward,
+    ServerSideVerificationOptions? ssvOptions,
+  }) async {
     if (!_canRequestAds || _rewarded == null) return false;
     final last = _lastRewardedAt;
     if (last != null &&
@@ -147,6 +155,9 @@ class AuryelAds {
       },
     );
     try {
+      if (ssvOptions != null) {
+        await ad.setServerSideOptions(ssvOptions);
+      }
       await ad.show(
         onUserEarnedReward: (_, ignoredReward) async {
           rewarded = true;

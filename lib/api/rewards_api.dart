@@ -357,6 +357,28 @@ class RewardsApi {
     return RewardWallet.fromJson(json);
   }
 
+  Future<String> createAdmobRewardSession(String bearer) async {
+    final json = await _client.postJson(
+      '/api/app/rewards/admob/session',
+      const {},
+      bearer: bearer,
+    );
+    final id = json['session_id']?.toString() ?? '';
+    if (id.isEmpty) throw const FormatException('session_id manquant');
+    return id;
+  }
+
+  Future<bool> isAdmobRewardCredited({
+    required String bearer,
+    required String sessionId,
+  }) async {
+    final json = await _client.getJson(
+      '/api/app/rewards/admob/session/$sessionId',
+      bearer: bearer,
+    );
+    return json['credited'] == true;
+  }
+
   Future<RewardClaimResult> claimAction({
     required String bearer,
     required String actionKey,
