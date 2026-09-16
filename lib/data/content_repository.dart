@@ -9,6 +9,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../api/content_api.dart';
 import 'daily_thought.dart';
+import 'exercise.dart';
 import 'meditation_catalog.dart';
 import 'meditation_item.dart';
 import 'relaxation_video.dart';
@@ -54,6 +55,7 @@ class ContentRepository {
   static const String _meditationVideosKey =
       'auryel.content.meditation_videos.v1';
   static const String _wakeMessagesKey = 'auryel.content.wake_messages.v1';
+  static const String _exercisesKey = 'auryel.content.exercises.v1';
 
   Future<SharedPreferences> get _prefs async =>
       _injectedPrefs ?? await SharedPreferences.getInstance();
@@ -239,6 +241,31 @@ class ContentRepository {
     return cached?.items ?? const <RelaxationVideo>[];
   }
 
+  /// Catalogue Exercices dédié (serveur -> cache -> vide). Il ne partage
+  /// aucune donnée avec les catalogues Méditations, Wake ou Ebooks.
+  Future<List<Exercise>> exercises() async {
+    final cached = await _readExercisesCache();
+    final api = _api;
+    if (api != null) {
+      try {
+        final token = await _token?.call();
+        final res = await api.exercises(bearer: token, etag: cached?.etag);
+        if (res.notModified && cached != null) return cached.items;
+        if (res.ok) {
+          await _writeExercisesCache(
+            res.exercises,
+            res.etag,
+            res.catalogVersion,
+          );
+          return res.exercises;
+        }
+      } catch (_) {
+        // réseau KO -> cache dédié / vide
+      }
+    }
+    return cached?.items ?? const <Exercise>[];
+  }
+
   Future<_VideosCache?> _readMeditationVideosCache() async {
     return _readVideosCacheAt(_meditationVideosKey);
   }
@@ -394,6 +421,50 @@ class ContentRepository {
     }
   }
 
+  Future<_ExercisesCache?> _readExercisesCache() async {
+    try {
+      final p = await _prefs;
+      final raw = p.getString(_exercisesKey);
+      if (raw == null) return null;
+      final decoded = jsonDecode(raw);
+      if (decoded is! Map) return null;
+      final rawItems = decoded['items'];
+      final items = rawItems is List
+          ? rawItems
+                .map(Exercise.tryFromJson)
+                .whereType<Exercise>()
+                .toList(growable: false)
+          : const <Exercise>[];
+      return _ExercisesCache(
+        etag: decoded['etag'] as String?,
+        version: decoded['catalog_version'] as String?,
+        items: items,
+      );
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<void> _writeExercisesCache(
+    List<Exercise> items,
+    String? etag,
+    String? version,
+  ) async {
+    try {
+      final p = await _prefs;
+      await p.setString(
+        _exercisesKey,
+        jsonEncode({
+          'etag': ?etag,
+          'catalog_version': ?version,
+          'items': [for (final item in items) item.toJson()],
+        }),
+      );
+    } catch (_) {
+      /* cache best-effort */
+    }
+  }
+
   Future<_MedsCache?> _readMedsCache() async {
     try {
       final p = await _prefs;
@@ -473,6 +544,14 @@ class _WakeMessagesCache {
   final String? etag;
   final String? version;
   final List<WakeMessage> items;
+}
+
+@immutable
+class _ExercisesCache {
+  const _ExercisesCache({this.etag, this.version, required this.items});
+  final String? etag;
+  final String? version;
+  final List<Exercise> items;
 }
 
 /// Fournit le [ContentRepository] à l'arbre. Absent (tests hérités) ->

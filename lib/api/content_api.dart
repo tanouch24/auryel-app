@@ -1,4 +1,5 @@
 import '../data/daily_thought.dart';
+import '../data/exercise.dart';
 import '../data/meditation_item.dart';
 import '../data/relaxation_video.dart';
 import '../data/wake_message.dart';
@@ -135,6 +136,23 @@ class WakeMessagesResult {
   bool get ok => status == 200;
 }
 
+class ExercisesResult {
+  const ExercisesResult({
+    required this.status,
+    required this.exercises,
+    this.catalogVersion,
+    this.etag,
+  });
+
+  final int status;
+  final List<Exercise> exercises;
+  final String? catalogVersion;
+  final String? etag;
+
+  bool get notModified => status == 304;
+  bool get ok => status == 200;
+}
+
 /// Couche API du contenu distant (pensée du jour + méditations). Réutilise
 /// l'[ApiClient] commun (aucun second client HTTP) via [ApiClient.getRaw] pour
 /// exploiter l'`ETag` / le `304`.
@@ -142,6 +160,33 @@ class ContentApi {
   ContentApi(this._client);
 
   final ApiClient _client;
+
+  Future<ExercisesResult> exercises({String? bearer, String? etag}) async {
+    final res = await _client.getRaw(
+      '/api/app/content/exercises',
+      bearer: bearer,
+      ifNoneMatch: etag,
+    );
+    if (res.notModified) {
+      return ExercisesResult(status: 304, exercises: const [], etag: etag);
+    }
+    if (!res.ok) {
+      return ExercisesResult(status: res.statusCode, exercises: const []);
+    }
+    final raw = res.body['exercises'] ?? res.body['items'];
+    final exercises = raw is List
+        ? raw
+              .map(Exercise.tryFromJson)
+              .whereType<Exercise>()
+              .toList(growable: false)
+        : const <Exercise>[];
+    return ExercisesResult(
+      status: 200,
+      exercises: exercises,
+      catalogVersion: _str(res.body['catalog_version']),
+      etag: res.etag ?? etag,
+    );
+  }
 
   /// `null` si le backend répond hors-2xx (le contenu distant ne doit jamais
   /// bloquer l'app) ; une [ApiUnauthorizedException] / [ApiNetworkException]
@@ -241,11 +286,7 @@ class ContentApi {
       ifNoneMatch: etag,
     );
     if (res.notModified) {
-      return RelaxationVideosResult(
-        status: 304,
-        videos: const [],
-        etag: etag,
-      );
+      return RelaxationVideosResult(status: 304, videos: const [], etag: etag);
     }
     if (!res.ok) {
       return RelaxationVideosResult(status: res.statusCode, videos: const []);
@@ -270,7 +311,10 @@ class ContentApi {
   /// -> `If-None-Match`, `304` -> `WakeMessagesResult(status: 304)`. Ne
   /// bloque jamais l'app : un statut hors-2xx renvoie une liste vide (repli
   /// cache local / embarqué côté appelant).
-  Future<WakeMessagesResult> wakeMessages({String? bearer, String? etag}) async {
+  Future<WakeMessagesResult> wakeMessages({
+    String? bearer,
+    String? etag,
+  }) async {
     final res = await _client.getRaw(
       '/api/app/content/wake-messages',
       bearer: bearer,

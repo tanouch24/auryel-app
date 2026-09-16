@@ -2,11 +2,13 @@ import 'package:flutter/material.dart';
 
 import '../api/wellbeing_ebooks_api.dart';
 import '../data/content_repository.dart';
+import '../data/exercise.dart';
 import '../data/relaxation_video.dart';
 import '../state/wellbeing_ebooks_controller.dart';
 import '../state/wellbeing_program_controller.dart';
 import '../theme/auryel_theme.dart';
 import 'ebook_reader_screen.dart';
+import 'exercise_detail_screen.dart';
 import 'relaxation_video_feed_screen.dart';
 
 /// Bibliothèque Bien-être V1 : trois univers éditoriaux, sans mélange entre
@@ -24,6 +26,7 @@ class _WellbeingLibraryScreenState extends State<WellbeingLibraryScreen> {
   WellbeingEbooksController? _ebooks;
   WellbeingProgramController? _program;
   late Future<List<RelaxationVideo>> _videos;
+  late Future<List<Exercise>> _exercises;
 
   @override
   void didChangeDependencies() {
@@ -32,8 +35,9 @@ class _WellbeingLibraryScreenState extends State<WellbeingLibraryScreen> {
     _ebooks = widget.ebooksController ?? WellbeingEbooksScope.maybeOf(context);
     _program = WellbeingProgramScope.maybeOf(context);
     final content = ContentScope.maybeOf(context);
-    _videos = content?.meditationVideos() ??
-        Future.value(const <RelaxationVideo>[]);
+    _videos =
+        content?.meditationVideos() ?? Future.value(const <RelaxationVideo>[]);
+    _exercises = content?.exercises() ?? Future.value(const <Exercise>[]);
   }
 
   Future<void> openMeditations() async {
@@ -98,7 +102,7 @@ class _WellbeingLibraryScreenState extends State<WellbeingLibraryScreen> {
               Expanded(
                 child: TabBarView(
                   children: [
-                    const _ExercisesTab(),
+                    _ExercisesTab(exercises: _exercises),
                     _MeditationsPreview(onOpen: openMeditations),
                     _EbooksTab(ebooks: _availableEbooks()),
                   ],
@@ -148,14 +152,175 @@ class _LibraryTabs extends StatelessWidget {
 }
 
 class _ExercisesTab extends StatelessWidget {
-  const _ExercisesTab();
+  const _ExercisesTab({required this.exercises});
+
+  final Future<List<Exercise>> exercises;
 
   @override
-  Widget build(BuildContext context) => const _EmptyUniverse(
-    icon: Icons.self_improvement_outlined,
-    eyebrow: 'EXERCICES',
-    title: 'Des pratiques guidées arrivent bientôt.',
-    message: 'Nous préparons des formats courts pour respirer, relâcher la pression et retrouver ton rythme.',
+  Widget build(BuildContext context) => FutureBuilder<List<Exercise>>(
+    future: exercises,
+    builder: (context, snapshot) {
+      if (snapshot.connectionState != ConnectionState.done) {
+        return const Center(child: CircularProgressIndicator());
+      }
+      if (snapshot.hasError) {
+        return const _EmptyUniverse(
+          icon: Icons.cloud_off_outlined,
+          eyebrow: 'EXERCICES',
+          title: 'Les exercices sont momentanément indisponibles.',
+          message: 'Réessaie dans un instant.',
+        );
+      }
+      final items = snapshot.data ?? const <Exercise>[];
+      if (items.isEmpty) {
+        return const _EmptyUniverse(
+          icon: Icons.self_improvement_outlined,
+          eyebrow: 'EXERCICES',
+          title: 'Des pratiques guidées arrivent bientôt.',
+          message: 'Nous préparons des formats courts pour respirer, relâcher la pression et retrouver ton rythme.',
+        );
+      }
+      return _ExerciseCatalogue(items: items);
+    },
+  );
+}
+
+class _ExerciseCatalogue extends StatefulWidget {
+  const _ExerciseCatalogue({required this.items});
+  final List<Exercise> items;
+
+  @override
+  State<_ExerciseCatalogue> createState() => _ExerciseCatalogueState();
+}
+
+class _ExerciseCatalogueState extends State<_ExerciseCatalogue> {
+  String? _category;
+
+  static const categories = <String, String>{
+    'all': 'Tout',
+    'breathing': 'Respiration',
+    'relaxation': 'Relaxation',
+    'stretching': 'Étirements',
+    'mobility': 'Mobilité',
+    'sleep': 'Sommeil',
+  };
+
+  @override
+  Widget build(BuildContext context) {
+    final filtered = _category == null
+        ? widget.items
+        : widget.items.where((item) => item.category == _category).toList();
+    return ListView(
+      padding: const EdgeInsets.fromLTRB(20, 18, 20, 32),
+      children: [
+        Text(
+          'Des pratiques courtes pour prendre soin de toi.',
+          style: AuryelText.body(
+            color: AuryelColors.textSecondary,
+            height: 1.4,
+          ),
+        ),
+        const SizedBox(height: 16),
+        SizedBox(
+          height: 42,
+          child: ListView(
+            scrollDirection: Axis.horizontal,
+            children: [
+              for (final entry in categories.entries)
+                Padding(
+                  padding: const EdgeInsets.only(right: 8),
+                  child: ChoiceChip(
+                    label: Text(entry.value),
+                    selected:
+                        (_category == null && entry.key == 'all') ||
+                        _category == entry.key,
+                    onSelected: (_) => setState(
+                      () => _category = entry.key == 'all' ? null : entry.key,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 16),
+        for (final item in filtered) _ExerciseCard(item: item),
+      ],
+    );
+  }
+}
+
+class _ExerciseCard extends StatelessWidget {
+  const _ExerciseCard({required this.item});
+  final Exercise item;
+
+  @override
+  Widget build(BuildContext context) => Card(
+    margin: const EdgeInsets.only(bottom: 12),
+    child: InkWell(
+      borderRadius: BorderRadius.circular(16),
+      onTap: () => Navigator.of(context).push(
+        MaterialPageRoute(builder: (_) => ExerciseDetailScreen(exercise: item)),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Row(
+          children: [
+            const Icon(
+              Icons.self_improvement_outlined,
+              color: AuryelColors.goldLight,
+              size: 28,
+            ),
+            const SizedBox(width: 14),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    item.categoryLabel.toUpperCase(),
+                    style: AuryelText.body(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w700,
+                      letterSpacing: 1.2,
+                      color: AuryelColors.gold,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    item.title,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: AuryelText.body(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  const SizedBox(height: 5),
+                  Text(
+                    item.description,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: AuryelText.body(
+                      fontSize: 12,
+                      color: AuryelColors.textSecondary,
+                      height: 1.3,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    '${item.durationLabel} · ${item.level}',
+                    style: AuryelText.body(
+                      fontSize: 11,
+                      color: AuryelColors.textMuted,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const Icon(Icons.chevron_right, color: AuryelColors.textMuted),
+          ],
+        ),
+      ),
+    ),
   );
 }
 
