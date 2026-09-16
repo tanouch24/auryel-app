@@ -1,8 +1,11 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:video_player/video_player.dart';
 
 import '../data/relaxation_video.dart';
+import '../data/meditation_play_queue.dart';
 import '../theme/auryel_theme.dart';
 import '../widgets/relaxation_video_background.dart';
 
@@ -14,11 +17,15 @@ class RelaxationVideoFeedScreen extends StatefulWidget {
     required this.videos,
     this.initialIndex = 0,
     this.surfaceFactory,
+    this.onItemChanged,
+    this.lastPlayedSlug,
   });
 
   final List<RelaxationVideo> videos;
   final int initialIndex;
   final RelaxationVideoSurface Function()? surfaceFactory;
+  final ValueChanged<RelaxationVideo>? onItemChanged;
+  final String? lastPlayedSlug;
 
   @override
   State<RelaxationVideoFeedScreen> createState() =>
@@ -26,14 +33,25 @@ class RelaxationVideoFeedScreen extends StatefulWidget {
 }
 
 class _RelaxationVideoFeedScreenState extends State<RelaxationVideoFeedScreen> {
-  late final PageController _pages = PageController(
-    initialPage: widget.videos.isEmpty
+  late MeditationPlayQueue _queue;
+  late List<RelaxationVideo> _items;
+  late PageController _pages;
+  late int _activeIndex;
+
+  @override
+  void initState() {
+    super.initState();
+    _queue = MeditationPlayQueue(
+      widget.videos,
+      lastPlayedSlug: widget.lastPlayedSlug,
+    );
+    _items = _queue.items;
+    _activeIndex = widget.videos.isEmpty
         ? 0
-        : widget.initialIndex.clamp(0, widget.videos.length - 1),
-  );
-  late int _activeIndex = widget.videos.isEmpty
-      ? 0
-      : widget.initialIndex.clamp(0, widget.videos.length - 1);
+        : widget.initialIndex.clamp(0, widget.videos.length - 1);
+    _queue.moveTo(_activeIndex);
+    _pages = PageController(initialPage: _activeIndex);
+  }
 
   @override
   void dispose() {
@@ -58,37 +76,46 @@ class _RelaxationVideoFeedScreenState extends State<RelaxationVideoFeedScreen> {
         children: [
           PageView.builder(
             controller: _pages,
-            scrollDirection: Axis.vertical,
-            onPageChanged: (index) => setState(() => _activeIndex = index),
-            itemCount: widget.videos.length,
+            scrollDirection: Axis.horizontal,
+            onPageChanged: _onPageChanged,
+            itemCount: _items.length,
             itemBuilder: (context, index) => _ImmersiveVideoPage(
-              key: ValueKey(widget.videos[index].videoUrl),
-              video: widget.videos[index],
+              key: ValueKey(_items[index].videoUrl),
+              video: _items[index],
               active: index == _activeIndex,
               surfaceFactory: widget.surfaceFactory,
+              onCompleted: _advance,
             ),
           ),
-          _TopOverlay(
-            onBack: () => Navigator.of(context).pop(),
-            position: _activeIndex + 1,
-            total: widget.videos.length,
-          ),
+          _TopOverlay(onBack: () => Navigator.of(context).pop()),
         ],
       ),
     );
   }
+
+  void _onPageChanged(int index) {
+    if (!mounted || index < 0 || index >= _items.length) return;
+    _queue.moveTo(index);
+    setState(() => _activeIndex = index);
+    widget.onItemChanged?.call(_items[index]);
+  }
+
+  void _advance() {
+    if (!mounted || _items.isEmpty) return;
+    final next = _queue.next();
+    if (next == null) return;
+    final nextIndex = _queue.index;
+    setState(() => _items = _queue.items);
+    if (_pages.hasClients) {
+      _pages.jumpToPage(nextIndex);
+    }
+  }
 }
 
 class _TopOverlay extends StatelessWidget {
-  const _TopOverlay({
-    required this.onBack,
-    required this.position,
-    required this.total,
-  });
+  const _TopOverlay({required this.onBack});
 
   final VoidCallback onBack;
-  final int position;
-  final int total;
 
   @override
   Widget build(BuildContext context) => SafeArea(
@@ -102,28 +129,6 @@ class _TopOverlay extends StatelessWidget {
             label: 'Retour à la Bibliothèque',
             onPressed: onBack,
           ),
-          const Spacer(),
-          if (total > 1)
-            DecoratedBox(
-              decoration: BoxDecoration(
-                color: Colors.black.withValues(alpha: .32),
-                borderRadius: BorderRadius.circular(20),
-              ),
-              child: Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 8,
-                ),
-                child: Text(
-                  '$position / $total',
-                  style: AuryelText.body(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                    color: AuryelColors.textCream,
-                  ),
-                ),
-              ),
-            ),
         ],
       ),
     ),
@@ -136,11 +141,13 @@ class _ImmersiveVideoPage extends StatefulWidget {
     required this.video,
     required this.active,
     this.surfaceFactory,
+    required this.onCompleted,
   });
 
   final RelaxationVideo video;
   final bool active;
   final RelaxationVideoSurface Function()? surfaceFactory;
+  final VoidCallback onCompleted;
 
   @override
   State<_ImmersiveVideoPage> createState() => _ImmersiveVideoPageState();
@@ -156,6 +163,8 @@ class _ImmersiveVideoPageState extends State<_ImmersiveVideoPage>
   bool _playing = false;
   bool _failed = false;
   bool _resumeAfterLifecycle = false;
+  bool _completionReported = false;
+  ValueListenable<VideoPlayerValue>? _valueListenable;
 
   @override
   void initState() {
@@ -191,7 +200,24 @@ class _ImmersiveVideoPageState extends State<_ImmersiveVideoPage>
       _loading = false;
       _ready = true;
     });
+    final surface = _surface;
+    _valueListenable = surface is RelaxationVideoCompletionSurface
+        ? surface.valueListenable
+        : null;
+    _valueListenable?.addListener(_onValueChanged);
     if (widget.active) await _play();
+  }
+
+  void _onValueChanged() {
+    final value = _valueListenable?.value;
+    if (!widget.active ||
+        value == null ||
+        !value.isCompleted ||
+        _completionReported) {
+      return;
+    }
+    _completionReported = true;
+    widget.onCompleted();
   }
 
   Future<void> _play() async {
@@ -225,6 +251,7 @@ class _ImmersiveVideoPageState extends State<_ImmersiveVideoPage>
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _valueListenable?.removeListener(_onValueChanged);
     unawaited(_surface.pause());
     _surface.dispose();
     super.dispose();
@@ -325,7 +352,7 @@ class _InfoOverlay extends StatelessWidget {
     crossAxisAlignment: CrossAxisAlignment.start,
     children: [
       Text(
-        video.title,
+        meditationDisplayTitle(video.title),
         maxLines: 2,
         overflow: TextOverflow.ellipsis,
         style: AuryelText.display(

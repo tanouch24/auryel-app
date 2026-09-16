@@ -35,6 +35,14 @@ abstract class RelaxationVideoSurface {
   void dispose();
 }
 
+/// Capacité optionnelle : les surfaces qui peuvent exposer l'état natif du
+/// lecteur permettent au feed immersif de détecter la fin du média. Les
+/// doubles de test et les surfaces historiques n'ont pas à l'implémenter.
+abstract class RelaxationVideoCompletionSurface
+    implements RelaxationVideoSurface {
+  ValueListenable<VideoPlayerValue>? get valueListenable;
+}
+
 /// Implémentation réelle via `package:video_player`.
 ///
 ///  - `VideoPlayerOptions(mixWithOthers: true)` : sur Android, le lecteur vidéo
@@ -43,7 +51,7 @@ abstract class RelaxationVideoSurface {
 ///  - le volume est configurable : muet pour les habillages audio historiques,
 ///    son natif pour le lecteur immersif.
 ///  - En test (`MissingPluginException`) ou source illisible : [load] -> `false`.
-class VideoPlayerRelaxationSurface implements RelaxationVideoSurface {
+class VideoPlayerRelaxationSurface implements RelaxationVideoCompletionSurface {
   VideoPlayerRelaxationSurface({this.muted = true});
 
   final bool muted;
@@ -67,7 +75,7 @@ class VideoPlayerRelaxationSurface implements RelaxationVideoSurface {
         return false;
       }
       await c.setVolume(muted ? 0.0 : 1.0);
-      await c.setLooping(true);
+      await c.setLooping(false);
       _ready = true;
       return true;
     } catch (_) {
@@ -113,6 +121,7 @@ class VideoPlayerRelaxationSurface implements RelaxationVideoSurface {
     );
   }
 
+  @override
   ValueListenable<VideoPlayerValue>? get valueListenable => _c;
 
   Future<void> _safeDispose() async {

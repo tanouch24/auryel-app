@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../api/wellbeing_ebooks_api.dart';
 import '../data/content_repository.dart';
@@ -43,9 +44,16 @@ class _WellbeingLibraryScreenState extends State<WellbeingLibraryScreen> {
   Future<void> openMeditations() async {
     final videos = await _videos;
     if (!mounted) return;
+    final prefs = await SharedPreferences.getInstance();
+    if (!mounted) return;
+    const lastKey = 'auryel.meditations.last_played_slug.v1';
     await Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (_) => RelaxationVideoFeedScreen(videos: videos),
+        builder: (_) => RelaxationVideoFeedScreen(
+          videos: videos,
+          lastPlayedSlug: prefs.getString(lastKey),
+          onItemChanged: (video) => prefs.setString(lastKey, video.slug),
+        ),
       ),
     );
   }
