@@ -26,8 +26,9 @@ void main() {
     );
   });
 
-  test('Rewarded annonce exactement 12 Étoiles dans son CTA', () {
-    expect(rewardedStarsAmount, 12);
+  test('Rewarded annonce une question conseiller dans son contrat SSV', () {
+    expect(rewardedConsultationQuestionAmount, 1);
+    expect(rewardedConsultationQuestionItem, 'consultation_question');
     expect(rewardedAdCtaLabel(), 'Regarder une publicité');
     expect(rewardedAdCtaLabel(loading: true), 'Chargement…');
   });

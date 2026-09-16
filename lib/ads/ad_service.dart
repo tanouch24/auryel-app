@@ -9,9 +9,10 @@ ServerSideVerificationOptions rewardedSsvOptions({
   required String customData,
 }) => ServerSideVerificationOptions(userId: userId, customData: customData);
 
-// Legacy test/configuration compatibility only. This value is never shown or
-// used to calculate the active Rewarded V1 entitlement.
-const int rewardedStarsAmount = 12;
+/// Contract AdMob/SSV du Rewarded Consultation V1. Le crédit réel est décidé
+/// par le backend : une publicité validée donne une question conseiller.
+const int rewardedConsultationQuestionAmount = 1;
+const String rewardedConsultationQuestionItem = 'consultation_question';
 
 String rewardedAdCtaLabel({bool loading = false}) =>
     loading ? 'Chargement…' : 'Regarder une publicité';
@@ -60,6 +61,7 @@ class AuryelAds {
   void setOnboardingFlowActive(bool active) {
     _onboardingFlowActive = active;
   }
+
   bool _initializing = false;
   bool _rewardedShowing = false;
   DateTime? _lastRewardedAt;
