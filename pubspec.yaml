@@ -74,6 +74,8 @@ dependencies:
   # pré-généré (R2) n'existe encore pour le message tiré (jamais un appel TTS
   # payant/réseau au moment où l'alarme sonne). Voir lib/screens/wake_ringing_screen.dart.
   flutter_tts: ^4.2.5
+  # Lecteur PDF intégré pour les ebooks Bien-être (aucun navigateur externe).
+  pdfrx: ^2.6.1
 
 dev_dependencies:
   flutter_test:

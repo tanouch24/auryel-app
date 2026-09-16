@@ -1,370 +1,242 @@
 import 'package:flutter/material.dart';
-import 'package:url_launcher/url_launcher.dart';
 
-import '../api/wellbeing_program_api.dart';
-import '../api/wellbeing_ebooks_api.dart';
-import '../state/wellbeing_program_controller.dart';
-import '../state/wellbeing_ebooks_controller.dart';
+import '../data/content_repository.dart';
+import '../data/daily_thought.dart';
 import '../state/consultation_controller.dart';
+import '../state/wellbeing_ebooks_controller.dart';
 import '../theme/auryel_theme.dart';
 import '../widgets/auryel_banner.dart';
 import 'consultation_screen.dart';
+import 'wellbeing_library_screen.dart';
 
+/// Bien-être V1 : un contenu éditorial utile aujourd'hui, puis une
+/// bibliothèque claire. Le programme historique reste hors du parcours actif.
 class WellbeingProgramScreen extends StatefulWidget {
-  const WellbeingProgramScreen({super.key, this.controller});
-
-  final WellbeingProgramController? controller;
+  const WellbeingProgramScreen({super.key});
 
   @override
   State<WellbeingProgramScreen> createState() => _WellbeingProgramScreenState();
 }
 
 class _WellbeingProgramScreenState extends State<WellbeingProgramScreen> {
-  WellbeingProgramController? _controller;
-  bool _reminderAsked = false;
-  bool _refreshRequested = false;
-
-  WellbeingProgramController? get _program =>
-      widget.controller ??
-      _controller ??
-      WellbeingProgramScope.maybeOf(context);
+  DailyThought? _thought;
+  Object? _error;
+  bool _loading = true;
+  ContentRepository? _content;
+  DailyThoughtRepository? _embeddedThoughts;
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    _controller ??= WellbeingProgramScope.maybeOf(context);
-    final controller = _program;
-    if (controller != null && controller.state == null && !_refreshRequested) {
-      _refreshRequested = true;
-      controller.refresh();
+    if (_content != null) return;
+    _content = ContentScope.maybeOf(context);
+    _embeddedThoughts = _content == null ? DailyThoughtRepository() : null;
+    _loadToday();
+  }
+
+  Future<void> _loadToday() async {
+    try {
+      final thought = _content != null
+          ? await _content!.thoughtFor(DateTime.now())
+          : await _embeddedThoughts!.thoughtFor(DateTime.now());
+      if (!mounted) return;
+      setState(() {
+        _thought = thought;
+        _loading = false;
+        _error = null;
+      });
+    } catch (error) {
+      if (!mounted) return;
+      setState(() {
+        _loading = false;
+        _error = error;
+      });
     }
   }
 
-  Future<void> _start() async {
-    final controller = _program;
-    if (controller == null) return;
-    await controller.start();
-    if (!mounted || controller.state?.started != true || _reminderAsked) return;
-    _reminderAsked = true;
-    final enabled = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Un rappel quotidien ?'),
-        content: const Text(
-          'Souhaites-tu recevoir un rappel quotidien pour tes 5 actions ?',
+  void _openConsultation() {
+    final thought = _thought;
+    if (thought == null) return;
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => ConsultationScreen(
+          pendingContext:
+              'J’aimerais parler avec toi de la pensée du jour : ${thought.phrase}\n\n${thought.interpretation}',
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Pas maintenant'),
-          ),
-          FilledButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Oui, me rappeler'),
-          ),
-        ],
       ),
     );
-    if (enabled != null) await controller.setReminder(enabled);
-  }
-
-  Future<void> _openEbook(String url) async {
-    final uri = Uri.tryParse(url);
-    if (uri == null || !(uri.scheme == 'https' || uri.scheme == 'http')) return;
-    await launchUrl(uri, mode: LaunchMode.externalApplication);
   }
 
   @override
   Widget build(BuildContext context) {
-    final controller = _program;
     final ebooks = WellbeingEbooksScope.maybeOf(context);
-    if (controller == null) {
-      return _scaffold(_intro(null, const []));
-    }
-    return AnimatedBuilder(
-      animation: Listenable.merge([
-        controller,
-        if (ebooks case final ebookController) ebookController,
-      ]),
-      builder: (context, _) {
-        if (controller.loading && controller.state == null) {
-          return _scaffold(const Center(child: CircularProgressIndicator()));
-        }
-        if (controller.error != null && controller.state == null) {
-          return _scaffold(Center(child: _error(controller)));
-        }
-        final state = controller.state;
-        if (state == null || !state.started) {
-          return _scaffold(_intro(controller, ebooks?.ebooks ?? const []));
-        }
-        if (state.completed) {
-          return _scaffold(_completed(state, ebooks?.ebooks ?? const []));
-        }
-        return _scaffold(_active(controller, state, ebooks));
-      },
-    );
-  }
-
-  Widget _intro(
-    WellbeingProgramController? controller,
-    List<WellbeingEbook> ebooks,
-  ) => ListView(
-    padding: const EdgeInsets.all(20),
-    children: [
-      _title('Mon programme Bien-être'),
-      const SizedBox(height: 18),
-      const Text(
-        'Pendant 30 jours, Auryel t’accompagne avec 5 petites actions quotidiennes pour prendre davantage soin de toi.',
-      ),
-      const SizedBox(height: 18),
-      _librarySection(ebooks),
-      const SizedBox(height: 18),
-      const Text(
-        'Je m’engage à prendre soin de moi pendant 30 jours.',
-        style: TextStyle(fontWeight: FontWeight.w600),
-      ),
-      const SizedBox(height: 10),
-      const Text(
-        'Pas besoin d’être parfait. Une journée incomplète n’annule pas le programme : reprendre le lendemain suffit.',
-      ),
-      const SizedBox(height: 24),
-      FilledButton(
-        onPressed: controller == null || controller.busy ? null : _start,
-        child: const Text('Commencer mon programme'),
-      ),
-    ],
-  );
-
-  Widget _active(
-    WellbeingProgramController controller,
-    WellbeingProgramState state,
-    WellbeingEbooksController? ebooksController,
-  ) {
-    final today = state.today!;
-    return ListView(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 28),
-      children: [
-        _title('Mon programme Bien-être'),
-        const SizedBox(height: 8),
-        Text(
-          'Jour ${today.dayNumber} sur 30',
-          style: AuryelText.display(
-            fontSize: 22,
-            fontWeight: FontWeight.w600,
-            color: AuryelColors.textCream,
-          ),
-        ),
-        Text(
-          '${today.completedCount} sur 5 aujourd’hui',
-          style: const TextStyle(color: AuryelColors.textMuted),
-        ),
-        if (today.completed) ...[
-          const SizedBox(height: 8),
-          const Text(
-            'Programme du jour terminé ✓',
-            style: TextStyle(color: AuryelColors.goldLight),
-          ),
-        ],
-        const SizedBox(height: 12),
-        ...today.actions
-            .take(5)
-            .map((action) => _actionCard(controller, action)),
-        const SizedBox(height: 10),
-        _librarySection(ebooksController?.ebooks ?? const []),
-        if (ebooksController?.error != null) _libraryError(ebooksController!),
-        if (controller.error != null) ...[
-          const SizedBox(height: 8),
-          _error(controller),
-        ],
-      ],
-    );
-  }
-
-  Widget _actionCard(
-    WellbeingProgramController controller,
-    WellbeingProgramAction action,
-  ) => Card(
-    margin: const EdgeInsets.only(bottom: 10),
-    child: Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          CheckboxListTile(
-            contentPadding: EdgeInsets.zero,
-            value: action.completed,
-            onChanged: action.completed || controller.busy
-                ? null
-                : (_) => controller.completeAction(
-                    action.dayNumber,
-                    action.actionSlot,
-                  ),
-            title: Text(
-              action.text,
-              style: TextStyle(
-                decoration: action.completed
-                    ? TextDecoration.lineThrough
-                    : null,
+    return _scaffold(
+      RefreshIndicator(
+        onRefresh: _loadToday,
+        color: AuryelColors.goldLight,
+        child: ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.fromLTRB(20, 10, 20, 28),
+          children: [
+            Text(
+              'BIEN-ÊTRE',
+              style: AuryelText.body(
+                fontSize: 11,
+                fontWeight: FontWeight.w700,
+                color: AuryelColors.gold,
+                letterSpacing: 2.5,
               ),
             ),
-          ),
-          TextButton(
-            onPressed: () => Navigator.of(context).push(
-              MaterialPageRoute(
-                builder: (_) => ConsultationScreen(
-                  pendingContext:
-                      'J’aimerais parler avec toi du conseil Bien-être du jour : ${action.text}',
+            const SizedBox(height: 8),
+            Text(
+              'Aujourd’hui',
+              style: AuryelText.display(
+                fontSize: 30,
+                fontWeight: FontWeight.w600,
+                color: AuryelColors.textCream,
+              ),
+            ),
+            const SizedBox(height: 18),
+            if (_loading)
+              const SizedBox(
+                height: 230,
+                child: Center(child: CircularProgressIndicator()),
+              )
+            else if (_error != null || _thought == null)
+              _errorState()
+            else ...[
+              _todayCard(_thought!),
+              const SizedBox(height: 14),
+              SizedBox(
+                height: 52,
+                child: FilledButton.icon(
+                  onPressed: _openConsultation,
+                  icon: const Icon(Icons.forum_outlined),
+                  label: const Text('En parler à mon conseiller'),
                 ),
               ),
-            ),
-            child: const Text('En parler à mon conseiller'),
-          ),
-        ],
-      ),
-    ),
-  );
-
-  Widget _completed(
-    WellbeingProgramState state,
-    List<WellbeingEbook> ebooks,
-  ) => ListView(
-    padding: const EdgeInsets.all(20),
-    children: [
-      _title('30 jours pour prendre soin de toi ✓'),
-      const SizedBox(height: 16),
-      const Text(
-        'Tu n’avais pas besoin d’être parfait. Tu avais simplement besoin de commencer, puis de recommencer.',
-      ),
-      const SizedBox(height: 22),
-      Text(
-        '${state.summary.daysWithActions} journées avec au moins 1 action réalisée',
-      ),
-      Text('${state.summary.totalActions} actions réalisées'),
-      const SizedBox(height: 12),
-      const Text('Programme terminé'),
-      const SizedBox(height: 24),
-      _librarySection(ebooks),
-    ],
-  );
-
-  Widget _librarySection(List<WellbeingEbook> ebooks) => Column(
-    crossAxisAlignment: CrossAxisAlignment.start,
-    children: [
-      _title('Bibliothèque Auryel'),
-      const SizedBox(height: 4),
-      const Text('Des guides offerts pour prendre soin de toi.'),
-      const SizedBox(height: 10),
-      if (ebooks.isEmpty)
-        const Card(
-          child: ListTile(
-            leading: Icon(Icons.menu_book_outlined),
-            title: Text('Ton premier guide arrive bientôt.'),
-          ),
-        )
-      else
-        ...ebooks.map(_ebookCard),
-    ],
-  );
-
-  Widget _ebookCard(WellbeingEbook ebook) {
-    final pdfUrl = ebook.pdfUrl?.trim();
-    final coverUrl = ebook.coverUrl?.trim();
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            SizedBox(
-              width: 64,
-              height: 88,
-              child: coverUrl != null && coverUrl.isNotEmpty
-                  ? ClipRRect(
-                      borderRadius: BorderRadius.circular(8),
-                      child: Image.network(
-                        coverUrl,
-                        fit: BoxFit.cover,
-                        errorBuilder: (context, error, stackTrace) =>
-                            _coverPlaceholder(),
-                      ),
-                    )
-                  : _coverPlaceholder(),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    ebook.title,
-                    style: const TextStyle(fontWeight: FontWeight.w600),
-                  ),
-                  const SizedBox(height: 3),
-                  Text(ebook.subtitle),
-                  if (ebook.description != null) ...[
-                    const SizedBox(height: 4),
-                    Text(
-                      ebook.description!,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ],
-                  const SizedBox(height: 6),
-                  if (pdfUrl != null && pdfUrl.isNotEmpty)
-                    Align(
-                      alignment: Alignment.centerLeft,
-                      child: TextButton(
-                        onPressed: () => _openEbook(pdfUrl),
-                        child: const Text('Lire l’ebook'),
-                      ),
-                    )
-                  else
-                    const Text(
-                      'Disponible prochainement',
-                      style: TextStyle(color: AuryelColors.textMuted),
-                    ),
-                ],
-              ),
-            ),
+            ],
+            const SizedBox(height: 28),
+            _libraryEntry(ebooks),
           ],
         ),
       ),
     );
   }
 
-  Widget _coverPlaceholder() => DecoratedBox(
-    decoration: BoxDecoration(
-      color: AuryelColors.surfaceLight,
-      borderRadius: BorderRadius.circular(8),
-    ),
-    child: const Icon(Icons.menu_book_outlined, color: AuryelColors.goldLight),
-  );
+  Widget _todayCard(DailyThought thought) => Card(
+        margin: EdgeInsets.zero,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(18, 18, 18, 20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  const Icon(
+                    Icons.auto_awesome_outlined,
+                    size: 18,
+                    color: AuryelColors.goldLight,
+                  ),
+                  const SizedBox(width: 8),
+                  Text(
+                    'RÉFLEXION DU JOUR',
+                    style: AuryelText.body(
+                      fontSize: 11,
+                      fontWeight: FontWeight.w700,
+                      color: AuryelColors.gold,
+                      letterSpacing: 1.5,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              Text(
+                thought.phrase,
+                style: AuryelText.display(
+                  fontSize: 22,
+                  fontWeight: FontWeight.w600,
+                  color: AuryelColors.textCream,
+                  height: 1.25,
+                ),
+              ),
+              const SizedBox(height: 14),
+              Text(
+                thought.interpretation,
+                style: AuryelText.body(
+                  fontSize: 14,
+                  height: 1.55,
+                  color: AuryelColors.textSecondary,
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
 
-  Widget _libraryError(WellbeingEbooksController controller) => Row(
-    children: [
-      const Expanded(
-        child: Text('La bibliothèque est momentanément indisponible.'),
+  Widget _libraryEntry(WellbeingEbooksController? ebooks) {
+    final count = ebooks?.ebooks.length ?? 0;
+    return Card(
+      margin: EdgeInsets.zero,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(12),
+        onTap: () => Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (_) => WellbeingLibraryScreen(ebooksController: ebooks),
+          ),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(18, 16, 14, 16),
+          child: Row(
+            children: [
+              const Icon(
+                Icons.menu_book_outlined,
+                color: AuryelColors.goldLight,
+                size: 27,
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Bibliothèque',
+                      style: AuryelText.display(
+                        fontSize: 20,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      count == 0
+                          ? 'Méditations et guides à découvrir'
+                          : '$count guide${count > 1 ? 's' : ''} · méditations disponibles',
+                      style: AuryelText.body(
+                        fontSize: 12.5,
+                        color: AuryelColors.textSecondary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const Icon(
+                Icons.arrow_forward_ios_rounded,
+                size: 17,
+                color: AuryelColors.goldLight,
+              ),
+            ],
+          ),
+        ),
       ),
-      TextButton(onPressed: controller.refresh, child: const Text('Réessayer')),
-    ],
-  );
+    );
+  }
 
-  Widget _error(WellbeingProgramController controller) => Column(
-    mainAxisSize: MainAxisSize.min,
-    children: [
-      const Text('Le programme est momentanément indisponible.'),
-      TextButton(onPressed: controller.refresh, child: const Text('Réessayer')),
-    ],
-  );
-
-  Widget _title(String text) => Text(
-    text,
-    style: AuryelText.display(
-      fontSize: 26,
-      fontWeight: FontWeight.w600,
-      color: AuryelColors.textCream,
-    ),
-  );
+  Widget _errorState() => Column(
+        children: [
+          const Text('Le contenu du jour est momentanément indisponible.'),
+          TextButton(onPressed: _loadToday, child: const Text('Réessayer')),
+        ],
+      );
 
   Widget _scaffold(Widget body) {
     final consultation = ConsultationScope.maybeReadOf(context);
@@ -372,17 +244,13 @@ class _WellbeingProgramScreenState extends State<WellbeingProgramScreen> {
         ? const SizedBox.shrink()
         : ListenableBuilder(
             listenable: consultation,
-            builder: (context, _) =>
-                AuryelBanner(isPremium: consultation.quota?.isPremium),
+            builder: (context, _) => AuryelBanner(
+              isPremium: consultation.quota?.isPremium,
+            ),
           );
     return Scaffold(
       appBar: AppBar(),
-      body: Column(
-        children: [
-          Expanded(child: body),
-          banner,
-        ],
-      ),
+      body: Column(children: [Expanded(child: body), banner]),
     );
   }
 }
