@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:video_player/video_player.dart';
 
@@ -8,10 +9,11 @@ import '../theme/auryel_theme.dart';
 
 /// Fine abstraction du lecteur vidéo d'ambiance — un SEUL exemplaire par
 /// [RelaxationVideoStage]. Isolée pour être remplaçable en test (aucun canal
-/// plateforme). La vidéo est TOUJOURS muette et ne partage JAMAIS le focus
-/// audio (mix avec l'audio MP3 de la méditation).
+/// plateforme). Le volume est choisi par l'hôte : les visuels d'ambiance des
+/// méditations audio restent muets, tandis que le lecteur immersif peut lire
+/// la piste native du MP4.
 abstract class RelaxationVideoSurface {
-  /// Charge et prépare [url] (streaming, en boucle, volume 0, `mixWithOthers`).
+  /// Charge et prépare [url] (streaming, en boucle, `mixWithOthers`).
   /// Renvoie `true` si la vidéo est réellement prête à l'affichage. Toute
   /// erreur (404, format non supporté, timeout, réseau) -> `false`, sans
   /// exception. NE TOUCHE JAMAIS le lecteur audio.
@@ -38,9 +40,13 @@ abstract class RelaxationVideoSurface {
 ///  - `VideoPlayerOptions(mixWithOthers: true)` : sur Android, le lecteur vidéo
 ///    ne demande PAS le focus audio exclusif -> l'audio MP3 (audioplayers) n'est
 ///    JAMAIS interrompu / dél-duck / mis en pause quand la vidéo démarre.
-///  - `setVolume(0)` : muet quoi qu'il arrive.
+///  - le volume est configurable : muet pour les habillages audio historiques,
+///    son natif pour le lecteur immersif.
 ///  - En test (`MissingPluginException`) ou source illisible : [load] -> `false`.
 class VideoPlayerRelaxationSurface implements RelaxationVideoSurface {
+  VideoPlayerRelaxationSurface({this.muted = true});
+
+  final bool muted;
   VideoPlayerController? _c;
   bool _ready = false;
 
@@ -60,7 +66,7 @@ class VideoPlayerRelaxationSurface implements RelaxationVideoSurface {
         await _safeDispose();
         return false;
       }
-      await c.setVolume(0); // MUET — le son vient uniquement de l'audio MP3.
+      await c.setVolume(muted ? 0.0 : 1.0);
       await c.setLooping(true);
       _ready = true;
       return true;
@@ -106,6 +112,8 @@ class VideoPlayerRelaxationSurface implements RelaxationVideoSurface {
       ),
     );
   }
+
+  ValueListenable<VideoPlayerValue>? get valueListenable => _c;
 
   Future<void> _safeDispose() async {
     _ready = false;

@@ -30,11 +30,13 @@ class WakeVideo {
 class WakeVideoCatalog {
   const WakeVideoCatalog._();
 
+  static const pilotRemoteUrl =
+      'https://pub-19c78d4dc57a41849a27c0e73ed231ce.r2.dev/'
+      'wake-videos/auryel-reveil-video-test-01.mp4';
+
   static const WakeVideo pilot = WakeVideo(
     id: 'wake-test-01',
-    remoteUrl:
-        'https://pub-19c78d4dc57a41849a27c0e73ed231ce.r2.dev/'
-        'wake-videos/auryel-reveil-video-test-01.mp4',
+    remoteUrl: pilotRemoteUrl,
   );
 
   static const List<WakeVideo> active = [pilot];

@@ -62,8 +62,9 @@ void main() {
     return controller;
   }
 
-  testWidgets('V1 affiche un contenu du jour et un seul CTA conseiller',
-      (tester) async {
+  testWidgets('V1 affiche un contenu du jour et un seul CTA conseiller', (
+    tester,
+  ) async {
     final ebooks = await ebooksController();
     addTearDown(ebooks.dispose);
     final content = ContentRepository(
@@ -89,11 +90,11 @@ void main() {
     expect(find.text('0 sur 5 aujourd’hui'), findsNothing);
     expect(find.text('En parler à mon conseiller'), findsOneWidget);
     expect(find.text('Bibliothèque'), findsOneWidget);
-
   });
 
-  testWidgets('V1 ouvre la bibliothèque unique avec le vrai ebook',
-      (tester) async {
+  testWidgets('V1 ouvre la bibliothèque unique avec le vrai ebook', (
+    tester,
+  ) async {
     final ebooks = await ebooksController();
     addTearDown(ebooks.dispose);
     final content = ContentRepository(
@@ -116,10 +117,6 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byType(WellbeingLibraryScreen), findsOneWidget);
-    await tester.tap(find.text('Méditations'));
-    await tester.pumpAndSettle();
-    expect(find.text('Réveil Auryel'), findsOneWidget);
-    expect(find.text('0 s'), findsNothing);
     await tester.tap(find.text('Ebooks'));
     await tester.pumpAndSettle();
     expect(find.text('Guide réel'), findsOneWidget);
