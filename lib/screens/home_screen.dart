@@ -100,7 +100,7 @@ class HomeScreen extends StatelessWidget {
           SafeArea(
             child: SingleChildScrollView(
               child: Padding(
-                padding: const EdgeInsets.fromLTRB(24, 16, 24, 20),
+                padding: const EdgeInsets.fromLTRB(24, 8, 24, 12),
                 child: Column(
                   children: [
                     // « Mon compte » / consultation gratuite
@@ -115,7 +115,7 @@ class HomeScreen extends StatelessWidget {
                       delay: 100.ms,
                       duration: 400.ms,
                     ),
-                    const SizedBox(height: 18),
+                    const SizedBox(height: 10),
                     const AuryelWordmark().animate().fadeIn(duration: 500.ms),
                     const SizedBox(height: 6),
                     Text(
@@ -128,18 +128,18 @@ class HomeScreen extends StatelessWidget {
                         letterSpacing: 2.4,
                       ),
                     ).animate().fadeIn(delay: 120.ms, duration: 500.ms),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 10),
                     const _Ornament().animate().fadeIn(
                       delay: 200.ms,
                       duration: 500.ms,
                     ),
-                    const SizedBox(height: 10),
+                    const SizedBox(height: 6),
                     _DailyThoughtZone(repository: thoughtRepository)
                         .animate()
                         .fadeIn(delay: 260.ms, duration: 500.ms),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 10),
                     const _DailyTirageCard(),
-                    const SizedBox(height: 16),
+                    const SizedBox(height: 10),
                     (consultation == null
                             ? _TimeAvailableBlock(
                                 consultation: null,
@@ -154,7 +154,7 @@ class HomeScreen extends StatelessWidget {
                               ))
                         .animate()
                         .fadeIn(delay: 340.ms, duration: 500.ms),
-                    const SizedBox(height: 10),
+                    const SizedBox(height: 6),
                     (consultation == null
                             ? const _ConsultationOffers(isPremium: false)
                             : ListenableBuilder(
@@ -168,7 +168,7 @@ class HomeScreen extends StatelessWidget {
                               ))
                         .animate()
                         .fadeIn(delay: 400.ms, duration: 500.ms),
-                    const SizedBox(height: 10),
+                    const SizedBox(height: 6),
                     consultation == null
                         ? const SizedBox.shrink()
                         : ListenableBuilder(
@@ -223,7 +223,9 @@ class _DailyTirageCardState extends State<_DailyTirageCard>
   bool _isToday(DateTime value) {
     final date = value.toLocal();
     final now = DateTime.now();
-    return date.year == now.year && date.month == now.month && date.day == now.day;
+    return date.year == now.year &&
+        date.month == now.month &&
+        date.day == now.day;
   }
 
   Future<void> _load() async {
@@ -262,11 +264,13 @@ class _DailyTirageCardState extends State<_DailyTirageCard>
     final result = _today;
     final cardName = result?.cards.isNotEmpty == true
         ? result!.cards.first.name
-        : (result == null || result.cardKeys.isEmpty ? null : result.cardKeys.first);
+        : (result == null || result.cardKeys.isEmpty
+              ? null
+              : result.cardKeys.first);
     final summary = result?.combinedInterpretation.trim();
     return Container(
       key: const Key('home-daily-tirage-card'),
-      padding: const EdgeInsets.all(18),
+      padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
       decoration: BoxDecoration(
         color: AuryelColors.surface.withValues(alpha: 0.78),
         borderRadius: BorderRadius.circular(20),
@@ -275,29 +279,44 @@ class _DailyTirageCardState extends State<_DailyTirageCard>
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text('Tirage du jour', style: AuryelText.display(fontSize: 19)),
-          const SizedBox(height: 6),
+          Text('Tirage du jour', style: AuryelText.display(fontSize: 18)),
+          const SizedBox(height: 4),
           if (_loading)
             const LinearProgressIndicator(minHeight: 2)
           else if (result == null) ...[
-            Text('Une carte pour commencer la journée autrement.', style: AuryelText.body(color: AuryelColors.textSecondary)),
-            const SizedBox(height: 12),
-            ElevatedButton(
+            Text(
+              'Une carte pour commencer la journée autrement.',
+              style: AuryelText.body(color: AuryelColors.textSecondary),
+            ),
+            const SizedBox(height: 8),
+            _CompactCta(
               key: const Key('home-daily-tirage-cta'),
-              onPressed: _openTirage,
-              child: const Text('Tirer ma carte'),
+              label: 'Tirer ma carte',
+              onTap: _openTirage,
             ),
           ] else ...[
-            Text(cardName ?? 'Votre carte du jour', style: AuryelText.display(fontSize: 17)),
+            Text(
+              cardName ?? 'Votre carte du jour',
+              style: AuryelText.display(fontSize: 16),
+            ),
             if (summary != null && summary.isNotEmpty) ...[
-              const SizedBox(height: 6),
-              Text(summary, maxLines: 3, overflow: TextOverflow.ellipsis, style: AuryelText.body(color: AuryelColors.textSecondary, height: 1.35)),
+              const SizedBox(height: 4),
+              Text(
+                summary,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: AuryelText.body(
+                  fontSize: 12.5,
+                  color: AuryelColors.textSecondary,
+                  height: 1.25,
+                ),
+              ),
             ],
-            const SizedBox(height: 12),
-            OutlinedButton(
+            const SizedBox(height: 8),
+            _CompactCta(
               key: const Key('home-daily-tirage-talk'),
-              onPressed: _openTirage,
-              child: const Text('En parler à mon conseiller'),
+              label: 'En parler à mon conseiller',
+              onTap: _openTirage,
             ),
           ],
         ],
@@ -407,12 +426,16 @@ class _FreeConsultationPill extends StatelessWidget {
     return ListenableBuilder(
       listenable: rewards,
       builder: (context, _) {
-        final label = rewards.wallet == null
+        final questionLabel = rewards.wallet == null
             ? 'Consultation gratuite'
-            : '${rewards.questionsAvailable} question${rewards.questionsAvailable == 1 ? '' : 's'}';
+            : '${rewards.questionsAvailable} question${rewards.questionsAvailable <= 1 ? '' : 's'} gratuite${rewards.questionsAvailable <= 1 ? '' : 's'}';
+        final ctaLabel =
+            rewards.wallet == null || rewards.questionsAvailable == 0
+            ? 'Obtenir des questions →'
+            : 'Ouvrir la consultation →';
         return Semantics(
           button: true,
-          label: 'Consultation gratuite, $label',
+          label: 'Consultation gratuite, $questionLabel, $ctaLabel',
           child: Material(
             color: Colors.transparent,
             borderRadius: BorderRadius.circular(999),
@@ -423,7 +446,7 @@ class _FreeConsultationPill extends StatelessWidget {
                 MaterialPageRoute(builder: (_) => const RewardsWalletScreen()),
               ),
               child: Container(
-                padding: const EdgeInsets.fromLTRB(12, 8, 14, 8),
+                padding: const EdgeInsets.fromLTRB(10, 6, 11, 6),
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(999),
                   color: AuryelColors.surface.withValues(alpha: 0.75),
@@ -434,16 +457,30 @@ class _FreeConsultationPill extends StatelessWidget {
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Text('💬', style: TextStyle(fontSize: 15)),
+                    const Text('💬', style: TextStyle(fontSize: 14)),
                     const SizedBox(width: 6),
-                    Text(
-                      label,
-                      key: const Key('home-free-consultation-pill-value'),
-                      style: AuryelText.body(
-                        fontSize: 12.5,
-                        fontWeight: FontWeight.w600,
-                        color: AuryelColors.textCream,
-                      ),
+                    Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          questionLabel,
+                          key: const Key('home-free-consultation-pill-value'),
+                          style: AuryelText.body(
+                            fontSize: 11.5,
+                            fontWeight: FontWeight.w700,
+                            color: AuryelColors.textCream,
+                          ),
+                        ),
+                        Text(
+                          ctaLabel,
+                          style: AuryelText.body(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w600,
+                            color: AuryelColors.goldLight,
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),
@@ -610,7 +647,7 @@ class _OfferCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.fromLTRB(16, 16, 14, 14),
+      padding: const EdgeInsets.fromLTRB(14, 10, 12, 10),
       decoration: BoxDecoration(
         gradient: primary
             ? LinearGradient(
@@ -628,45 +665,60 @@ class _OfferCard extends StatelessWidget {
               : AuryelColors.warmBorder,
         ),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          Text(
-            title,
-            style: AuryelText.display(
-              fontSize: 17,
-              fontWeight: FontWeight.w600,
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  title,
+                  style: AuryelText.display(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  detail,
+                  style: AuryelText.body(
+                    fontSize: 12,
+                    color: AuryelColors.textSecondary,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Wrap(
+                  spacing: 8,
+                  children: [
+                    Text(
+                      price,
+                      style: AuryelText.body(
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w700,
+                        color: AuryelColors.goldLight,
+                      ),
+                    ),
+                    if (footnote != null)
+                      Text(
+                        footnote!,
+                        overflow: TextOverflow.ellipsis,
+                        style: AuryelText.body(
+                          fontSize: 11,
+                          color: AuryelColors.textMuted,
+                        ),
+                      ),
+                  ],
+                ),
+              ],
             ),
           ),
-          const SizedBox(height: 5),
-          Text(
-            detail,
-            style: AuryelText.body(
-              fontSize: 13,
-              color: AuryelColors.textSecondary,
-            ),
+          const SizedBox(width: 10),
+          SizedBox(
+            width: 132,
+            child: _CompactCta(label: cta, onTap: onTap),
           ),
-          const SizedBox(height: 5),
-          Text(
-            price,
-            style: AuryelText.body(
-              fontSize: 13,
-              fontWeight: FontWeight.w700,
-              color: AuryelColors.goldLight,
-            ),
-          ),
-          if (footnote != null) ...[
-            const SizedBox(height: 2),
-            Text(
-              footnote!,
-              style: AuryelText.body(
-                fontSize: 12,
-                color: AuryelColors.textMuted,
-              ),
-            ),
-          ],
-          const SizedBox(height: 12),
-          _CompactCta(label: cta, onTap: onTap),
         ],
       ),
     );
@@ -817,7 +869,7 @@ class _DailyThoughtZoneState extends State<_DailyThoughtZone>
           textAlign: TextAlign.center,
           text: TextSpan(
             style: AuryelText.body(
-              fontSize: 20,
+              fontSize: 18,
               fontWeight: FontWeight.w400,
               color: AuryelColors.textSecondary,
               height: 1.32,
@@ -828,7 +880,7 @@ class _DailyThoughtZoneState extends State<_DailyThoughtZone>
               TextSpan(
                 text: split?.accent ?? '',
                 style: AuryelText.body(
-                  fontSize: 20,
+                  fontSize: 18,
                   fontWeight: FontWeight.w400,
                   color: AuryelColors.goldLight,
                   height: 1.32,
@@ -837,7 +889,7 @@ class _DailyThoughtZoneState extends State<_DailyThoughtZone>
             ],
           ),
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: 8),
         _ShareRewardBlock(onShare: _openPreview),
       ],
     );
@@ -890,7 +942,7 @@ class _ShareRewardBlock extends StatelessWidget {
             height: 1.3,
           ),
         ),
-        const SizedBox(height: 8),
+        const SizedBox(height: 5),
         AuryelGoldButton(label: 'Partager maintenant', onTap: onShare),
       ],
     );
@@ -1352,50 +1404,57 @@ class _TimeAvailableBlock extends StatelessWidget {
               color: AuryelColors.surface.withValues(alpha: 0.5),
               border: Border.all(color: AuryelColors.warmBorder, width: 1),
             ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                Text(
-                  'TON TEMPS DE CONSULTATION',
-                  style: AuryelText.body(
-                    fontSize: 9.5,
-                    fontWeight: FontWeight.w600,
-                    color: AuryelColors.gold,
-                    letterSpacing: 1.8,
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        'TON TEMPS DE CONSULTATION',
+                        style: AuryelText.body(
+                          fontSize: 9.5,
+                          fontWeight: FontWeight.w600,
+                          color: AuryelColors.gold,
+                          letterSpacing: 1.8,
+                        ),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        value,
+                        style: AuryelText.display(
+                          fontSize: 17,
+                          fontWeight: FontWeight.w600,
+                          color: AuryelColors.textCream,
+                        ),
+                      ),
+                      if (active)
+                        Text(
+                          'Temps réel communiqué par le serveur',
+                          style: AuryelText.body(
+                            fontSize: 10.5,
+                            color: AuryelColors.textSecondary,
+                          ),
+                        ),
+                      if (!hasTime)
+                        Text(
+                          'Découvre les solutions ci-dessous pour continuer.',
+                          style: AuryelText.body(
+                            fontSize: 11.5,
+                            color: AuryelColors.textMuted,
+                          ),
+                        ),
+                    ],
                   ),
                 ),
-                const SizedBox(height: 3),
-                Text(
-                  value,
-                  style: AuryelText.display(
-                    fontSize: 18,
-                    fontWeight: FontWeight.w600,
-                    color: AuryelColors.textCream,
-                  ),
-                ),
-                if (active) ...[
-                  const SizedBox(height: 2),
-                  Text(
-                    'Temps réel communiqué par le serveur',
-                    style: AuryelText.body(
-                      fontSize: 11,
-                      color: AuryelColors.textSecondary,
-                    ),
-                  ),
-                ],
-                const SizedBox(height: 12),
-                if (!hasTime)
-                  Text(
-                    'Découvre les solutions ci-dessous pour continuer.',
-                    style: AuryelText.body(
-                      fontSize: 12,
-                      color: AuryelColors.textMuted,
-                    ),
-                  ),
                 if (hasTime) ...[
-                  const SizedBox(height: 12),
-                  _CompactCta(label: ctaLabel, onTap: null),
+                  const SizedBox(width: 10),
+                  SizedBox(
+                    width: 132,
+                    child: _CompactCta(label: ctaLabel, onTap: null),
+                  ),
                 ],
               ],
             ),
@@ -1407,7 +1466,7 @@ class _TimeAvailableBlock extends StatelessWidget {
 }
 
 class _CompactCta extends StatelessWidget {
-  const _CompactCta({required this.label, required this.onTap});
+  const _CompactCta({super.key, required this.label, required this.onTap});
 
   final String label;
   final VoidCallback? onTap;
@@ -1433,7 +1492,7 @@ class _CompactCta extends StatelessWidget {
               child: Padding(
                 padding: const EdgeInsets.symmetric(
                   horizontal: 16,
-                  vertical: 11,
+                  vertical: 10,
                 ),
                 child: Text(
                   label,
