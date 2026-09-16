@@ -49,6 +49,8 @@ void main() {
     expect(find.byKey(const Key('home-daily-tirage-card')), findsOneWidget);
     expect(find.text('Tirage du jour'), findsOneWidget);
     expect(find.text('Tirer ma carte'), findsOneWidget);
+    expect(find.text('Partage cette pensée avec tes proches'), findsOneWidget);
+    expect(find.text('Mon programme Bien-être'), findsNothing);
     expect(find.text('Mes Étoiles'), findsNothing);
     expect(find.text('6 Étoiles'), findsNothing);
   });

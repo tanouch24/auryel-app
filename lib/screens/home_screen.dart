@@ -11,7 +11,6 @@ import 'package:phosphor_icons/phosphor_icons.dart';
 
 import '../api/wellbeing_api.dart' show kWellbeingMissions;
 import '../api/rewards_api.dart' show RewardRule;
-import '../api/wellbeing_program_api.dart' show WellbeingProgramState;
 import '../data/content_repository.dart';
 import '../data/daily_like_store.dart';
 import '../data/daily_share_tracker.dart';
@@ -24,7 +23,6 @@ import '../state/auth_controller.dart';
 import '../state/consultation_controller.dart';
 import '../state/rewards_controller.dart';
 import '../state/wellbeing_controller.dart';
-import '../state/wellbeing_program_controller.dart';
 import '../theme/auryel_theme.dart';
 import '../widgets/advisors_carousel.dart' show AdvisorInfo, advisorByName;
 import '../widgets/auryel_wordmark.dart';
@@ -35,7 +33,6 @@ import '../widgets/auryel_banner.dart';
 import 'dashboard_screen.dart';
 import 'premium_screen.dart';
 import 'rewards_wallet_screen.dart';
-import 'wellbeing_program_screen.dart';
 import 'meditation_feed_screen.dart';
 import 'tirage_jeu_screen.dart';
 import 'tirage_screen.dart';
@@ -143,11 +140,6 @@ class HomeScreen extends StatelessWidget {
                     const SizedBox(height: 16),
                     const _DailyTirageCard(),
                     const SizedBox(height: 16),
-                    const _WellbeingJourneyCta().animate().fadeIn(
-                      delay: 300.ms,
-                      duration: 500.ms,
-                    ),
-                    const SizedBox(height: 10),
                     (consultation == null
                             ? _TimeAvailableBlock(
                                 consultation: null,
@@ -726,125 +718,6 @@ class _Divider extends StatelessWidget {
     height: 1,
     color: AuryelColors.warmBorder.withValues(alpha: 0.6),
   );
-}
-
-/// CTA bien visible vers la carte de progression « Mon parcours bien-être ».
-///
-/// CORRECTIF PRODUIT — le sous-texte ne promet plus une durée de consultation
-/// (« +15 min ») : univers Auryel recentré sur les Étoiles, cette promesse
-/// devenait une ancienne mécanique affichée en concurrence du nouveau
-/// système. Le crédit +900 s à la 30e journée d'un cycle reste un VRAI
-/// mécanisme serveur inchangé (`_reconcile_wellbeing_progress`,
-/// `WellbeingProgress.rewardEarnedForCurrentCycle` / `.rewardCreditedSeconds`,
-/// affiché dans le parcours lui-même via `wellbeing_journey_map.dart` >
-/// `_RewardLine`) — seule cette carte d'accroche cesse de le mettre en avant.
-class _WellbeingJourneyCta extends StatelessWidget {
-  const _WellbeingJourneyCta();
-
-  @override
-  Widget build(BuildContext context) {
-    final program = WellbeingProgramScope.maybeOf(context);
-    if (program == null) return _card(context, null);
-    return AnimatedBuilder(
-      animation: program,
-      builder: (context, _) => _card(context, program.state),
-    );
-  }
-
-  Widget _card(BuildContext context, WellbeingProgramState? state) {
-    final today = state?.today;
-    final title = state?.completed == true
-        ? '30 jours terminés ✓'
-        : state?.started == true
-        ? 'Jour ${today?.dayNumber ?? 1}/30 · ${today?.completedCount ?? 0}/5 aujourd’hui'
-        : '30 jours pour prendre soin de moi';
-    final cta = state?.completed == true
-        ? 'Voir mon parcours'
-        : state?.started == true
-        ? 'Continuer mon programme →'
-        : 'Découvrir mon programme →';
-    return Semantics(
-      button: true,
-      label: 'Mon programme Bien-être',
-      child: Material(
-        color: Colors.transparent,
-        borderRadius: BorderRadius.circular(18),
-        child: InkWell(
-          borderRadius: BorderRadius.circular(18),
-          onTap: () => Navigator.of(context).push(
-            MaterialPageRoute(builder: (_) => const WellbeingProgramScreen()),
-          ),
-          child: Container(
-            padding: const EdgeInsets.fromLTRB(16, 14, 14, 14),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(18),
-              gradient: LinearGradient(
-                colors: [
-                  AuryelColors.gold.withValues(alpha: 0.20),
-                  AuryelColors.gold.withValues(alpha: 0.06),
-                ],
-              ),
-              border: Border.all(
-                color: AuryelColors.goldLight.withValues(alpha: 0.55),
-              ),
-            ),
-            child: Row(
-              children: [
-                Container(
-                  width: 42,
-                  height: 42,
-                  alignment: Alignment.center,
-                  decoration: const BoxDecoration(
-                    shape: BoxShape.circle,
-                    gradient: AuryelColors.goldGradient,
-                  ),
-                  child: const PhosphorIcon(
-                    PhosphorIconsRegular.path,
-                    size: 20,
-                    color: AuryelColors.backgroundDeep,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        'Mon programme Bien-être',
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: AuryelText.display(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w600,
-                          color: AuryelColors.textCream,
-                        ),
-                      ),
-                      const SizedBox(height: 3),
-                      Text(
-                        '$title\n$cta',
-                        maxLines: 3,
-                        overflow: TextOverflow.ellipsis,
-                        style: AuryelText.body(
-                          fontSize: 11.5,
-                          height: 1.3,
-                          color: AuryelColors.textMuted,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const PhosphorIcon(
-                  PhosphorIconsRegular.arrowRight,
-                  size: 16,
-                  color: AuryelColors.goldLight,
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
 }
 
 // ===========================================================================
