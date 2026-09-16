@@ -343,7 +343,7 @@ class _MeditationFeedScreenState extends State<MeditationFeedScreen> {
       final content = ContentScope.maybeOf(context);
       if (content == null) return const <RelaxationVideo>[];
       try {
-        final list = await content.relaxationVideos();
+        final list = await content.meditationVideos();
         _videoCatalog = list;
         return list;
       } catch (_) {

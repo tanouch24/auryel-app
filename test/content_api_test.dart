@@ -340,4 +340,47 @@ void main() {
       expect(res.items.map((m) => m.id), ['new']);
     });
   });
+
+  group('ContentApi.meditationVideos — catalogue serveur dynamique', () {
+    test('A/B puis A/B/C après refresh, sans liste Flutter statique', () async {
+      var revision = 0;
+      final api = ContentApi(
+        ApiClient(
+          httpClient: MockClient((_) async {
+            final entries = revision == 0
+                ? [
+                    {'id': 'a', 'title': 'A', 'video_url': 'https://cdn/a.mp4', 'object_key': 'meditations/a.mp4'},
+                    {'id': 'b', 'title': 'B', 'video_url': 'https://cdn/b.mp4', 'object_key': 'meditations/b.mp4'},
+                  ]
+                : [
+                    {'id': 'a', 'title': 'A', 'video_url': 'https://cdn/a.mp4', 'object_key': 'meditations/a.mp4'},
+                    {'id': 'b', 'title': 'B', 'video_url': 'https://cdn/b.mp4', 'object_key': 'meditations/b.mp4'},
+                    {'id': 'c', 'title': 'C', 'video_url': 'https://cdn/c.mp4', 'object_key': 'meditations/c.mp4'},
+                  ];
+            return _json({'catalog_version': 'v$revision', 'meditation_videos': entries});
+          }),
+          baseUrl: 'http://test.local',
+        ),
+      );
+      final first = await api.meditationVideos();
+      expect(first.videos.map((v) => v.id), ['a', 'b']);
+      revision = 1;
+      final refreshed = await api.meditationVideos(etag: first.catalogVersion);
+      expect(refreshed.videos.map((v) => v.id), ['a', 'b', 'c']);
+    });
+
+    test('le filtrage client refuse également tout objet Wake', () async {
+      final api = _api(
+        MockClient((_) async => _json({
+          'catalog_version': 'mixed',
+          'meditation_videos': [
+            {'id': 'wake', 'title': 'Wake', 'video_url': 'https://cdn/w.mp4', 'object_key': 'wake-videos/w.mp4'},
+            {'id': 'med', 'title': 'Med', 'video_url': 'https://cdn/m.mp4', 'object_key': 'meditations/m.mp4'},
+          ],
+        })),
+      );
+      final result = await api.meditationVideos();
+      expect(result.videos.map((v) => v.id), ['med']);
+    });
+  });
 }

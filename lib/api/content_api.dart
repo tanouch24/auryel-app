@@ -91,6 +91,25 @@ class RelaxationVideosResult {
   bool get ok => status == 200;
 }
 
+/// Catalogue des MP4 de méditation R2. Il est distinct des vidéos d'ambiance
+/// historiques utilisées par le Réveil et par l'ancien lecteur audio.
+class MeditationVideosResult {
+  const MeditationVideosResult({
+    required this.status,
+    required this.videos,
+    this.catalogVersion,
+    this.etag,
+  });
+
+  final int status;
+  final List<RelaxationVideo> videos;
+  final String? catalogVersion;
+  final String? etag;
+
+  bool get notModified => status == 304;
+  bool get ok => status == 200;
+}
+
 /// Résultat de `GET /api/app/content/wake-messages` (catalogue conditionnel,
 /// même philosophie que [RelaxationVideosResult]).
 ///
@@ -163,6 +182,46 @@ class ContentApi {
     return MeditationsCatalogResult(
       status: 200,
       items: items,
+      catalogVersion: _str(res.body['catalog_version']),
+      etag: res.etag ?? etag,
+    );
+  }
+
+  /// Catalogue vidéo demandé via le même endpoint historique, avec une
+  /// représentation explicite `media=video`. Le backend conserve ainsi la
+  /// compatibilité du catalogue audio par défaut.
+  Future<MeditationVideosResult> meditationVideos({
+    String? bearer,
+    String? etag,
+  }) async {
+    final res = await _client.getRaw(
+      '/api/app/content/meditations?media=video',
+      bearer: bearer,
+      ifNoneMatch: etag,
+    );
+    if (res.notModified) {
+      return MeditationVideosResult(status: 304, videos: const [], etag: etag);
+    }
+    if (!res.ok) {
+      return MeditationVideosResult(status: res.statusCode, videos: const []);
+    }
+    final rawItems = res.body['meditation_videos'];
+    final videos = rawItems is List
+        ? rawItems
+              .whereType<Map<String, dynamic>>()
+              .where((item) {
+                final key = item['object_key'];
+                return key is String &&
+                    key.startsWith('meditations/') &&
+                    key.toLowerCase().endsWith('.mp4');
+              })
+              .map(RelaxationVideo.tryFromJson)
+              .whereType<RelaxationVideo>()
+              .toList(growable: false)
+        : const <RelaxationVideo>[];
+    return MeditationVideosResult(
+      status: 200,
+      videos: videos,
       catalogVersion: _str(res.body['catalog_version']),
       etag: res.etag ?? etag,
     );

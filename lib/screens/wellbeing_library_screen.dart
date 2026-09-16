@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../api/wellbeing_ebooks_api.dart';
-import '../data/meditation_video_catalog.dart';
+import '../data/content_repository.dart';
 import '../data/relaxation_video.dart';
 import '../state/wellbeing_ebooks_controller.dart';
 import '../state/wellbeing_program_controller.dart';
@@ -31,7 +31,9 @@ class _WellbeingLibraryScreenState extends State<WellbeingLibraryScreen> {
     if (_ebooks != null) return;
     _ebooks = widget.ebooksController ?? WellbeingEbooksScope.maybeOf(context);
     _program = WellbeingProgramScope.maybeOf(context);
-    _videos = Future.value(MeditationVideoCatalog.activeVideos());
+    final content = ContentScope.maybeOf(context);
+    _videos = content?.meditationVideos() ??
+        Future.value(const <RelaxationVideo>[]);
   }
 
   Future<void> openMeditations() async {

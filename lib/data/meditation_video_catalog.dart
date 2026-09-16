@@ -28,7 +28,13 @@ class MeditationVideoEntry {
   final int sortOrder;
   final bool isActive;
 
-  bool get hasMeditationObjectKey => objectKey.startsWith('meditation-videos/');
+  /// Une entrée n'est admissible que si elle pointe vers un MP4 déclaré dans
+  /// le préfixe R2 réservé aux méditations. Le catalogue Wake n'est jamais
+  /// découvert ni réutilisé ici.
+  bool get hasMeditationObjectKey =>
+      objectKey.startsWith('meditations/') &&
+      objectKey.length > 'meditations/'.length &&
+      objectKey.toLowerCase().endsWith('.mp4');
 
   RelaxationVideo toRelaxationVideo() => RelaxationVideo(
     id: id,
@@ -45,7 +51,8 @@ class MeditationVideoCatalog {
 
   /// Catalogue éditorial indépendant du catalogue Réveil.
   /// Il reste vide tant qu'une vraie vidéo n'a pas été uploadée sous
-  /// `meditation-videos/` puis déclarée ici.
+  /// `meditations/` puis déclarée ici. Le bucket R2 n'est pas listé par
+  /// l'application : chaque objet doit être déclaré avec son nom réel.
   static const List<MeditationVideoEntry> entries = [];
 
   static List<RelaxationVideo> activeVideos() {

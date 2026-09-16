@@ -52,6 +52,7 @@ Map<String, dynamic> _v(String slug) => {
   'slug': slug,
   'title': 'T $slug',
   'video_url': 'https://cdn.auryel.app/$slug.mp4',
+  'object_key': 'meditations/$slug.mp4',
   'category': 'calm',
   'is_generic': true,
 };
@@ -62,16 +63,17 @@ ContentRepository _repoWithMeditations(
 }) {
   final client = ApiClient(
     httpClient: MockClient((req) async {
-      if (req.url.path.contains('meditations')) {
+      if (req.url.path.contains('meditations') &&
+          req.url.queryParameters['media'] != 'video') {
         return http.Response(
           jsonEncode({'catalog_version': 'v1', 'meditations': meditations}),
           200,
           headers: {'content-type': 'application/json', 'etag': '"v1"'},
         );
       }
-      // relaxation-videos.
+      // Catalogue vidéo Méditations dynamique.
       return http.Response(
-        jsonEncode({'catalog_version': 'v1', 'videos': videos}),
+        jsonEncode({'catalog_version': 'v1', 'meditation_videos': videos}),
         200,
         headers: {'content-type': 'application/json', 'etag': '"v1"'},
       );

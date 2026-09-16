@@ -51,6 +51,8 @@ class ContentRepository {
   static const String _todayKey = 'auryel.content.today.v1';
   static const String _medsKey = 'auryel.content.meditations.v1';
   static const String _videosKey = 'auryel.content.relaxation_videos.v1';
+  static const String _meditationVideosKey =
+      'auryel.content.meditation_videos.v1';
   static const String _wakeMessagesKey = 'auryel.content.wake_messages.v1';
 
   Future<SharedPreferences> get _prefs async =>
@@ -209,10 +211,54 @@ class ContentRepository {
     return cached?.items ?? const <RelaxationVideo>[];
   }
 
+  /// Catalogue vidéo des Méditations R2 (serveur -> cache -> vide). Ne
+  /// réutilise jamais le cache des vidéos d'ambiance historiques.
+  Future<List<RelaxationVideo>> meditationVideos() async {
+    final cached = await _readMeditationVideosCache();
+    final api = _api;
+    if (api != null) {
+      try {
+        final token = await _token?.call();
+        final res = await api.meditationVideos(
+          bearer: token,
+          etag: cached?.etag,
+        );
+        if (res.notModified && cached != null) return cached.items;
+        if (res.ok) {
+          await _writeMeditationVideosCache(
+            res.videos,
+            res.etag,
+            res.catalogVersion,
+          );
+          return res.videos;
+        }
+      } catch (_) {
+        // réseau KO -> cache dédié / vide
+      }
+    }
+    return cached?.items ?? const <RelaxationVideo>[];
+  }
+
+  Future<_VideosCache?> _readMeditationVideosCache() async {
+    return _readVideosCacheAt(_meditationVideosKey);
+  }
+
+  Future<void> _writeMeditationVideosCache(
+    List<RelaxationVideo> items,
+    String? etag,
+    String? version,
+  ) async {
+    await _writeVideosCacheAt(_meditationVideosKey, items, etag, version);
+  }
+
   Future<_VideosCache?> _readVideosCache() async {
+    return _readVideosCacheAt(_videosKey);
+  }
+
+  Future<_VideosCache?> _readVideosCacheAt(String key) async {
     try {
       final p = await _prefs;
-      final raw = p.getString(_videosKey);
+      final raw = p.getString(key);
       if (raw == null) return null;
       final decoded = jsonDecode(raw);
       if (decoded is! Map) return null;
@@ -239,10 +285,19 @@ class ContentRepository {
     String? etag,
     String? version,
   ) async {
+    await _writeVideosCacheAt(_videosKey, items, etag, version);
+  }
+
+  Future<void> _writeVideosCacheAt(
+    String key,
+    List<RelaxationVideo> items,
+    String? etag,
+    String? version,
+  ) async {
     try {
       final p = await _prefs;
       await p.setString(
-        _videosKey,
+        key,
         jsonEncode({
           'etag': ?etag,
           'catalog_version': ?version,
