@@ -123,6 +123,7 @@ void main() async {
   final wellbeingEbooks = WellbeingEbooksController(
     api: wellbeingEbooksApi,
     tokenProvider: auth.currentToken,
+    authReadyProvider: () => auth.status != AuthStatus.unknown,
   );
   // GROS CHANTIER AURYEL (Prompt 2/5) — ÉTOILES : instance UNIQUE et PARTAGÉE
   // (cf. RewardsScope), même schéma que WellbeingController ci-dessus. Le

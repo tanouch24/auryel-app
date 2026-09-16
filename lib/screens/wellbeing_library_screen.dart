@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../api/wellbeing_ebooks_api.dart';
@@ -61,6 +62,11 @@ class _WellbeingLibraryScreenState extends State<WellbeingLibraryScreen> {
   List<WellbeingEbook> _availableEbooks() {
     final current = _ebooks?.ebooks ?? const <WellbeingEbook>[];
     if (current.isNotEmpty) return current;
+    if (_ebooks?.loading == true ||
+        _ebooks?.sessionUnavailable == true ||
+        _ebooks?.error != null) {
+      return const [];
+    }
     final legacy = _program?.state?.ebook;
     if (legacy == null || legacy.title.trim().isEmpty) return const [];
     return [
@@ -112,7 +118,15 @@ class _WellbeingLibraryScreenState extends State<WellbeingLibraryScreen> {
                   children: [
                     _ExercisesTab(exercises: _exercises),
                     _MeditationsPreview(onOpen: openMeditations),
-                    _EbooksTab(ebooks: _availableEbooks()),
+                    _EbooksTab(
+                      ebooks: _availableEbooks(),
+                      loading: _ebooks?.loading == true,
+                      sessionUnavailable: _ebooks?.sessionUnavailable == true,
+                      sessionExpired: _ebooks?.sessionExpired == true,
+                      error: _ebooks?.error,
+                      onRetry: _ebooks?.refresh,
+                      catalogReadyAt: _ebooks?.catalogReadyAt,
+                    ),
                   ],
                 ),
               ),
@@ -383,12 +397,55 @@ class _MeditationsPreview extends StatelessWidget {
 }
 
 class _EbooksTab extends StatelessWidget {
-  const _EbooksTab({required this.ebooks});
+  const _EbooksTab({
+    required this.ebooks,
+    required this.loading,
+    required this.sessionUnavailable,
+    required this.sessionExpired,
+    required this.error,
+    required this.onRetry,
+    required this.catalogReadyAt,
+  });
 
   final List<WellbeingEbook> ebooks;
+  final bool loading;
+  final bool sessionUnavailable;
+  final bool sessionExpired;
+  final Object? error;
+  final Future<void> Function()? onRetry;
+  final DateTime? catalogReadyAt;
 
   @override
   Widget build(BuildContext context) {
+    if (kDebugMode && catalogReadyAt != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        debugPrint(
+          '[ebooks] catalogue rendu '
+          '${DateTime.now().difference(catalogReadyAt!).inMilliseconds}ms',
+        );
+      });
+    }
+    if (loading && ebooks.isEmpty) {
+      return const Center(child: CircularProgressIndicator());
+    }
+    if (sessionUnavailable || sessionExpired) {
+      return _EbooksStateMessage(
+        icon: Icons.lock_outline,
+        eyebrow: 'EBOOKS',
+        title: 'Ta session doit être reconnectée.',
+        message: 'Reconnecte-toi pour retrouver ta bibliothèque Auryel.',
+        onRetry: onRetry,
+      );
+    }
+    if (error != null && ebooks.isEmpty) {
+      return _EbooksStateMessage(
+        icon: Icons.cloud_off_outlined,
+        eyebrow: 'EBOOKS',
+        title: 'Les ebooks sont momentanément indisponibles.',
+        message: 'Réessaie dans un instant.',
+        onRetry: onRetry,
+      );
+    }
     if (ebooks.isEmpty) {
       return const _EmptyUniverse(
         icon: Icons.menu_book_outlined,
@@ -409,6 +466,57 @@ class _EbooksTab extends StatelessWidget {
       itemBuilder: (context, index) => _EbookCard(ebook: ebooks[index]),
     );
   }
+}
+
+class _EbooksStateMessage extends StatelessWidget {
+  const _EbooksStateMessage({
+    required this.icon,
+    required this.eyebrow,
+    required this.title,
+    required this.message,
+    required this.onRetry,
+  });
+
+  final IconData icon;
+  final String eyebrow;
+  final String title;
+  final String message;
+  final Future<void> Function()? onRetry;
+
+  @override
+  Widget build(BuildContext context) => ListView(
+    padding: const EdgeInsets.fromLTRB(28, 54, 28, 32),
+    children: [
+      Icon(icon, color: AuryelColors.goldLight, size: 42),
+      const SizedBox(height: 22),
+      Text(
+        eyebrow,
+        textAlign: TextAlign.center,
+        style: AuryelText.body(
+          fontSize: 11,
+          fontWeight: FontWeight.w700,
+          letterSpacing: 2,
+          color: AuryelColors.gold,
+        ),
+      ),
+      const SizedBox(height: 10),
+      Text(
+        title,
+        textAlign: TextAlign.center,
+        style: AuryelText.display(fontSize: 21, fontWeight: FontWeight.w600),
+      ),
+      const SizedBox(height: 10),
+      Text(
+        message,
+        textAlign: TextAlign.center,
+        style: AuryelText.body(color: AuryelColors.textSecondary, height: 1.5),
+      ),
+      if (onRetry != null) ...[
+        const SizedBox(height: 24),
+        FilledButton(onPressed: onRetry, child: const Text('Réessayer')),
+      ],
+    ],
+  );
 }
 
 class _EbookCard extends StatelessWidget {

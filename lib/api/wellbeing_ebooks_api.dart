@@ -1,5 +1,7 @@
 import 'api_client.dart';
 
+import 'package:flutter/foundation.dart';
+
 class WellbeingEbook {
   const WellbeingEbook({
     required this.id,
@@ -50,16 +52,25 @@ class WellbeingEbooksApi {
   final ApiClient _client;
 
   Future<List<WellbeingEbook>> getCatalog(String bearer) async {
+    final stopwatch = Stopwatch()..start();
     final json = await _client.getJson(
       '/api/app/wellbeing-ebooks',
       bearer: bearer,
     );
+    if (kDebugMode) {
+      debugPrint('[ebooks] HTTP catalogue ${stopwatch.elapsedMilliseconds}ms');
+    }
     final raw = json['ebooks'];
     if (raw is! List) return const [];
-    return raw
+    final parseStopwatch = Stopwatch()..start();
+    final result = raw
         .whereType<Map<String, dynamic>>()
         .map(WellbeingEbook.fromJson)
         .toList(growable: false);
+    if (kDebugMode) {
+      debugPrint('[ebooks] parsing ${parseStopwatch.elapsedMilliseconds}ms');
+    }
+    return result;
   }
 }
 
