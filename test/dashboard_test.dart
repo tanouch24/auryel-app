@@ -491,7 +491,8 @@ void main() {
     await t.pumpAndSettle();
 
     expect(find.byType(WellbeingProgramScreen), findsOneWidget);
-    expect(find.text('Mon programme Bien-être'), findsOneWidget);
+    expect(find.text('Aujourd’hui'), findsOneWidget);
+    expect(find.text('Bibliothèque'), findsOneWidget);
   });
 
   testWidgets('CORRECTIF NAVIGATION — « Voir mes Étoiles » ouvre l’écran '

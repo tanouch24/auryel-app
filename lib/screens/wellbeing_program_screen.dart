@@ -70,11 +70,16 @@ class _WellbeingProgramScreenState extends State<WellbeingProgramScreen> {
   @override
   Widget build(BuildContext context) {
     final ebooks = WellbeingEbooksScope.maybeOf(context);
-    return _scaffold(
-      RefreshIndicator(
-        onRefresh: _loadToday,
-        color: AuryelColors.goldLight,
-        child: ListView(
+    return TickerMode(
+      // V1 Bien-être n'a pas d'animation persistante. Le ticker reste
+      // désactivé afin qu'un RefreshIndicator monté hors écran ne conserve
+      // pas de callback après une navigation/transition.
+      enabled: false,
+      child: _scaffold(
+        RefreshIndicator(
+          onRefresh: _loadToday,
+          color: AuryelColors.goldLight,
+          child: ListView(
           physics: const AlwaysScrollableScrollPhysics(),
           padding: const EdgeInsets.fromLTRB(20, 10, 20, 28),
           children: [
@@ -120,7 +125,8 @@ class _WellbeingProgramScreenState extends State<WellbeingProgramScreen> {
             _libraryEntry(ebooks),
           ],
         ),
-      ),
+          ),
+        ),
     );
   }
 

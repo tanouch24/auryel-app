@@ -49,7 +49,11 @@ class MainNavShell extends StatefulWidget {
 class _MainNavShellState extends State<MainNavShell> {
   int _index = 0;
 
-  static const _screens = [
+  // Chaque shell possède ses propres instances d'écran. Une liste statique
+  // partageait les mêmes widgets Stateful entre deux montages successifs
+  // (notamment après AdultGate), ce qui pouvait laisser un callback
+  // d'animation/transformation actif dans la suite Flutter.
+  final List<Widget> _screens = [
     HomeScreen(),
     WellbeingProgramScreen(),
     ConsultationScreen(),
@@ -139,11 +143,27 @@ class _MainNavShellState extends State<MainNavShell> {
 
   @override
   Widget build(BuildContext context) {
+    // A shell peut rester sous une route secondaire (Dashboard, chat, etc.).
+    // Dans ce cas aucun de ses écrans ne doit continuer à animer : le
+    // scheduler Flutter considère toujours ces tickers comme actifs, même
+    // lorsqu'ils sont visuellement masqués.
+    final routeVisible = ModalRoute.of(context)?.isCurrent ?? true;
     return MainNavScope(
       goToTab: _goToTab,
       currentIndex: _index,
       child: Scaffold(
-        body: IndexedStack(index: _index, children: _screens),
+        body: IndexedStack(
+          index: _index,
+          // Keep screens mounted so tab state survives, but pause tickers in
+          // offstage screens and when the shell is covered by a pushed route.
+          children: [
+            for (var i = 0; i < _screens.length; i++)
+              TickerMode(
+                enabled: routeVisible && i == _index,
+                child: _screens[i],
+              ),
+          ],
+        ),
         bottomNavigationBar: _AuryelTabBar(
           currentIndex: _index,
           onTap: _goToTab,

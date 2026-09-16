@@ -141,11 +141,12 @@ void main() {
       );
       await tester.pumpAndSettle();
 
-      // Bien-être ouvre directement le nouveau programme 30 jours.
+      // Bien-être ouvre directement le nouvel écran éditorial V1.
       await tester.tap(_tab('Bien-être'));
       await tester.pumpAndSettle();
       expect(find.byType(WellbeingProgramScreen), findsOneWidget);
-      expect(find.text('Mon programme Bien-être'), findsOneWidget);
+      expect(find.text('Aujourd’hui'), findsOneWidget);
+      expect(find.text('Bibliothèque'), findsOneWidget);
       expect(find.byType(TirageScreen), findsNothing);
 
       // Consultation (J6-F2 : LISTE des discussions en cours).
