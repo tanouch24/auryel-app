@@ -116,7 +116,16 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.byType(WellbeingLibraryScreen), findsOneWidget);
+    await tester.tap(find.text('Méditations'));
+    await tester.pumpAndSettle();
+    expect(find.text('Réveil Auryel'), findsOneWidget);
+    expect(find.text('0 s'), findsNothing);
+    await tester.tap(find.text('Ebooks'));
+    await tester.pumpAndSettle();
     expect(find.text('Guide réel'), findsOneWidget);
-    expect(find.text('Tout'), findsOneWidget);
+    expect(find.text('Exercices'), findsOneWidget);
+    expect(find.text('Méditations'), findsOneWidget);
+    expect(find.text('Ebooks'), findsOneWidget);
+    expect(find.text('0 s'), findsNothing);
   });
 }
