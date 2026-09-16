@@ -67,7 +67,7 @@ class TirageJeuScreen extends StatelessWidget {
                 title: 'Mini-jeux Auryel',
                 body:
                     'Trois petits jeux pour ralentir et revenir à toi. '
-                    'Termine-en un aujourd’hui pour ta récompense.',
+                    'Termine-en un aujourd’hui pour le plaisir.',
                 ctaLabel: 'Relever le défi',
                 onTap: () => Navigator.of(context).push(
                   MaterialPageRoute(builder: (_) => const DailyChallengeScreen()),

@@ -226,6 +226,15 @@ class _RewardsWalletScreenState extends State<RewardsWalletScreen>
                               color: AuryelColors.textSecondary,
                             ),
                           ),
+                          const SizedBox(height: 6),
+                          Text(
+                            'Une question comprend votre message et la réponse complète de votre conseiller.',
+                            textAlign: TextAlign.center,
+                            style: AuryelText.body(
+                              fontSize: 12,
+                              color: AuryelColors.textSecondary,
+                            ),
+                          ),
                         ] else
                           Text(
                             'Premium bénéficie déjà de consultations sans publicité.',

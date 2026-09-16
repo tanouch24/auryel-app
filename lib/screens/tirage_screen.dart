@@ -32,11 +32,16 @@ import '../widgets/tarot_fan.dart';
 /// lecture d'ensemble **RENDUS PAR LE SERVEUR** ([TirageResult]). Le deck local
 /// ne sert plus qu'au choix visuel et au mapping `key -> assetPath`.
 class TirageScreen extends StatefulWidget {
-  const TirageScreen({super.key, this.selectorAudioOverride});
+  const TirageScreen({
+    super.key,
+    this.selectorAudioOverride,
+    this.initialResult,
+  });
 
   /// Test uniquement : lecteur audio injecté dans le sélecteur de conseillers
   /// ouvert par « En parler » (aucun canal plateforme en test).
   final AdvisorAudio? selectorAudioOverride;
+  final TirageResult? initialResult;
 
   @override
   State<TirageScreen> createState() => _TirageScreenState();
@@ -99,6 +104,9 @@ class _TirageScreenState extends State<TirageScreen> {
   void initState() {
     super.initState();
     _deck = List.of(kTarotMajorArcana)..shuffle(_random);
+    _result = widget.initialResult;
+    _revealed = widget.initialResult != null;
+    _save = widget.initialResult == null ? _SaveState.idle : _SaveState.saved;
   }
 
   void _select(int deckIndex) {

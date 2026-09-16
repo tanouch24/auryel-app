@@ -58,18 +58,17 @@ void main() {
     expect(find.text('Le Jeu Auryel'), findsOneWidget);
     expect(find.text('Suite intuitive'), findsOneWidget);
     expect(find.text('Carte cachée'), findsOneWidget);
-    // Pas encore obtenue aujourd'hui -> pas de coche.
-    expect(find.text('Récompense du jour obtenue ✓'), findsNothing);
+    expect(find.textContaining('sans gain ni récompense'), findsOneWidget);
   });
 
-  testWidgets('récompense déjà obtenue -> coche affichée', (t) async {
+  testWidgets('un ancien statut de récompense ne réapparaît pas dans les jeux', (t) async {
     final c = _controller(eligibleToday: false, starsReward: 15);
     addTearDown(c.dispose);
     await t.pumpWidget(_host(c));
     await t.pump();
     await t.pump();
 
-    expect(find.text('Récompense du jour obtenue ✓'), findsOneWidget);
+    expect(find.text('Récompense du jour obtenue ✓'), findsNothing);
     // Les 3 jeux restent accessibles malgré la récompense déjà obtenue.
     expect(find.text('Le Jeu Auryel'), findsOneWidget);
     expect(find.text('Suite intuitive'), findsOneWidget);

@@ -4,7 +4,6 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:phosphor_icons/phosphor_icons.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 // Legacy mission widgets remain available to their dedicated flows, but are
 // intentionally not mounted on Home.
@@ -17,6 +16,7 @@ import '../data/content_repository.dart';
 import '../data/daily_like_store.dart';
 import '../data/daily_share_tracker.dart';
 import '../data/daily_thought.dart';
+import '../data/tirage.dart';
 import '../screens/splash_screen.dart';
 import '../screens/consultation_screen.dart';
 import '../state/auryel_state.dart';
@@ -38,6 +38,7 @@ import 'rewards_wallet_screen.dart';
 import 'wellbeing_program_screen.dart';
 import 'meditation_feed_screen.dart';
 import 'tirage_jeu_screen.dart';
+import 'tirage_screen.dart';
 
 /// Reset DEBUG uniquement (geste caché — appui long sur l'icône profil,
 /// visible seulement en `kDebugMode`).
@@ -140,6 +141,8 @@ class HomeScreen extends StatelessWidget {
                         .animate()
                         .fadeIn(delay: 260.ms, duration: 500.ms),
                     const SizedBox(height: 16),
+                    const _DailyTirageCard(),
+                    const SizedBox(height: 16),
                     const _WellbeingJourneyCta().animate().fadeIn(
                       delay: 300.ms,
                       duration: 500.ms,
@@ -174,8 +177,6 @@ class HomeScreen extends StatelessWidget {
                         .animate()
                         .fadeIn(delay: 400.ms, duration: 500.ms),
                     const SizedBox(height: 10),
-                    const _StarsDiscoveryHint(),
-                    const SizedBox(height: 4),
                     consultation == null
                         ? const SizedBox.shrink()
                         : ListenableBuilder(
@@ -195,67 +196,119 @@ class HomeScreen extends StatelessWidget {
   }
 }
 
-class _StarsDiscoveryHint extends StatefulWidget {
-  const _StarsDiscoveryHint();
+class _DailyTirageCard extends StatefulWidget {
+  const _DailyTirageCard();
 
   @override
-  State<_StarsDiscoveryHint> createState() => _StarsDiscoveryHintState();
+  State<_DailyTirageCard> createState() => _DailyTirageCardState();
 }
 
-class _StarsDiscoveryHintState extends State<_StarsDiscoveryHint> {
-  static const _key = 'auryel.stars.discovery_seen.v1';
-  bool _seen = true;
+class _DailyTirageCardState extends State<_DailyTirageCard>
+    with WidgetsBindingObserver {
+  TirageResult? _today;
+  bool _loading = true;
 
   @override
   void initState() {
     super.initState();
-    _load();
+    WidgetsBinding.instance.addObserver(this);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _load();
+    });
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) _load();
+  }
+
+  bool _isToday(DateTime value) {
+    final date = value.toLocal();
+    final now = DateTime.now();
+    return date.year == now.year && date.month == now.month && date.day == now.day;
   }
 
   Future<void> _load() async {
+    final auth = AuthScope.maybeOf(context);
+    if (auth == null) {
+      if (mounted) setState(() => _loading = false);
+      return;
+    }
     try {
-      final prefs = await SharedPreferences.getInstance();
+      final token = await auth.currentToken();
+      if (token == null || token.isEmpty) {
+        if (mounted) setState(() => _loading = false);
+        return;
+      }
+      final response = await auth.tirageApi.list(bearer: token, limit: 20);
       if (!mounted) return;
-      setState(() => _seen = prefs.getBool(_key) ?? false);
-    } catch (_) {}
+      setState(() {
+        final today = response.tirages.where((t) => _isToday(t.createdAt));
+        _today = today.isEmpty ? null : today.first;
+        _loading = false;
+      });
+    } catch (_) {
+      if (mounted) setState(() => _loading = false);
+    }
   }
 
-  Future<void> _open() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setBool(_key, true);
-    } catch (_) {}
-    if (!mounted) return;
-    setState(() => _seen = true);
-    Navigator.of(context)
-        .push(MaterialPageRoute(builder: (_) => const RewardsWalletScreen()));
+  Future<void> _openTirage() async {
+    await Navigator.of(context).push(
+      MaterialPageRoute(builder: (_) => TirageScreen(initialResult: _today)),
+    );
+    _load();
   }
 
   @override
   Widget build(BuildContext context) {
-    if (_seen) return const SizedBox.shrink();
-    return Material(
-      color: AuryelColors.surface.withValues(alpha: 0.72),
-      borderRadius: BorderRadius.circular(14),
-      child: InkWell(
-        key: const Key('home-stars-discovery-hint'),
-        borderRadius: BorderRadius.circular(14),
-        onTap: _open,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
-          child: Row(
-            children: [
-              const Text('💬', style: TextStyle(fontSize: 18)),
-              const SizedBox(width: 10),
-              Expanded(
-                child: Text(
-                  'Consultation gratuite\nRegardez une publicité pour poser une question →',
-                  style: AuryelText.body(fontSize: 12.5, height: 1.35),
-                ),
-              ),
+    final result = _today;
+    final cardName = result?.cards.isNotEmpty == true
+        ? result!.cards.first.name
+        : (result == null || result.cardKeys.isEmpty ? null : result.cardKeys.first);
+    final summary = result?.combinedInterpretation.trim();
+    return Container(
+      key: const Key('home-daily-tirage-card'),
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: AuryelColors.surface.withValues(alpha: 0.78),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(color: AuryelColors.warmBorder),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text('Tirage du jour', style: AuryelText.display(fontSize: 19)),
+          const SizedBox(height: 6),
+          if (_loading)
+            const LinearProgressIndicator(minHeight: 2)
+          else if (result == null) ...[
+            Text('Une carte pour commencer la journée autrement.', style: AuryelText.body(color: AuryelColors.textSecondary)),
+            const SizedBox(height: 12),
+            ElevatedButton(
+              key: const Key('home-daily-tirage-cta'),
+              onPressed: _openTirage,
+              child: const Text('Tirer ma carte'),
+            ),
+          ] else ...[
+            Text(cardName ?? 'Votre carte du jour', style: AuryelText.display(fontSize: 17)),
+            if (summary != null && summary.isNotEmpty) ...[
+              const SizedBox(height: 6),
+              Text(summary, maxLines: 3, overflow: TextOverflow.ellipsis, style: AuryelText.body(color: AuryelColors.textSecondary, height: 1.35)),
             ],
-          ),
-        ),
+            const SizedBox(height: 12),
+            OutlinedButton(
+              key: const Key('home-daily-tirage-talk'),
+              onPressed: _openTirage,
+              child: const Text('En parler à mon conseiller'),
+            ),
+          ],
+        ],
       ),
     );
   }

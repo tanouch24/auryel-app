@@ -10,13 +10,11 @@ import 'sequence_recall_screen.dart';
 
 /// « Défi du jour » — GROS CHANTIER AURYEL (Prompt 3/5). Point d'entrée
 /// unique vers les 3 mini-jeux Auryel (Memory / Suite intuitive / Carte
-/// cachée), qui partagent TOUS la même récompense quotidienne (règle
-/// `mini_game_completed`, `award_stars`) : terminer UN SEUL des 3 jeux
-/// aujourd'hui suffit à obtenir la récompense du jour ; les 3 restent
-/// accessibles ensuite (rejouer est toujours possible, sans re-gagner).
+/// cachée). Les jeux restent accessibles comme fonctionnalités de contenu,
+/// sans récompense utilisateur.
 /// Le SERVEUR reste l'unique autorité — ce statut vient de
-/// `GET /api/app/memory/progress` (même plafond que Memory, PAS une 2ᵉ
-/// source de vérité).
+/// `GET /api/app/memory/progress` reste disponible pour la compatibilité des
+/// anciennes parties, mais aucun solde ni récompense n'est affiché ici.
 class DailyChallengeScreen extends StatefulWidget {
   const DailyChallengeScreen({super.key, this.controller});
 
@@ -84,9 +82,6 @@ class _DailyChallengeScreenState extends State<DailyChallengeScreen>
 
   @override
   Widget build(BuildContext context) {
-    final c = _controller;
-    final eligible = c?.eligibleToday;
-
     return Scaffold(
       body: Container(
         decoration: const BoxDecoration(
@@ -129,40 +124,6 @@ class _DailyChallengeScreenState extends State<DailyChallengeScreen>
                   ),
                 ),
                 const SizedBox(height: 10),
-                if (eligible == false)
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 14,
-                      vertical: 10,
-                    ),
-                    decoration: BoxDecoration(
-                      color: AuryelColors.gold.withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(
-                        color: AuryelColors.goldLight.withValues(alpha: 0.4),
-                      ),
-                    ),
-                    child: Row(
-                      children: [
-                        const PhosphorIcon(
-                          PhosphorIconsFill.checkCircle,
-                          size: 16,
-                          color: AuryelColors.goldLight,
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            'Récompense du jour obtenue ✓',
-                            style: AuryelText.body(
-                              fontSize: 12.5,
-                              fontWeight: FontWeight.w600,
-                              color: AuryelColors.goldLight,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
                 const SizedBox(height: 20),
                 Text(
                   'LES 3 JEUX',
@@ -198,8 +159,8 @@ class _DailyChallengeScreenState extends State<DailyChallengeScreen>
                 ),
                 const SizedBox(height: 16),
                 Text(
-                  'Les jeux restent accessibles même après ta récompense du '
-                  'jour — pour le plaisir, sans nouveau gain.',
+                  'Les jeux restent accessibles pour le plaisir, sans gain '
+                  'ni récompense.',
                   style: AuryelText.body(
                     fontSize: 11,
                     height: 1.4,

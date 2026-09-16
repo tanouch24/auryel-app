@@ -216,7 +216,7 @@ void main() {
   });
 
   testWidgets(
-      'menu : seuils 20/40/80 + Étoiles PARTAGÉES + niveau non éligible marqué',
+      'menu : seuils 20/40/80 sans récompense Stars visible',
       (t) async {
     final future = DateTime.now().add(const Duration(days: 1));
     final s = _FakeServer(
@@ -234,12 +234,11 @@ void main() {
     await t.pumpWidget(_host(_controller(s)));
     await t.pumpAndSettle();
 
-    expect(find.text('Moins de 20 sec · +15 ⭐'), findsOneWidget);
-    expect(find.text('Moins de 40 sec · +15 ⭐'), findsOneWidget);
-    expect(find.text('Moins de 80 sec · +15 ⭐'), findsOneWidget);
-    // Plafond PARTAGÉ : les 3 niveaux affichent le MÊME statut verrouillé.
-    expect(find.textContaining('Récompense déjà obtenue'), findsNWidgets(3));
-    // Le niveau reste jouable malgré le plafond du jour.
+    expect(find.text('Moins de 20 secondes'), findsOneWidget);
+    expect(find.text('Moins de 40 secondes'), findsOneWidget);
+    expect(find.text('Moins de 80 secondes'), findsOneWidget);
+    expect(find.textContaining('⭐'), findsNothing);
+    expect(find.textContaining('Récompense déjà obtenue'), findsNothing);
     await _startLevel(t, 'Facile');
     expect(_state(t).debugGame.hasStarted, isTrue);
   });

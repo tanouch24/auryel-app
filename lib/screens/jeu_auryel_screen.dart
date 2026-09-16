@@ -447,13 +447,9 @@ class _DifficultyCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final locked = eligibleToday == false;
-    final rewardLine = starsReward > 0
-        ? 'Moins de ${difficulty.rewardThresholdSeconds} sec · +$starsReward ⭐'
-        : 'Moins de ${difficulty.rewardThresholdSeconds} sec';
-    final statusLine = locked
-        ? _lockedLabel(nextResetAt)
-        : (eligibleToday == true ? 'Récompense disponible aujourd’hui' : null);
+    final rewardLine =
+        'Moins de ${difficulty.rewardThresholdSeconds} secondes';
+    const String? statusLine = null;
 
     return Semantics(
       button: true,
@@ -535,9 +531,7 @@ class _DifficultyCard extends StatelessWidget {
                     style: AuryelText.body(
                       fontSize: 10.5,
                       height: 1.3,
-                      color: locked
-                          ? AuryelColors.textMuted
-                          : AuryelColors.textSecondary,
+                      color: AuryelColors.textSecondary,
                     ),
                   ),
                 ],
@@ -549,27 +543,6 @@ class _DifficultyCard extends StatelessWidget {
     );
   }
 
-  static String _lockedLabel(String? nextEligibleIso) {
-    final until = _humanizeUntil(nextEligibleIso);
-    return until == null
-        ? 'Récompense déjà obtenue'
-        : 'Récompense déjà obtenue · à nouveau dans $until';
-  }
-}
-
-/// « dans 3 j » / « dans 5 h » / « bientôt » à partir d'un ISO-8601, ou `null`.
-String? _humanizeUntil(String? iso) {
-  if (iso == null || iso.isEmpty) return null;
-  final dt = DateTime.tryParse(iso);
-  if (dt == null) return null;
-  final diff = dt.difference(DateTime.now());
-  if (diff.inSeconds <= 0) return null;
-  if (diff.inHours >= 24) {
-    final d = (diff.inHours / 24).ceil();
-    return '$d j';
-  }
-  if (diff.inHours >= 1) return '${diff.inHours} h';
-  return 'moins d’une heure';
 }
 
 class _GameHeader extends StatelessWidget {
