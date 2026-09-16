@@ -3,24 +3,30 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:auryel/data/meditation_video_catalog.dart';
 
 void main() {
-  test('le catalogue actif ne déclare que le fichier R2 réellement publié', () {
-    expect(MeditationVideoCatalog.entries, hasLength(1));
-    final pilot = MeditationVideoCatalog.entries.single;
-    expect(pilot.objectKey, 'wake-videos/auryel-reveil-video-test-01.mp4');
-    expect(pilot.url, WakeVideoUrlExpectation.pilot);
-    expect(pilot.isActive, isTrue);
-    expect(MeditationVideoCatalog.activeVideos(), hasLength(1));
-    expect(
-      MeditationVideoCatalog.activeVideos().single.videoUrl,
-      WakeVideoUrlExpectation.pilot,
-    );
+  test('le pilote Wake n’apparait plus dans Méditations', () {
+    expect(MeditationVideoCatalog.entries, isEmpty);
+    expect(MeditationVideoCatalog.activeVideos(), isEmpty);
   });
-}
 
-/// La constante est répétée dans le test pour rendre le contrat de l'objet
-/// vérifiable sans dépendre de l'implémentation du catalogue Réveil.
-class WakeVideoUrlExpectation {
-  static const pilot =
-      'https://pub-19c78d4dc57a41849a27c0e73ed231ce.r2.dev/'
-      'wake-videos/auryel-reveil-video-test-01.mp4';
+  test('une entrée Méditation doit appartenir à meditation-videos', () {
+    const wakeEntry = MeditationVideoEntry(
+      id: 'wake',
+      title: 'Ne pas découvrir',
+      objectKey: 'wake-videos/auryel-reveil-video-test-01.mp4',
+      url: 'https://example.test/wake.mp4',
+      sortOrder: 0,
+      isActive: true,
+    );
+    expect(wakeEntry.hasMeditationObjectKey, isFalse);
+
+    const meditationEntry = MeditationVideoEntry(
+      id: 'meditation',
+      title: 'Future méditation',
+      objectKey: 'meditation-videos/future.mp4',
+      url: 'https://example.test/future.mp4',
+      sortOrder: 0,
+      isActive: true,
+    );
+    expect(meditationEntry.hasMeditationObjectKey, isTrue);
+  });
 }

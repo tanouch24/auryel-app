@@ -1,5 +1,4 @@
 import 'relaxation_video.dart';
-import 'wake_video.dart';
 
 /// Catalogue éditorial des vidéos réellement publiées dans le bucket Auryel.
 ///
@@ -29,6 +28,8 @@ class MeditationVideoEntry {
   final int sortOrder;
   final bool isActive;
 
+  bool get hasMeditationObjectKey => objectKey.startsWith('meditation-videos/');
+
   RelaxationVideo toRelaxationVideo() => RelaxationVideo(
     id: id,
     slug: id,
@@ -42,24 +43,17 @@ class MeditationVideoEntry {
 class MeditationVideoCatalog {
   const MeditationVideoCatalog._();
 
-  /// Seul contenu vidéo actuellement publié et vérifié dans le bucket.
-  static const pilot = MeditationVideoEntry(
-    id: 'wake-test-01',
-    title: 'Réveil Auryel',
-    objectKey: 'wake-videos/auryel-reveil-video-test-01.mp4',
-    url: WakeVideoCatalog.pilotRemoteUrl,
-    thumbnailUrl: null,
-    duration: null,
-    category: 'Ambiance du matin',
-    sortOrder: 0,
-    isActive: true,
-  );
-
-  static const List<MeditationVideoEntry> entries = [pilot];
+  /// Catalogue éditorial indépendant du catalogue Réveil.
+  /// Il reste vide tant qu'une vraie vidéo n'a pas été uploadée sous
+  /// `meditation-videos/` puis déclarée ici.
+  static const List<MeditationVideoEntry> entries = [];
 
   static List<RelaxationVideo> activeVideos() {
-    final active = entries.where((entry) => entry.isActive).toList()
-      ..sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
+    final active =
+        entries
+            .where((entry) => entry.isActive && entry.hasMeditationObjectKey)
+            .toList()
+          ..sort((a, b) => a.sortOrder.compareTo(b.sortOrder));
     return active.map((entry) => entry.toRelaxationVideo()).toList();
   }
 }
