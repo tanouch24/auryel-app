@@ -126,7 +126,7 @@ Map<String, dynamic> _okBody({
 };
 
 const _noCreditBody = {
-  'error': 'time_exhausted',
+  'error': 'consultation_credit_exhausted',
   'consultation': null,
   'time': {
     'first_free_remaining_seconds': 0,
@@ -146,6 +146,7 @@ const _noCreditBody = {
     'period_start': '2026-08-01T00:00:00Z',
     'period_end': '2026-09-01T00:00:00Z',
   },
+  'rewarded': {'questions_available': 0},
 };
 
 typedef _Env = ({
@@ -224,18 +225,9 @@ const _confirmText =
 
 void main() {
   test('délai de présentation naturel borné selon la taille', () {
-    expect(
-      consultationReplyPresentationDelay('réponse courte').inSeconds,
-      1,
-    );
-    expect(
-      consultationReplyPresentationDelay('x' * 200).inSeconds,
-      3,
-    );
-    expect(
-      consultationReplyPresentationDelay('x' * 1000).inSeconds,
-      5,
-    );
+    expect(consultationReplyPresentationDelay('réponse courte').inSeconds, 1);
+    expect(consultationReplyPresentationDelay('x' * 200).inSeconds, 3);
+    expect(consultationReplyPresentationDelay('x' * 1000).inSeconds, 5);
     expect(
       consultationReplyPresentationDelay('x' * 1000, variationMs: 9000),
       const Duration(seconds: 8),
@@ -433,13 +425,14 @@ void main() {
     await t.pumpAndSettle();
 
     // TIMER-D.2 — Premium : achat prioritaire et missions en alternative.
-    expect(find.text('Ton temps de consultation est terminé.'), findsOneWidget);
-    expect(find.text('Acheter du temps'), findsOneWidget);
-    expect(find.text('Consultation gratuite'), findsOneWidget);
+    expect(find.text('Continuez votre consultation'), findsOneWidget);
+    expect(find.text('Ajouter 1 heure'), findsOneWidget);
+    expect(find.text('Regarder une publicité'), findsOneWidget);
+    expect(find.textContaining('Connexion impossible'), findsNothing);
     expect(find.text('Premium — 4,99 €/mois'), findsNothing);
     expect(find.textContaining('consultations de 2 h'), findsNothing);
     expect(find.textContaining('4 consultations'), findsNothing);
-    expect(find.text('coucou'), findsNothing); // pas de bulle user
+    expect(find.text('coucou'), findsOneWidget); // brouillon conservé
     expect(find.byType(TextField), findsNothing); // input remplacé
   });
 
@@ -466,12 +459,9 @@ void main() {
       await t.tap(find.text('Commencer'));
       await t.pumpAndSettle();
 
-      expect(
-        find.text('Ton temps de consultation est terminé.'),
-        findsOneWidget,
-      );
-      expect(find.text('Acheter du temps'), findsOneWidget);
-      expect(find.text('Consultation gratuite'), findsOneWidget);
+      expect(find.text('Continuez votre consultation'), findsOneWidget);
+      expect(find.text('Ajouter 1 heure'), findsOneWidget);
+      expect(find.text('Regarder une publicité'), findsOneWidget);
       expect(find.textContaining('4 consultations'), findsNothing);
       expect(find.textContaining('consultations de 2 h'), findsNothing);
     },
@@ -499,17 +489,14 @@ void main() {
       await t.pumpAndSettle();
 
       // fallback : variante non-Premium du texte V1.
-      expect(
-        find.text('Ton temps de consultation est terminé.'),
-        findsOneWidget,
-      );
-      expect(find.text('coucou'), findsNothing);
+      expect(find.text('Continuez votre consultation'), findsOneWidget);
+      expect(find.text('coucou'), findsOneWidget);
       expect(find.byType(TextField), findsNothing);
     },
   );
 
   testWidgets(
-    'I — "Acheter du temps" ouvre le parcours +1 h (plus de snackbar)',
+    'I — "Ajouter 1 heure" ouvre le parcours +1 h (plus de snackbar)',
     (t) async {
       // non-Premium : le CTA « Acheter du temps » est présent.
       const body = {
@@ -524,7 +511,7 @@ void main() {
       await t.tap(find.text('Commencer'));
       await t.pumpAndSettle();
 
-      await t.tap(find.text('Acheter du temps'));
+      await t.tap(find.text('Ajouter 1 heure'));
       await t.pumpAndSettle();
 
       expect(find.byType(ExtraHourPurchaseScreen), findsOneWidget);

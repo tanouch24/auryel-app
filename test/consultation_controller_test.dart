@@ -932,12 +932,12 @@ void main() {
 
         // _noCreditBody() est Premium -> achat prioritaire et missions.
         expect(
-          find.text('Ton temps de consultation est terminé.'),
+          find.text('Continuez votre consultation'),
           findsOneWidget,
         );
         expect(find.text('Premium — 4,99 €/mois'), findsNothing);
-        expect(find.text('Acheter du temps'), findsOneWidget);
-        expect(find.text('Consultation gratuite'), findsOneWidget);
+        expect(find.text('Ajouter 1 heure'), findsOneWidget);
+        expect(find.text('Regarder une publicité'), findsOneWidget);
         expect(rig.controller.active, isNull);
         // TIMER-D.1 — le corps du 402 resynchronise `time` (0) + `quota`.
         expect(rig.controller.time!.totalRemainingSeconds, 0);

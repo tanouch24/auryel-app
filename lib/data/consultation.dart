@@ -274,6 +274,7 @@ class QuotaDto {
     required this.monthlyUsed,
     required this.monthlyRemaining,
     required this.earnedAvailable,
+    this.questionsAvailable = 0,
     required this.periodStart,
     required this.periodEnd,
     this.firstFreeAvailable = false,
@@ -284,6 +285,7 @@ class QuotaDto {
   final int monthlyUsed;
   final int monthlyRemaining;
   final int earnedAvailable;
+  final int questionsAvailable;
   final DateTime? periodStart;
   final DateTime? periodEnd;
 
@@ -302,6 +304,7 @@ class QuotaDto {
     monthlyUsed: 0,
     monthlyRemaining: 0,
     earnedAvailable: 0,
+    questionsAvailable: 0,
     periodStart: null,
     periodEnd: null,
   );
@@ -312,6 +315,12 @@ class QuotaDto {
     monthlyUsed: _int(json['monthly_used']),
     monthlyRemaining: _int(json['monthly_remaining']),
     earnedAvailable: _int(json['earned_available']),
+    questionsAvailable: _int(
+      json['questions_available'] ??
+          (json['rewarded'] is Map
+              ? json['rewarded']['questions_available']
+              : 0),
+    ),
     periodStart: _date(json['period_start']),
     periodEnd: _date(json['period_end']),
     firstFreeAvailable: json['first_free_available'] == true,

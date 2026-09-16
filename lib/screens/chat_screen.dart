@@ -7,6 +7,7 @@ import '../api/api_client.dart';
 import '../data/consultation.dart';
 import '../state/auth_controller.dart';
 import '../state/consultation_controller.dart';
+import '../state/rewards_controller.dart';
 import '../theme/auryel_theme.dart';
 import '../widgets/advisors_carousel.dart';
 import '../widgets/ai_report_sheet.dart';
@@ -321,8 +322,9 @@ class _ChatScreenState extends State<ChatScreen> {
 
     if (_pending == null) {
       _pending = text;
-      _pendingIdempotencyKey =
-          '${DateTime.now().toUtc().microsecondsSinceEpoch}:$text';
+      // Clé opaque, stable pour cette tentative et indépendante du contenu
+      // sensible du message. Elle est conservée sur retry/timeout/402.
+      _pendingIdempotencyKey = generateIdempotencyKey('consultation_message');
       _input.clear();
     }
     setState(() {
@@ -380,7 +382,10 @@ class _ChatScreenState extends State<ChatScreen> {
       consultation?.applyExhausted(time: time, quota: quota);
       setState(() {
         _sending = false;
-        _pending = null; // le message N'est PAS parti : pas de bulle
+        // Le brouillon et sa clé restent associés à cette tentative : après
+        // un droit confirmé, l'utilisateur pourra appuyer explicitement sur
+        // Envoyer, sans recréer une intention ni perdre son texte.
+        _pending = text;
         _noCredit = true;
         _noCreditQuota = quota;
       });
@@ -400,6 +405,12 @@ class _ChatScreenState extends State<ChatScreen> {
     } on ApiNetworkException {
       _failNetwork('Connexion impossible. Ton message n’a pas été envoyé.');
     } on ApiException catch (e) {
+      if (e.code == 'consultation_request_processing') {
+        _failNetwork(
+          'Ta demande est encore en cours. Réessaie dans un instant.',
+        );
+        return;
+      }
       if (e.statusCode == 404 && e.code == 'tirage_not_found') {
         // T3 — le tirage rattaché n'existe plus côté serveur. Aucun crédit n'a
         // été consommé (garanti backend). On abandonne le contexte tirage et on
@@ -437,7 +448,16 @@ class _ChatScreenState extends State<ChatScreen> {
 
   QuotaDto? _quotaFrom(Map<String, dynamic> body) {
     final q = body['quota'];
-    return q is Map<String, dynamic> ? QuotaDto.fromJson(q) : null;
+    if (q is! Map<String, dynamic>) return null;
+    // Le 402 porte le solde Rewarded au niveau racine pour préserver le
+    // contrat historique de `quota`. On le fusionne uniquement pour l'UX :
+    // la décision d'accorder le droit reste serveur.
+    final rewarded = body['rewarded'];
+    if (rewarded is Map<String, dynamic> &&
+        !q.containsKey('questions_available')) {
+      return QuotaDto.fromJson({...q, 'rewarded': rewarded});
+    }
+    return QuotaDto.fromJson(q);
   }
 
   void _failNetwork(String message) {
@@ -446,6 +466,29 @@ class _ChatScreenState extends State<ChatScreen> {
       _sending = false;
       _networkError = message; // _pending conservé -> retry sans duplication
     });
+  }
+
+  Future<void> _openCreditPath(Widget destination) async {
+    await Navigator.of(context)
+        .push(MaterialPageRoute(builder: (_) => destination));
+    if (!mounted) return;
+    final consultation = ConsultationScope.maybeReadOf(context);
+    final rewards = RewardsScope.maybeReadOf(context);
+    await consultation?.refresh();
+    await rewards?.refresh();
+    if (!mounted) return;
+    final seconds = consultation?.time?.totalRemainingSeconds ?? 0;
+    final questions =
+        rewards?.questionsAvailable ??
+        consultation?.quota?.questionsAvailable ??
+        0;
+    if (seconds > 0 || questions > 0) {
+      setState(() {
+        _noCredit = false;
+        _noCreditQuota = null;
+        _networkError = null;
+      });
+    }
   }
 
   Future<void> _goToLogin(AuthController auth) async {
@@ -622,7 +665,13 @@ class _ChatScreenState extends State<ChatScreen> {
               if (_noCredit)
                 _NoCreditPanel(
                   quota: _noCreditQuota,
-                  onClose: () => Navigator.of(context).maybePop(),
+                  onClose: () => setState(() => _noCredit = false),
+                  onPremium: () => _openCreditPath(const PremiumScreen()),
+                  onExtraHour: () =>
+                      _openCreditPath(const ExtraHourPurchaseScreen()),
+                  onUseQuestion: () => setState(() => _noCredit = false),
+                  onRewarded: () =>
+                      _openCreditPath(const RewardsWalletScreen()),
                 )
               else
                 _InputBar(
@@ -1050,10 +1099,21 @@ class _InputBar extends StatelessWidget {
 }
 
 class _NoCreditPanel extends StatelessWidget {
-  const _NoCreditPanel({required this.quota, required this.onClose});
+  const _NoCreditPanel({
+    required this.quota,
+    required this.onClose,
+    required this.onPremium,
+    required this.onExtraHour,
+    required this.onUseQuestion,
+    required this.onRewarded,
+  });
 
   final QuotaDto? quota;
   final VoidCallback onClose;
+  final VoidCallback onPremium;
+  final VoidCallback onExtraHour;
+  final VoidCallback onUseQuestion;
+  final VoidCallback onRewarded;
 
   @override
   Widget build(BuildContext context) {
@@ -1071,7 +1131,7 @@ class _NoCreditPanel extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Ton temps de consultation est terminé.',
+              'Continuez votre consultation',
               style: AuryelText.display(
                 fontSize: 17,
                 fontWeight: FontWeight.w600,
@@ -1079,7 +1139,7 @@ class _NoCreditPanel extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             Text(
-              'Tu peux continuer avec ton conseiller en ajoutant du temps de consultation, ou regarder une publicité pour poser une question complète.',
+              'Votre temps de consultation est épuisé. Choisissez comment continuer avec votre conseiller.',
               style: AuryelText.body(
                 fontSize: 13,
                 color: AuryelColors.textMuted,
@@ -1089,26 +1149,70 @@ class _NoCreditPanel extends StatelessWidget {
             SizedBox(
               width: double.infinity,
               child: FilledButton(
-                onPressed: () => Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (_) => const ExtraHourPurchaseScreen(),
-                  ),
-                ),
-                child: const Text('Acheter du temps'),
+                onPressed: onPremium,
+                child: const Text('Passer Premium'),
+              ),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              '4 h de consultation par mois • Sans publicité',
+              style: AuryelText.body(
+                fontSize: 12,
+                color: AuryelColors.textMuted,
               ),
             ),
             const SizedBox(height: 8),
             SizedBox(
               width: double.infinity,
               child: OutlinedButton(
-                onPressed: () => Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (_) => const RewardsWalletScreen(),
-                  ),
-                ),
-                child: const Text('Consultation gratuite'),
+                onPressed: onExtraHour,
+                child: const Text('Ajouter 1 heure'),
               ),
             ),
+            const SizedBox(height: 4),
+            Text(
+              '+1 h de consultation',
+              style: AuryelText.body(
+                fontSize: 12,
+                color: AuryelColors.textMuted,
+              ),
+            ),
+            const SizedBox(height: 8),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton(
+                onPressed: (quota?.questionsAvailable ?? 0) > 0
+                    ? onUseQuestion
+                    : onRewarded,
+                child: Text(
+                  (quota?.questionsAvailable ?? 0) > 0
+                      ? 'Utiliser ma question'
+                      : 'Regarder une publicité',
+                ),
+              ),
+            ),
+            if ((quota?.questionsAvailable ?? 0) == 0)
+              Padding(
+                padding: const EdgeInsets.only(top: 4),
+                child: Text(
+                  'Regardez une courte publicité pour poser 1 question à votre conseiller.',
+                  style: AuryelText.body(
+                    fontSize: 12,
+                    color: AuryelColors.textMuted,
+                  ),
+                ),
+              )
+            else
+              Padding(
+                padding: const EdgeInsets.only(top: 4),
+                child: Text(
+                  '${quota!.questionsAvailable} question${quota!.questionsAvailable > 1 ? 's' : ''} disponible${quota!.questionsAvailable > 1 ? 's' : ''}.',
+                  style: AuryelText.body(
+                    fontSize: 12,
+                    color: AuryelColors.textMuted,
+                  ),
+                ),
+              ),
             Align(
               alignment: Alignment.centerLeft,
               child: TextButton(

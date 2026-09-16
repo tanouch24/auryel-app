@@ -171,9 +171,19 @@ void main() {
       );
       await expectLater(
         _apiReturning(402, {
-          'error': 'time_exhausted',
+          'error': 'consultation_credit_exhausted',
+          'rewarded': {'questions_available': 2},
         }).sendMessage(bearer: 't', message: 'x'),
-        throwsA(isA<ApiNoCreditException>()),
+        throwsA(
+          predicate(
+            (e) =>
+                e is ApiNoCreditException &&
+                e.code == 'consultation_credit_exhausted' &&
+                QuotaDto.fromJson(e.body['rewarded'] as Map<String, dynamic>)
+                        .questionsAvailable ==
+                    2,
+          ),
+        ),
       );
       await expectLater(
         _apiReturning(404, {
