@@ -212,7 +212,8 @@ class ContentApi {
               .where((item) {
                 final key = item['object_key'];
                 return key is String &&
-                    key.startsWith('meditations/') &&
+                    (key.startsWith('meditations/') ||
+                        key.startsWith('méditations/')) &&
                     key.toLowerCase().endsWith('.mp4');
               })
               .map(RelaxationVideo.tryFromJson)

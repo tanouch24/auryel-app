@@ -369,18 +369,20 @@ void main() {
       expect(refreshed.videos.map((v) => v.id), ['a', 'b', 'c']);
     });
 
-    test('le filtrage client refuse également tout objet Wake', () async {
+    test('accepte les deux préfixes Méditations et refuse Wake/Ebooks', () async {
       final api = _api(
         MockClient((_) async => _json({
           'catalog_version': 'mixed',
           'meditation_videos': [
             {'id': 'wake', 'title': 'Wake', 'video_url': 'https://cdn/w.mp4', 'object_key': 'wake-videos/w.mp4'},
+            {'id': 'ebook', 'title': 'Ebook', 'video_url': 'https://cdn/e.mp4', 'object_key': 'ebooks/file.pdf'},
             {'id': 'med', 'title': 'Med', 'video_url': 'https://cdn/m.mp4', 'object_key': 'meditations/m.mp4'},
+            {'id': 'accented', 'title': 'Accentué', 'video_url': 'https://cdn/a.mp4', 'object_key': 'méditations/a.mp4'},
           ],
         })),
       );
       final result = await api.meditationVideos();
-      expect(result.videos.map((v) => v.id), ['med']);
+      expect(result.videos.map((v) => v.id), ['med', 'accented']);
     });
   });
 }
