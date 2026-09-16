@@ -17,6 +17,7 @@ import 'package:auryel/data/onboarding_record.dart';
 import 'package:auryel/data/onboarding_repository.dart';
 import 'package:auryel/data/token_store.dart';
 import 'package:auryel/screens/auryel_experience_screen.dart';
+import 'package:auryel/screens/onboarding/wake_onboarding_screen.dart';
 import 'package:auryel/screens/onboarding/account_creation_screen.dart';
 import 'package:auryel/screens/onboarding/email_auth_screen.dart';
 import 'package:auryel/state/auryel_state.dart';
@@ -356,7 +357,7 @@ void main() {
         await t.tap(find.text('Créer mon compte'));
         await t.pumpAndSettle();
 
-        // Étape présentation avant l'Accueil.
+        // Présentation générale puis découverte Réveil avant l'Accueil.
         expect(find.byType(AuryelExperienceScreen), findsOneWidget);
         expect(find.byType(MainNavShell), findsNothing);
         expect(await b.tokens.read(), 'tk');
@@ -365,6 +366,9 @@ void main() {
         expect(b.hitPaths, contains('GET /api/consultation/state'));
 
         await t.tap(find.text('Découvrir Auryel'));
+        await t.pumpAndSettle();
+        expect(find.byType(WakeOnboardingScreen), findsOneWidget);
+        await t.tap(find.byKey(const Key('wake-onboarding-later')));
         await t.pumpAndSettle();
         expect(find.byType(MainNavShell), findsOneWidget);
         expect(

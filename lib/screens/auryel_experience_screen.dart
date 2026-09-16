@@ -8,7 +8,7 @@ import '../data/experience_intro_store.dart';
 import '../theme/auryel_theme.dart';
 import '../widgets/auryel_wordmark.dart';
 import '../widgets/gold_button.dart';
-import 'adult_gate.dart';
+import 'onboarding/wake_onboarding_screen.dart';
 
 /// « Bienvenue dans Auryel » — écran premium de TRANSITION, affiché UNE FOIS
 /// automatiquement juste après la création du compte + la synchro du profil.
@@ -92,7 +92,7 @@ class AuryelExperienceScreen extends StatelessWidget {
     await (store ?? ExperienceIntroStore()).markSeen();
     if (!context.mounted) return;
     Navigator.of(context).pushAndRemoveUntil(
-      MaterialPageRoute(builder: (_) => const AdultGate()),
+      MaterialPageRoute(builder: (_) => const WakeOnboardingScreen()),
       (route) => false,
     );
   }

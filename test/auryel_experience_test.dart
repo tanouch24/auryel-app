@@ -7,6 +7,7 @@ import 'package:auryel/data/intro_video_store.dart';
 import 'package:auryel/data/onboarding_record.dart';
 import 'package:auryel/data/onboarding_repository.dart';
 import 'package:auryel/screens/auryel_experience_screen.dart';
+import 'package:auryel/screens/onboarding/wake_onboarding_screen.dart';
 import 'package:auryel/state/auryel_state.dart';
 import 'package:auryel/widgets/main_nav_shell.dart';
 
@@ -127,7 +128,7 @@ void main() {
     await t.pumpAndSettle();
 
     expect(await store.hasSeen(), isTrue);
-    expect(find.byType(MainNavShell), findsOneWidget);
+    expect(find.byType(WakeOnboardingScreen), findsOneWidget);
     expect(find.byType(AuryelExperienceScreen), findsNothing);
   });
 
@@ -235,7 +236,7 @@ void main() {
     await t.tap(find.text('Découvrir Auryel'));
     await t.pumpAndSettle();
     expect(await store.hasSeen(), isTrue);
-    expect(find.byType(MainNavShell), findsOneWidget);
+    expect(find.byType(WakeOnboardingScreen), findsOneWidget);
   });
 
   testWidgets('ANIM — reduce motion : rendu final immédiat (aucun Timer '

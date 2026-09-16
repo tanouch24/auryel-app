@@ -11,11 +11,13 @@ class WakeVideoStage extends StatefulWidget {
     required this.file,
     this.onReady,
     this.onError,
+    this.muted = false,
   });
 
   final File file;
   final VoidCallback? onReady;
   final VoidCallback? onError;
+  final bool muted;
 
   @override
   State<WakeVideoStage> createState() => WakeVideoStageState();
@@ -38,7 +40,7 @@ class WakeVideoStageState extends State<WakeVideoStage> {
       _controller = controller;
       await controller.initialize();
       await controller.setLooping(true);
-      await controller.setVolume(1.0);
+      await controller.setVolume(widget.muted ? 0.0 : 1.0);
       if (!mounted) return;
       setState(() {});
       widget.onReady?.call();

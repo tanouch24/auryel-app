@@ -8,7 +8,6 @@ import 'package:phosphor_icons/phosphor_icons.dart';
 import '../data/wake_sound_catalog.dart';
 import '../data/wake_video.dart';
 import '../services/wake_alarm_channel.dart';
-import '../state/rewards_controller.dart';
 import '../theme/auryel_theme.dart';
 import '../widgets/wake_video_stage.dart';
 import 'wake_after_screen.dart';
@@ -92,9 +91,6 @@ class _WakeRingingScreenState extends State<WakeRingingScreen> {
     await _stopMedia();
     await _channel.stopRinging();
     if (!mounted) return;
-    if (!widget.testMode) {
-      unawaited(RewardsScope.maybeReadOf(context)?.claim('wake_completed'));
-    }
     Navigator.of(context).pushReplacement(
       MaterialPageRoute(
         builder: (_) => const WakeAfterScreen(

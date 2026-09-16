@@ -310,7 +310,9 @@ class _AuryelAppState extends State<AuryelApp> with WidgetsBindingObserver {
                 widget.consultation.quota != null &&
                 widget.consultation.quota!.isPremium == false,
             authenticated: widget.auth.isSignedIn,
-            onboardingComplete: widget.state.onboardingCompleted,
+            onboardingComplete:
+                widget.state.onboardingCompleted &&
+                !AuryelAds.instance.onboardingFlowActive,
             blocked: widget.consultation.hasActiveSession,
           ),
         );

@@ -51,6 +51,15 @@ class AuryelAds {
   RewardedAd? _rewarded;
   AppOpenAd? _appOpen;
   bool _canRequestAds = false;
+  bool _onboardingFlowActive = false;
+
+  /// Le parcours post-inscription (présentation + Réveil) reste sans App Open
+  /// tant que l'utilisateur n'est pas réellement entré dans l'application.
+  bool get onboardingFlowActive => _onboardingFlowActive;
+
+  void setOnboardingFlowActive(bool active) {
+    _onboardingFlowActive = active;
+  }
   bool _initializing = false;
   bool _rewardedShowing = false;
   DateTime? _lastRewardedAt;

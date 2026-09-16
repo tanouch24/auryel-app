@@ -20,11 +20,19 @@ import 'wake_ringing_screen.dart';
 /// jours de semaine. La vidéo complète du réveil est préparée en cache local
 /// pour que l'alarme ne dépende pas d'un téléchargement au déclenchement.
 class WakeSettingsScreen extends StatefulWidget {
-  const WakeSettingsScreen({super.key, this.channel, this.prefsStore});
+  const WakeSettingsScreen({
+    super.key,
+    this.channel,
+    this.prefsStore,
+    this.onConfigured,
+    this.onSkip,
+  });
 
   /// Test uniquement : pont natif / stockage injectés.
   final WakeAlarmChannel? channel;
   final WakeAlarmPrefsStore? prefsStore;
+  final VoidCallback? onConfigured;
+  final VoidCallback? onSkip;
 
   @override
   State<WakeSettingsScreen> createState() => _WakeSettingsScreenState();
@@ -108,12 +116,13 @@ class _WakeSettingsScreenState extends State<WakeSettingsScreen>
     await _store.save(next);
     await _channel.setAlarmSound(wakeSoundById(next.soundId).nativeResource);
     if (next.enabled) {
-      await _channel.saveAlarm(
+      final scheduled = await _channel.saveAlarm(
         enabled: true,
         hour: next.hour,
         minute: next.minute,
         days: next.days.toList(),
       );
+      if (scheduled) widget.onConfigured?.call();
     } else {
       await _channel.cancelAlarm();
     }
@@ -302,6 +311,13 @@ class _WakeSettingsScreenState extends State<WakeSettingsScreen>
                   letterSpacing: 3.2,
                 ),
               ),
+              if (widget.onSkip != null) ...[
+                const SizedBox(height: 18),
+                TextButton(
+                  onPressed: widget.onSkip,
+                  child: const Text('Plus tard'),
+                ),
+              ],
               const SizedBox(height: 10),
               Text(
                 'Commence ta journée avec Auryel',
