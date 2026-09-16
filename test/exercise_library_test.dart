@@ -32,6 +32,9 @@ Map<String, dynamic> _exercise(String category, int index) => {
   'precautions': '',
   'sort_order': index,
   'version': 1,
+  'image_url': index == 0
+      ? 'https://r2.example.test/exercise-images/$category-${index}_01.webp'
+      : null,
 };
 
 void main() {
@@ -41,6 +44,12 @@ void main() {
     expect(exercise, isNotNull);
     expect(exercise!.categoryLabel, 'Respiration');
     expect(exercise.steps.single.seconds, 30);
+    expect(exercise.imageUrl, contains('exercise-images/breathing-0_01.webp'));
+    expect(
+      Exercise.tryFromJson({..._exercise('breathing', 0), 'image_url': null})
+          ?.imageUrl,
+      isNull,
+    );
     expect(
       Exercise.tryFromJson({..._exercise('breathing', 0), 'steps': []}),
       isNull,
@@ -147,6 +156,12 @@ void main() {
     await tester.tap(find.text('Pratique 1'));
     await tester.pumpAndSettle();
     expect(find.byType(ExerciseDetailScreen), findsOneWidget);
+    await tester.scrollUntilVisible(
+      find.text('Commencer'),
+      500,
+      scrollable: find.byType(Scrollable).last,
+    );
+    await tester.pumpAndSettle();
     expect(find.text('Commencer'), findsOneWidget);
     await tester.tap(find.text('Commencer'));
     await tester.pumpAndSettle();

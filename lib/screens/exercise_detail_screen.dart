@@ -13,6 +13,10 @@ class ExerciseDetailScreen extends StatelessWidget {
     body: ListView(
       padding: const EdgeInsets.fromLTRB(24, 16, 24, 32),
       children: [
+        if (exercise.imageUrl != null) ...[
+          _ExerciseImage(url: exercise.imageUrl!),
+          const SizedBox(height: 20),
+        ],
         Text(
           exercise.categoryLabel.toUpperCase(),
           style: AuryelText.overline(color: AuryelColors.gold),
@@ -68,6 +72,44 @@ class ExerciseDetailScreen extends StatelessWidget {
           ),
         ),
       ],
+    ),
+  );
+}
+
+class _ExerciseImage extends StatelessWidget {
+  const _ExerciseImage({required this.url});
+
+  final String url;
+
+  @override
+  Widget build(BuildContext context) => AspectRatio(
+    aspectRatio: 16 / 10,
+    child: ClipRRect(
+      borderRadius: BorderRadius.circular(20),
+      child: Image.network(
+        url,
+        fit: BoxFit.cover,
+        loadingBuilder: (context, child, progress) =>
+            progress == null ? child : const _ExerciseImageFallback(),
+        errorBuilder: (context, error, stackTrace) =>
+            const _ExerciseImageFallback(),
+      ),
+    ),
+  );
+}
+
+class _ExerciseImageFallback extends StatelessWidget {
+  const _ExerciseImageFallback();
+
+  @override
+  Widget build(BuildContext context) => ColoredBox(
+    color: AuryelColors.surfaceLight,
+    child: Center(
+      child: Icon(
+        Icons.self_improvement_outlined,
+        color: AuryelColors.goldLight,
+        size: 38,
+      ),
     ),
   );
 }

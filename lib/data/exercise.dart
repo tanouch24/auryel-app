@@ -62,6 +62,7 @@ class Exercise {
     required this.precautions,
     required this.sortOrder,
     required this.version,
+    this.imageUrl,
   });
 
   final String id;
@@ -75,6 +76,7 @@ class Exercise {
   final String precautions;
   final int sortOrder;
   final int version;
+  final String? imageUrl;
 
   static Exercise? tryFromJson(Object? raw) {
     if (raw is! Map) {
@@ -91,6 +93,7 @@ class Exercise {
     final precautions = raw['precautions'];
     final sortOrder = raw['sort_order'];
     final version = raw['version'];
+    final imageUrl = raw['image_url'];
     if ([
           id,
           slug,
@@ -104,13 +107,17 @@ class Exercise {
         duration <= 0 ||
         sortOrder is! num ||
         version is! num ||
-        rawSteps is! List) {
+        rawSteps is! List ||
+        (imageUrl != null && imageUrl is! String)) {
       return null;
     }
     final steps = rawSteps
         .map(ExerciseStep.tryFromJson)
         .whereType<ExerciseStep>()
         .toList();
+    final parsedImageUrl = imageUrl is String && imageUrl.trim().isNotEmpty
+        ? imageUrl.trim()
+        : null;
     if (steps.isEmpty ||
         id.trim().isEmpty ||
         slug.trim().isEmpty ||
@@ -130,6 +137,7 @@ class Exercise {
       precautions: precautions,
       sortOrder: sortOrder.toInt(),
       version: version.toInt(),
+      imageUrl: parsedImageUrl,
     );
   }
 
@@ -160,5 +168,6 @@ class Exercise {
     'precautions': precautions,
     'sort_order': sortOrder,
     'version': version,
+    if (imageUrl != null) 'image_url': imageUrl,
   };
 }
