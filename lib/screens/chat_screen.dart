@@ -120,6 +120,7 @@ class _ChatScreenState extends State<ChatScreen> {
   ConsultationDto? _consultation;
 
   bool _sending = false;
+  bool _pendingRewardedMicro = false;
   bool _firstMessageConfirmed = false;
 
   /// Message en cours d'envoi / en échec — renvoyé tel quel, jamais dupliqué.
@@ -347,10 +348,14 @@ class _ChatScreenState extends State<ChatScreen> {
         consultationId: widget.consultationId,
         tirageId: _pendingTirageId,
         idempotencyKey: _pendingIdempotencyKey,
+        rewardedMicro: _pendingRewardedMicro,
       );
       if (!mounted) return;
       await _waitBeforeShowingReply(res.reply);
       if (!mounted) return;
+      final showCreditChoices =
+          _pendingRewardedMicro &&
+          (res.time?.totalRemainingSeconds ?? 0) <= 0;
       // F4 — l'état renvoyé alimente aussi le state partagé de l'app.
       consultation?.updateFromMessageResponse(res);
       setState(() {
@@ -365,7 +370,10 @@ class _ChatScreenState extends State<ChatScreen> {
         _consultation = res.consultation ?? _consultation;
         _pending = null;
         _pendingIdempotencyKey = null;
+        _pendingRewardedMicro = false;
         _sending = false;
+        _noCredit = showCreditChoices;
+        _noCreditQuota = showCreditChoices ? res.quota : null;
         // T3 — le tirage a été rattaché : plus jamais renvoyé sur cette session.
         _pendingTirageId = null;
       });
@@ -468,7 +476,7 @@ class _ChatScreenState extends State<ChatScreen> {
     });
   }
 
-  Future<void> _openCreditPath(Widget destination) async {
+  Future<void> _openCreditPath(Widget destination, {bool rewarded = false}) async {
     await Navigator.of(context)
         .push(MaterialPageRoute(builder: (_) => destination));
     if (!mounted) return;
@@ -485,6 +493,7 @@ class _ChatScreenState extends State<ChatScreen> {
     if (seconds > 0 || questions > 0) {
       setState(() {
         _noCredit = false;
+        if (rewarded) _pendingRewardedMicro = true;
         _noCreditQuota = null;
         _networkError = null;
       });
@@ -671,7 +680,7 @@ class _ChatScreenState extends State<ChatScreen> {
                       _openCreditPath(const ExtraHourPurchaseScreen()),
                   onUseQuestion: () => setState(() => _noCredit = false),
                   onRewarded: () =>
-                      _openCreditPath(const RewardsWalletScreen()),
+                      _openCreditPath(const RewardsWalletScreen(), rewarded: true),
                 )
               else
                 _InputBar(

@@ -9,6 +9,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:auryel/api/api_client.dart';
 import 'package:auryel/api/content_api.dart';
 import 'package:auryel/data/content_repository.dart';
+import 'package:auryel/data/daily_exercise_session.dart';
 import 'package:auryel/data/exercise.dart';
 import 'package:auryel/screens/exercise_detail_screen.dart';
 import 'package:auryel/screens/wellbeing_library_screen.dart';
@@ -39,6 +40,21 @@ Map<String, dynamic> _exercise(String category, int index) => {
 
 void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
+  test('la séance quotidienne est stable, distincte et équilibrée', () {
+    final source = [
+      for (final category in ['breathing', 'relaxation', 'stretching', 'mobility', 'sleep'])
+        for (var i = 0; i < 10; i++)
+          Exercise.tryFromJson(_exercise(category, i))!,
+    ];
+    final day1 = dailyExerciseSession(source, day: DateTime(2026, 9, 17));
+    final day1Again = dailyExerciseSession(source, day: DateTime(2026, 9, 17));
+    final day2 = dailyExerciseSession(source, day: DateTime(2026, 9, 18));
+    expect(day1, orderedEquals(day1Again));
+    expect(day1, hasLength(5));
+    expect(day1.map((e) => e.category).toSet(), hasLength(5));
+    expect(day2.map((e) => e.slug), isNot(orderedEquals(day1.map((e) => e.slug))));
+  });
+
   test('Exercise parse ses champs et rejette une étape malformée', () {
     final exercise = Exercise.tryFromJson(_exercise('breathing', 0));
     expect(exercise, isNotNull);
@@ -121,7 +137,7 @@ void main() {
     },
   );
 
-  testWidgets('catalogue affiche les catégories françaises et ouvre la fiche', (
+  testWidgets('séance du jour affiche cinq exercices et ouvre la fiche', (
     tester,
   ) async {
     final repository = ContentRepository(
@@ -131,7 +147,12 @@ void main() {
           httpClient: MockClient(
             (_) async => http.Response(
               jsonEncode({
-                'exercises': [_exercise('breathing', 0), _exercise('sleep', 1)],
+                'exercises': [
+                  for (final category in ['breathing', 'relaxation', 'stretching', 'mobility', 'sleep'])
+                    _exercise(category, 0),
+                  for (final category in ['breathing', 'relaxation', 'stretching', 'mobility', 'sleep'])
+                    _exercise(category, 1),
+                ],
               }),
               200,
               headers: {'content-type': 'application/json'},
@@ -150,11 +171,12 @@ void main() {
       ),
     );
     await tester.pumpAndSettle();
-    expect(find.text('Respiration'), findsOneWidget);
-    expect(find.text('Pratique 1'), findsOneWidget);
-    expect(find.byType(Image), findsOneWidget);
+    expect(find.text('Ta séance Bien-être du jour'), findsOneWidget);
+    expect(find.text('Commencer ma séance'), findsOneWidget);
+    expect(find.text('Pratique 1'), findsAtLeastNWidgets(1));
+    expect(find.byType(Image), findsAtLeastNWidgets(1));
     expect(find.text('/50'), findsNothing);
-    await tester.tap(find.text('Pratique 1'));
+    await tester.tap(find.text('Pratique 1').first);
     await tester.pumpAndSettle();
     expect(find.byType(ExerciseDetailScreen), findsOneWidget);
     final detailImageFrame = tester.widget<AspectRatio>(find.byType(AspectRatio));

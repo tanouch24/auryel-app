@@ -69,10 +69,13 @@ class WellbeingEbooksController extends ChangeNotifier {
       _catalogReadyAt = DateTime.now();
     } on ApiException catch (error) {
       _error = error;
+      _debugError(error);
     } on ApiNetworkException catch (error) {
       _error = error;
+      _debugError(error);
     } catch (error) {
       _error = error;
+      _debugError(error);
     } finally {
       _loading = false;
       if (!_disposed) notifyListeners();
@@ -87,6 +90,15 @@ class WellbeingEbooksController extends ChangeNotifier {
   void _debugTiming(String phase, Stopwatch stopwatch) {
     if (kDebugMode) {
       debugPrint('[ebooks] $phase ${stopwatch.elapsedMilliseconds}ms');
+    }
+  }
+
+  void _debugError(Object error) {
+    if (!kDebugMode) return;
+    if (error is ApiException) {
+      debugPrint('[ebooks] erreur HTTP ${error.statusCode} code=${error.code ?? "none"}');
+    } else {
+      debugPrint('[ebooks] erreur ${error.runtimeType}');
     }
   }
 

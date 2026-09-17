@@ -34,7 +34,6 @@ class NotificationRoute {
 ///   daily_meditation    -> Bien-être      (1, le lecteur reste une route interne)
 ///   weekly_sleep        -> Bien-être      (1)
 ///   personal_guidance   -> Consultation   (2, requiresAuth)
-///   weekly_life_lesson  -> Accueil        (0)   (pas de destination dédiée V1)
 ///   wellbeing_daily     -> Bien-être      (1)
 ///   ebook_monthly       -> Bien-être      (1)
 ///   inconnu             -> null           (aucune navigation)
@@ -44,11 +43,11 @@ class NotificationRouter {
   NotificationRoute? routeFor(NotificationType type) {
     switch (type) {
       case NotificationType.dailyThought:
-      case NotificationType.weeklyLifeLesson:
         return const NotificationRoute(tabIndex: kTabHome);
       case NotificationType.dailyMeditation:
       case NotificationType.weeklySleep:
       case NotificationType.wellbeingDaily:
+      case NotificationType.wellbeingSession:
         return const NotificationRoute(tabIndex: kTabBienEtre);
       case NotificationType.personalGuidance:
         return const NotificationRoute(

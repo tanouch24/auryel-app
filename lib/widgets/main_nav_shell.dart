@@ -15,6 +15,7 @@ import '../screens/wake_settings_screen.dart';
 import '../state/auth_controller.dart';
 import '../state/rewards_controller.dart';
 import '../state/wellbeing_controller.dart';
+import '../state/unread_controller.dart';
 import '../theme/auryel_theme.dart';
 import 'main_nav_scope.dart';
 
@@ -75,6 +76,9 @@ class _MainNavShellState extends State<MainNavShell> {
     if (i < 0 || i >= _screens.length) return;
     final changed = _index != i;
     if (changed) setState(() => _index = i);
+    final unread = UnreadScope.maybeReadOf(context);
+    if (i == kTabConsultation) unawaited(unread?.markRead('consultation'));
+    if (i == kTabBienEtre) unawaited(unread?.markRead('wellbeing'));
     // La mission « Moment » n'est PLUS cochée à l'ouverture de l'onglet : elle
     // l'est uniquement sur une écoute réellement aboutie (cf. MeditationScreen).
     //
@@ -167,6 +171,8 @@ class _MainNavShellState extends State<MainNavShell> {
         bottomNavigationBar: _AuryelTabBar(
           currentIndex: _index,
           onTap: _goToTab,
+          consultationUnread: UnreadScope.maybeOf(context)?.consultation ?? 0,
+          wellbeingUnread: UnreadScope.maybeOf(context)?.wellbeing ?? 0,
         ),
       ),
     );
@@ -174,10 +180,17 @@ class _MainNavShellState extends State<MainNavShell> {
 }
 
 class _AuryelTabBar extends StatelessWidget {
-  const _AuryelTabBar({required this.currentIndex, required this.onTap});
+  const _AuryelTabBar({
+    required this.currentIndex,
+    required this.onTap,
+    this.consultationUnread = 0,
+    this.wellbeingUnread = 0,
+  });
 
   final int currentIndex;
   final ValueChanged<int> onTap;
+  final int consultationUnread;
+  final int wellbeingUnread;
 
   static const _tabs = [
     (
@@ -261,6 +274,11 @@ class _AuryelTabBar extends StatelessWidget {
                       color: color,
                     );
 
+              final unread = i == kTabConsultation
+                  ? consultationUnread
+                  : i == kTabBienEtre
+                  ? wellbeingUnread
+                  : 0;
               return Expanded(
                 child: Semantics(
                   button: true,
@@ -272,7 +290,39 @@ class _AuryelTabBar extends StatelessWidget {
                       mainAxisAlignment: MainAxisAlignment.center,
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        iconWidget,
+                        Stack(
+                          clipBehavior: Clip.none,
+                          children: [
+                            iconWidget,
+                            if (unread > 0)
+                              Positioned(
+                                right: -8,
+                                top: -5,
+                                child: Container(
+                                  constraints: const BoxConstraints(
+                                    minWidth: 16,
+                                  ),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 4,
+                                    vertical: 1,
+                                  ),
+                                  decoration: BoxDecoration(
+                                    color: AuryelColors.gold,
+                                    borderRadius: BorderRadius.circular(9),
+                                  ),
+                                  child: Text(
+                                    '$unread',
+                                    textAlign: TextAlign.center,
+                                    style: AuryelText.body(
+                                      fontSize: 9,
+                                      fontWeight: FontWeight.w700,
+                                      color: AuryelColors.backgroundDeep,
+                                    ),
+                                  ),
+                                ),
+                              ),
+                          ],
+                        ),
                         SizedBox(height: centre ? 2 : 4),
                         Padding(
                           padding: const EdgeInsets.symmetric(horizontal: 3),

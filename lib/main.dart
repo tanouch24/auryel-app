@@ -18,6 +18,7 @@ import 'api/tirage_api.dart';
 import 'api/wellbeing_api.dart';
 import 'api/wellbeing_program_api.dart';
 import 'api/wellbeing_ebooks_api.dart';
+import 'api/unread_api.dart';
 import 'data/auth_repository.dart';
 import 'data/content_repository.dart';
 import 'data/iap_gateway.dart';
@@ -42,6 +43,7 @@ import 'state/rewards_controller.dart';
 import 'state/wellbeing_controller.dart';
 import 'state/wellbeing_program_controller.dart';
 import 'state/wellbeing_ebooks_controller.dart';
+import 'state/unread_controller.dart';
 import 'theme/auryel_theme.dart';
 
 void main() async {
@@ -125,6 +127,10 @@ void main() async {
     tokenProvider: auth.currentToken,
     authReadyProvider: () => auth.status != AuthStatus.unknown,
   );
+  final unread = UnreadController(
+    api: UnreadApi(apiClient),
+    tokenProvider: auth.currentToken,
+  );
   // GROS CHANTIER AURYEL (Prompt 2/5) — ÉTOILES : instance UNIQUE et PARTAGÉE
   // (cf. RewardsScope), même schéma que WellbeingController ci-dessus. Le
   // header Accueil et l'écran « Mes Étoiles » lisent et notifient le MÊME
@@ -174,6 +180,9 @@ void main() async {
       unawaited(notifications.onSignedIn());
       unawaited(wellbeingProgram.refresh());
       unawaited(wellbeingEbooks.refresh());
+      unawaited(unread.refresh());
+    } else {
+      unread.clear();
     }
   });
   unawaited(notifications.start());
@@ -192,6 +201,7 @@ void main() async {
       metaEvents: metaEvents,
       metaConsent: metaConsent,
       content: content,
+      unread: unread,
     ),
   );
 }
@@ -211,6 +221,7 @@ class AuryelApp extends StatefulWidget {
     this.metaEvents,
     this.metaConsent,
     this.content,
+    this.unread,
   });
 
   final AuryelState state;
@@ -236,6 +247,7 @@ class AuryelApp extends StatefulWidget {
   /// l'arbre est enveloppé d'un [ContentScope]. Absent des tests hérités ->
   /// les écrans lisent le contenu embarqué comme avant.
   final ContentRepository? content;
+  final UnreadController? unread;
 
   /// F5-B — optionnel : quand fourni (cas réel de `main()`), l'arbre est
   /// enveloppé d'un [PurchaseScope]. Absent dans les tests hérités qui ne
@@ -376,6 +388,10 @@ class _AuryelAppState extends State<AuryelApp> with WidgetsBindingObserver {
     final rewards = widget.rewards;
     if (rewards != null) {
       tree = RewardsScope(controller: rewards, child: tree);
+    }
+    final unread = widget.unread;
+    if (unread != null) {
+      tree = UnreadScope(controller: unread, child: tree);
     }
     return AuthScope(
       controller: widget.auth,

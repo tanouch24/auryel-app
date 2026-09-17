@@ -6,8 +6,8 @@ enum NotificationType {
   dailyMeditation(wire: 'daily_meditation'),
   personalGuidance(wire: 'personal_guidance'),
   weeklySleep(wire: 'weekly_sleep'),
-  weeklyLifeLesson(wire: 'weekly_life_lesson'),
   wellbeingDaily(wire: 'wellbeing_daily'),
+  wellbeingSession(wire: 'wellbeing_session'),
   ebookMonthly(wire: 'ebook_monthly'),
   unknown(wire: '');
 

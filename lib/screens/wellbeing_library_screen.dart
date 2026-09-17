@@ -5,6 +5,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../api/wellbeing_ebooks_api.dart';
 import '../data/content_repository.dart';
 import '../data/exercise.dart';
+import '../data/daily_exercise_session.dart';
 import '../data/relaxation_video.dart';
 import '../state/wellbeing_ebooks_controller.dart';
 import '../state/wellbeing_program_controller.dart';
@@ -206,70 +207,41 @@ class _ExercisesTab extends StatelessWidget {
           message: 'Nous préparons des formats courts pour respirer, relâcher la pression et retrouver ton rythme.',
         );
       }
-      return _ExerciseCatalogue(items: items);
+      return _DailyExerciseSession(items: items);
     },
   );
 }
 
-class _ExerciseCatalogue extends StatefulWidget {
-  const _ExerciseCatalogue({required this.items});
+class _DailyExerciseSession extends StatelessWidget {
+  const _DailyExerciseSession({required this.items});
   final List<Exercise> items;
 
   @override
-  State<_ExerciseCatalogue> createState() => _ExerciseCatalogueState();
-}
-
-class _ExerciseCatalogueState extends State<_ExerciseCatalogue> {
-  String? _category;
-
-  static const categories = <String, String>{
-    'all': 'Tout',
-    'breathing': 'Respiration',
-    'relaxation': 'Relaxation',
-    'stretching': 'Étirements',
-    'mobility': 'Mobilité',
-    'sleep': 'Sommeil',
-  };
-
-  @override
   Widget build(BuildContext context) {
-    final filtered = _category == null
-        ? widget.items
-        : widget.items.where((item) => item.category == _category).toList();
+    final session = dailyExerciseSession(items, day: DateTime.now());
     return ListView(
       padding: const EdgeInsets.fromLTRB(20, 18, 20, 32),
       children: [
         Text(
-          'Des pratiques courtes pour prendre soin de toi.',
+          'Ta séance Bien-être du jour',
           style: AuryelText.body(
             color: AuryelColors.textSecondary,
             height: 1.4,
           ),
         ),
+        const SizedBox(height: 8),
+        Text('5 exercices choisis pour prendre soin de toi aujourd’hui.',
+            style: AuryelText.body(color: AuryelColors.textSecondary)),
         const SizedBox(height: 16),
-        SizedBox(
-          height: 42,
-          child: ListView(
-            scrollDirection: Axis.horizontal,
-            children: [
-              for (final entry in categories.entries)
-                Padding(
-                  padding: const EdgeInsets.only(right: 8),
-                  child: ChoiceChip(
-                    label: Text(entry.value),
-                    selected:
-                        (_category == null && entry.key == 'all') ||
-                        _category == entry.key,
-                    onSelected: (_) => setState(
-                      () => _category = entry.key == 'all' ? null : entry.key,
-                    ),
-                  ),
-                ),
-            ],
-          ),
+        FilledButton(
+          key: const Key('daily-exercise-start'),
+          onPressed: () => Navigator.of(context).push(MaterialPageRoute(
+            builder: (_) => ExerciseDailySessionScreen(exercises: session),
+          )),
+          child: const Text('Commencer ma séance'),
         ),
         const SizedBox(height: 16),
-        for (final item in filtered) _ExerciseCard(item: item),
+        for (final item in session) _ExerciseCard(item: item),
       ],
     );
   }

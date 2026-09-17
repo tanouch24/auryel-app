@@ -5,15 +5,9 @@ import '../../data/birth_date_parser.dart';
 import '../../state/auryel_state.dart';
 import '../../theme/auryel_theme.dart';
 import '../../widgets/onboarding_scaffold.dart';
-import 'portrait_screen.dart';
+import 'account_creation_screen.dart';
 
-const _mockPortraitText =
-    'Tu sembles avancer avec beaucoup d’intuition, mais tu as parfois besoin de '
-    'comprendre les choses jusqu’au bout avant de vraiment lâcher prise. Tu '
-    'accordes beaucoup d’importance aux liens sincères et tu ressens vite '
-    'lorsqu’une situation manque de clarté.';
-
-/// Étape 2/5 — date de naissance en SAISIE LIBRE. Aucune prédiction : la valeur
+/// Étape 2/6 — date de naissance en SAISIE LIBRE. Aucune prédiction : la valeur
 /// nourrit plus tard le portrait, la numérologie et le contexte du conseiller.
 ///
 /// Le champ texte est le mode principal ; le calendrier reste accessible en
@@ -101,14 +95,10 @@ class _BirthDateScreenState extends State<BirthDateScreen> {
     if (date == null || !meetsMinimumAge(date)) return;
     final state = AuryelStateScope.of(context);
     state.setBirthDate(date);
-    // Texte simulé — stocké dans portraitData, pas codé en dur dans l'écran
-    // suivant, pour que le vrai serveur puisse remplacer la valeur au Temps 2.
-    // On ne l'écrase PAS si un portrait a déjà été produit (reprise / retour).
-    if (state.portraitData == null || state.portraitData!.isEmpty) {
-      state.setPortraitData(_mockPortraitText);
-    }
+    // Les étapes portrait et conseiller restent accessibles plus tard, mais
+    // ne font plus partie du chemin obligatoire de création de compte.
     Navigator.of(context)
-        .push(MaterialPageRoute(builder: (_) => const PortraitScreen()));
+        .push(MaterialPageRoute(builder: (_) => const AccountCreationScreen()));
   }
 
   @override
@@ -118,7 +108,7 @@ class _BirthDateScreenState extends State<BirthDateScreen> {
 
     return OnboardingScaffold(
       step: 2,
-      totalSteps: 5,
+      totalSteps: 6,
       title: 'Quelle est ta date de naissance ?',
       subtitle: 'Écris-la comme tu veux, par exemple 17 mai 2000.',
       ctaLabel: 'Continuer',

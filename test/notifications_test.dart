@@ -223,11 +223,9 @@ void main() {
       expect(r.tabIndex, kTabConsultation);
       expect(r.requiresAuth, isTrue);
     });
-    test('5 — weekly_life_lesson -> Accueil (0)', () {
-      expect(
-        router.routeFor(NotificationType.weeklyLifeLesson)!.tabIndex,
-        kTabHome,
-      );
+    test('5 — weekly_life_lesson supprimé -> type inconnu', () {
+      expect(NotificationType.fromWire('weekly_life_lesson'),
+          NotificationType.unknown);
     });
     test('6 — type inconnu -> null (aucune navigation)', () {
       expect(router.routeFor(NotificationType.unknown), isNull);
@@ -422,13 +420,6 @@ void main() {
       expect(await _pumpShell(t, fake, signedIn: true), kTabConsultation);
     });
 
-    testWidgets('5 — weekly_life_lesson -> onglet 0', (t) async {
-      final fake = _FakeNotificationService(
-        initial: _payload('weekly_life_lesson'),
-      );
-      expect(await _pumpShell(t, fake), kTabHome);
-    });
-
     testWidgets('6/7 — type inconnu / payload vide -> onglet 0, aucun crash', (
       t,
     ) async {
@@ -477,7 +468,6 @@ void main() {
           'daily_meditation',
           'weekly_sleep',
           'personal_guidance',
-          'weekly_life_lesson',
           'inconnu',
         ]) {
           fake.emitOpened(_payload(type));

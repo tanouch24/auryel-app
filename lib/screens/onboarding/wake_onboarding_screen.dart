@@ -8,8 +8,8 @@ import '../../data/wake_video.dart';
 import '../../ads/ad_service.dart';
 import '../../theme/auryel_theme.dart';
 import '../../widgets/wake_video_stage.dart';
-import '../adult_gate.dart';
 import '../wake_settings_screen.dart';
+import 'notification_onboarding_screen.dart';
 
 /// Découverte ponctuelle du Réveil V2 pendant l'expérience d'accueil.
 ///
@@ -64,7 +64,7 @@ class _WakeOnboardingScreenState extends State<WakeOnboardingScreen> {
       return;
     }
     Navigator.of(context).pushAndRemoveUntil(
-      MaterialPageRoute(builder: (_) => const AdultGate()),
+      MaterialPageRoute(builder: (_) => const NotificationOnboardingScreen()),
       (route) => false,
     );
   }
@@ -150,7 +150,7 @@ class _WakeOnboardingScreenState extends State<WakeOnboardingScreen> {
                             alignment: Alignment.center,
                             child: Icon(_videoFailed ? Icons.wb_sunny_outlined : Icons.alarm_rounded, size: 58, color: AuryelColors.goldLight),
                           )
-                        : WakeVideoStage(key: _stageKey, file: File(path), muted: true),
+                        : WakeVideoStage(key: _stageKey, file: File(path), muted: false),
                   ),
                 ),
                 const SizedBox(height: 22),

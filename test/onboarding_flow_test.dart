@@ -5,12 +5,9 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:auryel/data/onboarding_record.dart';
 import 'package:auryel/data/onboarding_repository.dart';
 import 'package:auryel/screens/onboarding/account_creation_screen.dart';
-import 'package:auryel/screens/onboarding/advisor_selection_screen.dart';
 import 'package:auryel/screens/onboarding/birth_date_screen.dart';
 import 'package:auryel/screens/onboarding/first_name_screen.dart';
-import 'package:auryel/screens/onboarding/portrait_screen.dart';
 import 'package:auryel/state/auryel_state.dart';
-import 'package:auryel/widgets/advisors_carousel.dart';
 import 'package:auryel/widgets/onboarding_scaffold.dart';
 
 AuryelState _state({
@@ -53,12 +50,11 @@ Future<void> _tapContinue(WidgetTester tester) async {
 void main() {
   setUp(() => SharedPreferences.setMockInitialValues({}));
 
-  testWidgets('nouvel ordre : prénom(1) -> date(2) -> parle-moi de toi(3) -> '
-      'conseiller(4) -> compte(5)', (tester) async {
+  testWidgets('nouvel ordre : prénom(1) -> date(2) -> compte(3) -> réveil(4)', (tester) async {
     final state = _state();
     await _pump(tester, state);
 
-    // 1/5 — prénom, premier écran, sans retour.
+    // 1/6 — prénom, premier écran, sans retour.
     expect(find.byType(FirstNameScreen), findsOneWidget);
     expect(find.text('Comment veux-tu qu’on t’appelle ?'), findsOneWidget);
     expect(_step(tester), 1);
@@ -68,7 +64,7 @@ void main() {
     await tester.pump();
     await _tapContinue(tester);
 
-    // 2/5 — date de naissance, saisie libre.
+    // 2/6 — date de naissance, saisie libre.
     expect(find.byType(BirthDateScreen), findsOneWidget);
     expect(find.text('Quelle est ta date de naissance ?'), findsOneWidget);
     expect(_step(tester), 2);
@@ -78,38 +74,15 @@ void main() {
     expect(find.text('17 mai 2000 ✓'), findsOneWidget); // confirmation lisible
     await _tapContinue(tester);
 
-    // 3/5 — « parle-moi un peu de toi » (ex-PortraitScreen).
-    expect(find.byType(PortraitScreen), findsOneWidget);
-    expect(find.text('Parle-moi un peu de toi'), findsOneWidget);
-    expect(_step(tester), 3);
-    await _tapContinue(tester);
-
-    // 4/5 — conseiller, APRÈS le profil.
-    expect(find.byType(AdvisorSelectionScreen), findsOneWidget);
-    expect(find.text('Choisis ton conseiller'), findsOneWidget);
-    expect(_step(tester), 4);
-
-    // spécialité + tagline visibles AVANT sélection.
-    expect(find.text('AMOUR & RELATIONS'), findsWidgets);
-    expect(
-      find.text(kAdvisors.first.tagline), // Séléna
-      findsOneWidget,
-    );
-
-    await tester.tap(find.text('Luna'));
-    await tester.pump();
-    expect(state.selectedAdvisor, isNull); // pas encore validé
-    await _tapContinue(tester);
-
-    // 5/5 — création du compte.
+    // 3/6 — création du compte, sans portrait ni conseiller obligatoire.
     expect(find.byType(AccountCreationScreen), findsOneWidget);
-    expect(_step(tester), 5);
-    expect(state.selectedAdvisor, 'Luna');
+    expect(_step(tester), 3);
+    expect(state.selectedAdvisor, isNull);
     expect(state.firstName, 'Alice');
     expect(state.birthDate, DateTime(2000, 5, 17));
   });
 
-  testWidgets('retour arrière : conseiller -> parle-moi de toi -> date', (
+  testWidgets('retour arrière : compte -> date -> prénom', (
     tester,
   ) async {
     await _pump(tester, _state());
@@ -118,16 +91,9 @@ void main() {
     await _tapContinue(tester);
     await tester.enterText(find.byType(TextField), '17 mai 2000');
     await tester.pump();
-    await _tapContinue(tester); // -> portrait
-    await _tapContinue(tester); // -> conseiller
-    expect(find.byType(AdvisorSelectionScreen), findsOneWidget);
-
-    // Bouton retour de l'OnboardingScaffold (1er IconButton de l'écran).
-    await tester.tap(find.byType(IconButton).first);
-    await tester.pumpAndSettle();
-    expect(find.byType(PortraitScreen), findsOneWidget);
-    expect(_step(tester), 3);
-
+    await _tapContinue(tester);
+    expect(find.byType(AccountCreationScreen), findsOneWidget);
+    // Bouton retour de l'OnboardingScaffold.
     await tester.tap(find.byType(IconButton).first);
     await tester.pumpAndSettle();
     expect(find.byType(BirthDateScreen), findsOneWidget);
@@ -155,15 +121,8 @@ void main() {
     expect(find.text('17 mai 2000 ✓'), findsOneWidget);
     await _tapContinue(tester);
 
-    // Portrait conservé (texte serveur), pas écrasé.
-    expect(find.text('portrait déjà généré'), findsOneWidget);
-    await _tapContinue(tester);
-
-    // Conseiller déjà choisi -> CTA actif sans nouvelle sélection.
-    expect(find.byType(AdvisorSelectionScreen), findsOneWidget);
-    await _tapContinue(tester);
     expect(find.byType(AccountCreationScreen), findsOneWidget);
-    expect(state.selectedAdvisor, 'Luna');
+    expect(state.selectedAdvisor, 'Luna'); // profil existant conservé
     expect(state.firstName, 'Bob');
     expect(state.birthDate, DateTime(2000, 5, 17));
     expect(state.portraitFeedback, 'déjà répondu'); // pas écrasé par du vide
@@ -208,7 +167,7 @@ void main() {
     await tester.pumpAndSettle();
     // Bloqué : l'onboarding ne peut pas se terminer.
     expect(find.byType(BirthDateScreen), findsOneWidget);
-    expect(find.byType(PortraitScreen), findsNothing);
+    expect(find.byType(AccountCreationScreen), findsNothing);
 
     // Correction avec une date adulte -> le message disparaît, on avance.
     await tester.enterText(find.byType(TextField), '17 mai 1995');
@@ -219,6 +178,6 @@ void main() {
     );
     expect(find.text('17 mai 1995 ✓'), findsOneWidget);
     await _tapContinue(tester);
-    expect(find.byType(PortraitScreen), findsOneWidget);
+    expect(find.byType(AccountCreationScreen), findsOneWidget);
   });
 }

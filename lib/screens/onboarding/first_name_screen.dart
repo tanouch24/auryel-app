@@ -5,9 +5,8 @@ import '../../theme/auryel_theme.dart';
 import '../../widgets/onboarding_scaffold.dart';
 import 'birth_date_screen.dart';
 
-/// Étape 1/5 — prénom. Premier écran du parcours (le choix du conseiller vient
-/// plus tard, une fois le profil connu). `firstName` est stocké pour les
-/// futures fonctionnalités ; on ne le réutilise pas encore dans le copy.
+/// Étape 1/6 — prénom. Le choix du conseiller reste disponible dans l'app,
+/// mais ne bloque plus la création du compte.
 class FirstNameScreen extends StatefulWidget {
   const FirstNameScreen({super.key});
 
@@ -50,7 +49,7 @@ class _FirstNameScreenState extends State<FirstNameScreen> {
   Widget build(BuildContext context) {
     return OnboardingScaffold(
       step: 1,
-      totalSteps: 5,
+      totalSteps: 6,
       showBack: false,
       title: 'Comment veux-tu qu’on t’appelle ?',
       ctaLabel: 'Continuer',

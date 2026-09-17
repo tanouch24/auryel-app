@@ -8,7 +8,7 @@ import '../data/experience_intro_store.dart';
 import '../theme/auryel_theme.dart';
 import '../widgets/auryel_wordmark.dart';
 import '../widgets/gold_button.dart';
-import 'onboarding/wake_onboarding_screen.dart';
+import 'adult_gate.dart';
 
 /// « Bienvenue dans Auryel » — écran premium de TRANSITION, affiché UNE FOIS
 /// automatiquement juste après la création du compte + la synchro du profil.
@@ -42,48 +42,29 @@ class AuryelExperienceScreen extends StatelessWidget {
 
   static const _blocks = <_ExperienceBlock>[
     _ExperienceBlock(
-      icon: PhosphorIconsRegular.sparkle,
-      title: 'Ton conseiller',
-      text:
-          'Choisis le conseiller qui te correspond et retrouve-le dans '
-          'ton expérience Auryel.',
-    ),
-    _ExperienceBlock(
       icon: PhosphorIconsRegular.sun,
-      title: 'Ta pensée du jour',
-      text:
-          'Une nouvelle pensée t’accompagne chaque jour, avec son '
-          'interprétation.',
+      title: 'Pensée du jour',
+      text: 'Une pensée à découvrir chaque matin.',
     ),
     _ExperienceBlock(
       icon: PhosphorIconsRegular.cardsThree,
-      title: 'Tes tirages',
-      text:
-          'Tire les cartes et découvre une interprétation adaptée à ton '
-          'tirage.',
-    ),
-    _ExperienceBlock(
-      icon: PhosphorIconsRegular.flowerLotus,
-      title: 'Ton moment',
-      text: 'Retrouve chaque jour un moment de méditation et de recentrage.',
-    ),
-    _ExperienceBlock(
-      icon: PhosphorIconsRegular.shareNetwork,
-      title: 'Partage & récompenses',
-      text:
-          'Partage les contenus Auryel et suis ta progression vers les '
-          'récompenses proposées dans l’application.',
+      title: 'Tirage quotidien',
+      text: 'Ta carte et son message du jour.',
     ),
     _ExperienceBlock(
       icon: PhosphorIconsRegular.gameController,
-      title: 'Le Jeu Auryel',
-      text: 'Joue, progresse et débloque de nouvelles expériences Auryel.',
+      title: 'Exercices',
+      text: 'Des exercices simples pour prendre soin de toi.',
+    ),
+    _ExperienceBlock(
+      icon: PhosphorIconsRegular.flowerLotus,
+      title: 'Méditations',
+      text: 'Des Moments pour souffler et te recentrer.',
     ),
     _ExperienceBlock(
       icon: PhosphorIconsRegular.storefront,
-      title: 'Boutique Auryel',
-      text: 'Une sélection Auryel arrivera dans une prochaine mise à jour.',
-      badge: 'À venir',
+      title: 'Ebooks',
+      text: 'Une bibliothèque pour aller plus loin.',
     ),
   ];
 
@@ -91,10 +72,14 @@ class AuryelExperienceScreen extends StatelessWidget {
     // Ne touche le flag QUE dans le parcours automatique.
     await (store ?? ExperienceIntroStore()).markSeen();
     if (!context.mounted) return;
-    Navigator.of(context).pushAndRemoveUntil(
-      MaterialPageRoute(builder: (_) => const WakeOnboardingScreen()),
-      (route) => false,
-    );
+    if (fromDashboard) {
+      Navigator.of(context).maybePop();
+    } else {
+      Navigator.of(context).pushAndRemoveUntil(
+        MaterialPageRoute(builder: (_) => const AdultGate()),
+        (route) => false,
+      );
+    }
   }
 
   @override
@@ -363,13 +348,11 @@ class _ExperienceBlock {
     required this.icon,
     required this.title,
     required this.text,
-    this.badge,
   });
 
   final IconData icon;
   final String title;
   final String text;
-  final String? badge;
 }
 
 class _ExperienceCard extends StatelessWidget {
@@ -452,42 +435,12 @@ class _ExperienceCard extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Row(
-                  children: [
-                    Flexible(
-                      child: Text(
-                        block.title,
-                        style: AuryelText.display(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ),
-                    if (block.badge != null) ...[
-                      const SizedBox(width: 8),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 8,
-                          vertical: 2,
-                        ),
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(10),
-                          border: Border.all(
-                            color: AuryelColors.gold.withValues(alpha: 0.5),
-                          ),
-                        ),
-                        child: Text(
-                          block.badge!,
-                          style: AuryelText.body(
-                            fontSize: 9.5,
-                            fontWeight: FontWeight.w600,
-                            color: AuryelColors.goldLight,
-                            letterSpacing: 0.6,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ],
+                Text(
+                  block.title,
+                  style: AuryelText.display(
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
+                  ),
                 ),
                 const SizedBox(height: 4),
                 Text(

@@ -9,7 +9,7 @@ import '../../theme/auryel_theme.dart';
 import '../../widgets/advisors_carousel.dart';
 import '../../widgets/auth_fields.dart';
 import '../../widgets/onboarding_scaffold.dart';
-import '../auryel_experience_screen.dart';
+import 'wake_onboarding_screen.dart';
 import 'email_auth_screen.dart';
 
 /// Étape 5/5 — création de compte AUTH V2 : email + mot de passe, AUCUN code OTP.
@@ -128,7 +128,10 @@ class _AccountCreationScreenState extends State<AccountCreationScreen> {
     final auth = AuthScope.of(context);
     final state = AuryelStateScope.of(context);
 
-    final advisor = advisorByNameOrNull(state.selectedAdvisor);
+    // Le conseiller reste personnalisable dans l'application, mais ne bloque
+    // plus l'inscription. Selena est uniquement le repli serveur explicite.
+    final advisor = advisorByNameOrNull(state.selectedAdvisor) ??
+        advisorByNameOrNull('Séléna');
     final prenom = (state.firstName ?? '').trim();
     final birth = state.birthDate;
     if (advisor == null || prenom.isEmpty || birth == null) {
@@ -160,12 +163,11 @@ class _AccountCreationScreenState extends State<AccountCreationScreen> {
         await ConsultationScope.maybeOf(context)?.refresh();
         if (!mounted) return;
         // Compte créé + profil synchronisé : on clôt l'onboarding local, puis
-        // on présente l'expérience Auryel UNE fois (elle enchaîne ensuite sur
-        // l'Accueil via « Découvrir Auryel »).
+        // on suit le parcours court : Réveil -> Notifications -> découverte.
         await state.completeOnboarding(userId: auth.account?.userId);
         if (!mounted) return;
         Navigator.of(context).pushAndRemoveUntil(
-          MaterialPageRoute(builder: (_) => const AuryelExperienceScreen()),
+          MaterialPageRoute(builder: (_) => const WakeOnboardingScreen()),
           (route) => false,
         );
       case ProfileSyncOutcome.unauthorized:
@@ -248,8 +250,8 @@ class _AccountCreationScreenState extends State<AccountCreationScreen> {
   @override
   Widget build(BuildContext context) {
     return OnboardingScaffold(
-      step: 5,
-      totalSteps: 5,
+      step: 3,
+      totalSteps: 6,
       title: 'Ton compte',
       subtitle: 'Pour retrouver ton conseiller et tes échanges.',
       ctaLabel: _ctaLabel,

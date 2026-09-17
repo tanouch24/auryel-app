@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import '../api/api_client.dart';
 import '../api/auth_api.dart';
 import 'account.dart';
@@ -100,13 +102,20 @@ class AuthRepository {
       return const RestoreResult(RestoreOutcome.noToken);
     }
     try {
-      final account = await _api.getAccount(token);
+      // La restauration ne doit pas retenir l'écran de démarrage sur le délai
+      // réseau général (15 s). Le jeton reste conservé et l'app passe en mode
+      // dégradé ; les écrans resynchronisent ensuite dès que le réseau revient.
+      final account = await _api.getAccount(token).timeout(
+        const Duration(seconds: 4),
+      );
       return RestoreResult(RestoreOutcome.valid, account);
     } on ApiUnauthorizedException {
       await _tokens.clear();
       return const RestoreResult(RestoreOutcome.expired);
-    } on ApiNetworkException {
+    } on ApiNetworkException catch (_) {
       // Panne réseau temporaire : on NE détruit PAS la session.
+      return const RestoreResult(RestoreOutcome.networkError);
+    } on TimeoutException {
       return const RestoreResult(RestoreOutcome.networkError);
     } on ApiException {
       // 5xx / réponse inattendue : session non invalidée non plus.

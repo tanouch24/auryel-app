@@ -35,6 +35,7 @@ class ConsultationApi {
     String? consultationId,
     String? tirageId,
     String? idempotencyKey,
+    bool rewardedMicro = false,
   }) async {
     final json = await _client.postJson('/api/consultation/message', {
       'message': message,
@@ -43,6 +44,7 @@ class ConsultationApi {
       if (tirageId != null && tirageId.isNotEmpty) 'tirage_id': tirageId,
       if (idempotencyKey != null && idempotencyKey.isNotEmpty)
         'idempotency_key': idempotencyKey,
+      if (rewardedMicro) 'response_mode': 'rewarded_micro',
     }, bearer: bearer);
     return ConsultationMessageResponse.fromJson(json);
   }

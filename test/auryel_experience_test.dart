@@ -7,7 +7,7 @@ import 'package:auryel/data/intro_video_store.dart';
 import 'package:auryel/data/onboarding_record.dart';
 import 'package:auryel/data/onboarding_repository.dart';
 import 'package:auryel/screens/auryel_experience_screen.dart';
-import 'package:auryel/screens/onboarding/wake_onboarding_screen.dart';
+import 'package:auryel/screens/adult_gate.dart';
 import 'package:auryel/state/auryel_state.dart';
 import 'package:auryel/widgets/main_nav_shell.dart';
 
@@ -20,13 +20,11 @@ const _slogan =
     'expérience quotidienne, personnelle et immersive.';
 
 const _blockTitles = [
-  'Ton conseiller',
-  'Ta pensée du jour',
-  'Tes tirages',
-  'Ton moment',
-  'Partage & récompenses',
-  'Le Jeu Auryel',
-  'Boutique Auryel',
+  'Pensée du jour',
+  'Tirage quotidien',
+  'Exercices',
+  'Méditations',
+  'Ebooks',
 ];
 
 void main() {
@@ -92,8 +90,7 @@ void main() {
     expect(find.text(_slogan), findsOneWidget);
   });
 
-  testWidgets('C — les 7 fonctionnalités présentées + badge « À venir » '
-      'Boutique', (t) async {
+  testWidgets('C — les 5 fonctionnalités principales sont présentées', (t) async {
     t.view.devicePixelRatio = 1.0;
     t.view.physicalSize = const Size(
       384,
@@ -107,7 +104,6 @@ void main() {
     for (final title in _blockTitles) {
       expect(find.text(title), findsOneWidget, reason: title);
     }
-    expect(find.text('À venir'), findsOneWidget); // badge Boutique
     expect(find.text('TON EXPÉRIENCE AURYEL'), findsOneWidget);
     // aucune promesse d'humain / de certitude / de récompense acquise
     expect(find.textContaining('expert humain'), findsNothing);
@@ -128,7 +124,7 @@ void main() {
     await t.pumpAndSettle();
 
     expect(await store.hasSeen(), isTrue);
-    expect(find.byType(WakeOnboardingScreen), findsOneWidget);
+    expect(find.byType(AdultGate), findsOneWidget);
     expect(find.byType(AuryelExperienceScreen), findsNothing);
   });
 
@@ -230,13 +226,11 @@ void main() {
     for (final title in _blockTitles) {
       expect(find.text(title), findsOneWidget, reason: title);
     }
-    expect(find.text('À venir'), findsOneWidget);
-
     // CTA toujours actif après les animations.
     await t.tap(find.text('Découvrir Auryel'));
     await t.pumpAndSettle();
     expect(await store.hasSeen(), isTrue);
-    expect(find.byType(WakeOnboardingScreen), findsOneWidget);
+    expect(find.byType(AdultGate), findsOneWidget);
   });
 
   testWidgets('ANIM — reduce motion : rendu final immédiat (aucun Timer '
