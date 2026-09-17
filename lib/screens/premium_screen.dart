@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../config/legal_texts.dart';
 import '../data/subscription_manager.dart';
+import '../data/purchase.dart';
 import '../state/consultation_controller.dart';
 import '../state/meta_consent_controller.dart';
 import '../state/purchase_controller.dart';
@@ -114,10 +115,7 @@ class _Body extends StatelessWidget {
   final SubscriptionManager subscriptionManager;
 
   String get _priceLabel {
-    // L'offre produit validée pour Auryel est fixe. Une ancienne fiche Store
-    // peut encore remonter une valeur historique: elle ne doit pas apparaître
-    // dans l'interface active.
-    return '4,99 €/mois';
+    return premiumPriceLabel(controller.premiumProduct);
   }
 
   Future<void> _manage(BuildContext context) async {

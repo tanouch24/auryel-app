@@ -271,6 +271,13 @@ void main() {
       expect(ebook.coverUrl, isNull);
     },
   );
+
+  test('convention future des couvertures conserve le slug Unicode', () {
+    expect(
+      ebookCoverObjectKey('mon-guide-évasion'),
+      'auryel-ebook-covers/mon-guide-évasion.webp',
+    );
+  });
 }
 
 Map<String, dynamic> _ebookJson(int id) => {

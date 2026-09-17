@@ -185,7 +185,9 @@ Future<http.Response> _happy(http.Request r) async {
 void main() {
   testWidgets('A/B produit dispo -> titre + prix store affichés', (t) async {
     final rig = _rig(handler: _happy);
-    rig.gateway.products = [_product(price: '4,99 €')];
+    // Le montant affiché doit suivre exactement le format fourni par le
+    // Store, même lorsqu'il diffère du fallback éditorial.
+    rig.gateway.products = [_product(price: '5,49 €')];
     await rig.controller.initialize();
     await _pump(t, rig.controller);
     await t.pump();
@@ -199,7 +201,7 @@ void main() {
     expect(find.text('0 €'), findsOneWidget);
     expect(find.text('4 h de consultation par mois'), findsOneWidget);
     expect(find.text('Sans publicité'), findsOneWidget);
-    expect(find.text('4,99 €/mois'), findsOneWidget);
+    expect(find.text('5,49 €/mois'), findsOneWidget);
     expect(find.text('S’abonner'), findsOneWidget);
     expect(find.text('Restaurer mes achats'), findsOneWidget);
   });

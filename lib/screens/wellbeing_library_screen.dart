@@ -8,7 +8,9 @@ import '../data/exercise.dart';
 import '../data/relaxation_video.dart';
 import '../state/wellbeing_ebooks_controller.dart';
 import '../state/wellbeing_program_controller.dart';
+import '../state/consultation_controller.dart';
 import '../theme/auryel_theme.dart';
+import '../widgets/auryel_banner.dart';
 import 'ebook_reader_screen.dart';
 import 'exercise_detail_screen.dart';
 import 'relaxation_video_feed_screen.dart';
@@ -464,45 +466,52 @@ class _EbooksTab extends StatelessWidget {
         );
       });
     }
+    Widget content;
     if (loading && ebooks.isEmpty) {
-      return const Center(child: CircularProgressIndicator());
-    }
-    if (sessionUnavailable || sessionExpired) {
-      return _EbooksStateMessage(
+      content = const Center(child: CircularProgressIndicator());
+    } else if (sessionUnavailable || sessionExpired) {
+      content = _EbooksStateMessage(
         icon: Icons.lock_outline,
         eyebrow: 'EBOOKS',
         title: 'Ta session doit être reconnectée.',
         message: 'Reconnecte-toi pour retrouver ta bibliothèque Auryel.',
         onRetry: onRetry,
       );
-    }
-    if (error != null && ebooks.isEmpty) {
-      return _EbooksStateMessage(
+    } else if (error != null && ebooks.isEmpty) {
+      content = _EbooksStateMessage(
         icon: Icons.cloud_off_outlined,
         eyebrow: 'EBOOKS',
         title: 'Les ebooks sont momentanément indisponibles.',
         message: 'Réessaie dans un instant.',
         onRetry: onRetry,
       );
-    }
-    if (ebooks.isEmpty) {
-      return const _EmptyUniverse(
+    } else if (ebooks.isEmpty) {
+      content = const _EmptyUniverse(
         icon: Icons.menu_book_outlined,
         eyebrow: 'EBOOKS',
         title: 'De nouvelles lectures arrivent bientôt.',
         message: 'La bibliothèque s’enrichira prochainement de guides Auryel.',
       );
+    } else {
+      content = GridView.builder(
+        padding: const EdgeInsets.fromLTRB(20, 18, 20, 32),
+        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 2,
+          crossAxisSpacing: 14,
+          mainAxisSpacing: 18,
+          childAspectRatio: .62,
+        ),
+        itemCount: ebooks.length,
+        itemBuilder: (context, index) => _EbookCard(ebook: ebooks[index]),
+      );
     }
-    return GridView.builder(
-      padding: const EdgeInsets.fromLTRB(20, 18, 20, 32),
-      gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-        crossAxisCount: 2,
-        crossAxisSpacing: 14,
-        mainAxisSpacing: 18,
-        childAspectRatio: .62,
-      ),
-      itemCount: ebooks.length,
-      itemBuilder: (context, index) => _EbookCard(ebook: ebooks[index]),
+    return Column(
+      children: [
+        Expanded(child: content),
+        AuryelBanner(
+          isPremium: ConsultationScope.maybeReadOf(context)?.quota?.isPremium,
+        ),
+      ],
     );
   }
 }
@@ -583,7 +592,12 @@ class _EbookCard extends StatelessWidget {
             child: ClipRRect(
               borderRadius: BorderRadius.circular(14),
               child: ebook.coverUrl?.isNotEmpty == true
-                  ? Image.network(ebook.coverUrl!, fit: BoxFit.cover)
+                  ? Image.network(
+                      ebook.coverUrl!,
+                      fit: BoxFit.contain,
+                      errorBuilder: (context, error, stackTrace) =>
+                          const _BookCoverPlaceholder(),
+                    )
                   : const _BookCoverPlaceholder(),
             ),
           ),

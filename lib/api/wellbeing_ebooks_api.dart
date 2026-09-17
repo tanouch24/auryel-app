@@ -47,6 +47,12 @@ class WellbeingEbook {
   );
 }
 
+/// Convention d'objet du bucket R2 `auryel-meditations` pour les couvertures.
+/// Les PDFs restent sous `ebooks/`; l'API fournit `cover_url` quand l'objet
+/// existe. Tant qu'il est nul, l'interface conserve son placeholder sans
+/// tenter de télécharger un PDF.
+String ebookCoverObjectKey(String slug) => 'auryel-ebook-covers/$slug.webp';
+
 class WellbeingEbooksApi {
   WellbeingEbooksApi(this._client);
   final ApiClient _client;

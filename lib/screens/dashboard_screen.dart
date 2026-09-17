@@ -13,6 +13,7 @@ import '../data/daily_like_store.dart';
 import '../data/daily_thought.dart';
 import '../data/legal_link_launcher.dart';
 import '../data/subscription_manager.dart';
+import '../data/purchase.dart';
 import '../state/auth_controller.dart';
 import '../state/auryel_state.dart';
 import '../state/consultation_controller.dart';
@@ -23,6 +24,7 @@ import '../widgets/advisors_carousel.dart';
 import '../widgets/ai_transparency_note.dart';
 import '../widgets/auryel_wordmark.dart';
 import '../widgets/meta_consent_tile.dart';
+import '../widgets/ump_privacy_options_tile.dart';
 import '../widgets/daily_message_sheet.dart';
 import '../widgets/gold_button.dart';
 import 'advisor_chooser_screen.dart';
@@ -488,7 +490,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 _Section(
                   title: 'Confidentialité',
                   icon: PhosphorIconsRegular.shieldCheck,
-                  child: const MetaConsentTile(),
+                  child: const Column(
+                    children: [MetaConsentTile(), UmpPrivacyOptionsTile()],
+                  ),
                 ),
                 const SizedBox(height: 16),
                 _Section(
@@ -880,9 +884,7 @@ class _SubscriptionSection extends StatelessWidget {
     final premium = consultation?.quota?.isPremium ?? false;
     final periodEnd = consultation?.quota?.periodEnd;
     final canRestore = purchase?.canRestore ?? false;
-    // L'interface active suit l'offre Auryel validée, même si une fiche Store
-    // historique remonte encore une ancienne valeur.
-    const priceLabel = '4,99 €/mois';
+    final priceLabel = premiumPriceLabel(purchase?.premiumProduct);
 
     return _Section(
       title: 'Mon abonnement',
@@ -909,7 +911,7 @@ class _SubscriptionSection extends StatelessWidget {
             ),
             const SizedBox(height: 2),
             Text(
-              '4 h de consultation par mois · 4,99 €/mois · Sans publicité',
+              '4 h de consultation par mois · $priceLabel · Sans publicité',
               style: AuryelText.body(
                 fontSize: 12.5,
                 color: AuryelColors.textSecondary,

@@ -21,6 +21,8 @@ import '../screens/consultation_screen.dart';
 import '../state/auryel_state.dart';
 import '../state/auth_controller.dart';
 import '../state/consultation_controller.dart';
+import '../state/purchase_controller.dart';
+import '../data/purchase.dart';
 import '../state/rewards_controller.dart';
 import '../state/wellbeing_controller.dart';
 import '../theme/auryel_theme.dart';
@@ -609,6 +611,7 @@ class _ConsultationOffers extends StatelessWidget {
         ),
       );
     }
+    final purchase = PurchaseScope.maybeOf(context);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -616,7 +619,7 @@ class _ConsultationOffers extends StatelessWidget {
           key: const Key('home-premium-offer'),
           title: 'Auryel Premium',
           detail: '4 h de consultation par mois',
-          price: '4,99 €/mois',
+          price: premiumPriceLabel(purchase?.premiumProduct),
           footnote: 'Sans publicité',
           primary: true,
           cta: 'Découvrir Premium',

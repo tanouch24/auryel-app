@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:phosphor_icons/phosphor_icons.dart';
 
 import '../theme/auryel_theme.dart';
+import '../state/consultation_controller.dart';
+import '../widgets/auryel_banner.dart';
 import '../widgets/auryel_wordmark.dart';
 
 /// Onglet « Boutique » (bottom nav, index 3) — **V1**.
@@ -89,6 +91,11 @@ class BoutiqueComingSoonScreen extends StatelessWidget {
                       height: 1.6,
                       color: AuryelColors.textMuted,
                     ),
+                  ),
+                  AuryelBanner(
+                    isPremium: ConsultationScope.maybeReadOf(context)
+                        ?.quota
+                        ?.isPremium,
                   ),
                 ],
               ),

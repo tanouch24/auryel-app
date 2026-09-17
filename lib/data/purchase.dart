@@ -1,5 +1,7 @@
 import 'consultation.dart' show QuotaDto;
 
+import 'package:in_app_purchase/in_app_purchase.dart';
+
 /// Identifiant du produit d'abonnement Premium — tel qu'il est enregistré côté
 /// stores (Google Play Console / App Store Connect) ET tel que l'attend le
 /// backend (`_MOBILE_SUB_PRODUCT_IDS`).
@@ -10,6 +12,18 @@ import 'consultation.dart' show QuotaDto;
 /// L'achat consommable « 1 heure supplémentaire » a son propre identifiant
 /// [kExtraHourProductId] et son propre endpoint (`POST /api/billing/purchase`).
 const String kPremiumMonthlyProductId = 'auryel_premium_monthly';
+
+const String kPremiumFallbackPriceLabel = '4,99 €/mois';
+
+/// Prix Store avec un libellé de secours explicite si Google Play est
+/// momentanément indisponible.
+String premiumPriceLabel(ProductDetails? product) {
+  final price = product?.price.trim();
+  if (price == null || price.isEmpty || price == 'NaN' || price == '0') {
+    return kPremiumFallbackPriceLabel;
+  }
+  return '$price/mois';
+}
 
 /// Identifiant du produit CONSOMMABLE « 1 heure supplémentaire » — tel qu'il
 /// est enregistré dans Google Play Console ET tel que l'attend le backend
@@ -149,10 +163,7 @@ class BillingPurchaseDto {
 ///   { "purchase": { store, product_id, credited_seconds, already_credited },
 ///     "quota": { ... } }
 class BillingPurchaseResponse {
-  const BillingPurchaseResponse({
-    required this.purchase,
-    required this.quota,
-  });
+  const BillingPurchaseResponse({required this.purchase, required this.quota});
 
   final BillingPurchaseDto purchase;
   final QuotaDto quota;
