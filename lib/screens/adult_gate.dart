@@ -7,6 +7,7 @@ import '../state/auryel_state.dart';
 import '../state/consultation_controller.dart';
 import '../state/profile_restore.dart';
 import '../theme/auryel_theme.dart';
+import '../startup_trace.dart';
 import '../widgets/gold_button.dart';
 import '../widgets/main_nav_shell.dart';
 import 'onboarding/email_auth_screen.dart';
@@ -69,6 +70,7 @@ class _AdultGateState extends State<AdultGate> {
 
   Future<void> _evaluate() async {
     if (!mounted) return;
+    StartupTrace.mark('adult-gate/evaluate');
     final state = AuryelStateScope.of(context);
     final now = _now();
 
@@ -82,6 +84,7 @@ class _AdultGateState extends State<AdultGate> {
         isUsableBirthDate(local, now: now) &&
         meetsMinimumAge(local!, now: now)) {
       _to(_Phase.allowed);
+      StartupTrace.mark('adult-gate/local-dob-allowed');
       return;
     }
 
@@ -109,6 +112,7 @@ class _AdultGateState extends State<AdultGate> {
           _to(_Phase.needsDob);
         } else if (meetsMinimumAge(dob!, now: now)) {
           _to(_Phase.allowed);
+          StartupTrace.mark('adult-gate/server-dob-allowed');
         } else {
           _to(_Phase.minor);
         }

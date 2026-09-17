@@ -18,6 +18,7 @@ import '../state/wellbeing_controller.dart';
 import '../state/unread_controller.dart';
 import '../theme/auryel_theme.dart';
 import 'main_nav_scope.dart';
+import '../startup_trace.dart';
 
 export 'main_nav_scope.dart'
     show
@@ -147,6 +148,7 @@ class _MainNavShellState extends State<MainNavShell> {
 
   @override
   Widget build(BuildContext context) {
+    StartupTrace.mark('home/main-nav-build');
     // A shell peut rester sous une route secondaire (Dashboard, chat, etc.).
     // Dans ce cas aucun de ses écrans ne doit continuer à animer : le
     // scheduler Flutter considère toujours ces tickers comme actifs, même

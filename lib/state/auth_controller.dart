@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/widgets.dart';
 
 import '../api/account_api.dart';
@@ -233,6 +235,40 @@ class AuthController extends ChangeNotifier {
         _set(AuthStatus.sessionExpired, null);
       case RestoreOutcome.networkError:
         _set(AuthStatus.networkError, null);
+    }
+  }
+
+  /// Restauration optimiste au lancement : la présence d'un jeton sécurisé
+  /// suffit à rendre l'interface utilisable. La validation serveur continue
+  /// immédiatement en arrière-plan ; un 401 purge le jeton et passe l'état à
+  /// [AuthStatus.sessionExpired]. Aucun écran authentifié n'est présenté sans
+  /// jeton local.
+  Future<void> restoreFast() async {
+    final token = await _repo.currentToken();
+    if (token == null || token.isEmpty) {
+      _set(AuthStatus.signedOut, null);
+      return;
+    }
+
+    _set(AuthStatus.networkError, null);
+    unawaited(_validateRestoredSession());
+  }
+
+  Future<void> _validateRestoredSession() async {
+    try {
+      final account = await _repo.fetchAccount().timeout(
+        const Duration(seconds: 4),
+      );
+      _set(AuthStatus.signedIn, account);
+    } on ApiUnauthorizedException {
+      _set(AuthStatus.sessionExpired, null);
+    } on TimeoutException {
+      // Le jeton reste conservé : l'app continue en mode dégradé.
+      _set(AuthStatus.networkError, null);
+    } on ApiNetworkException {
+      _set(AuthStatus.networkError, null);
+    } on ApiException {
+      _set(AuthStatus.networkError, null);
     }
   }
 

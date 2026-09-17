@@ -14,6 +14,7 @@ import '../state/wellbeing_controller.dart';
 import '../state/wellbeing_program_controller.dart';
 import '../state/wellbeing_ebooks_controller.dart';
 import '../theme/auryel_theme.dart';
+import '../startup_trace.dart';
 import 'adult_gate.dart';
 import 'intro_video_screen.dart';
 import 'onboarding/email_auth_screen.dart';
@@ -44,11 +45,16 @@ class _SplashScreenState extends State<SplashScreen> {
   @override
   void initState() {
     super.initState();
+    StartupTrace.mark('splash/initState');
     // Après la première frame : le contexte peut alors résoudre les scopes.
-    WidgetsBinding.instance.addPostFrameCallback((_) => _boot());
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      StartupTrace.mark('splash/first-frame');
+      _boot();
+    });
   }
 
   Future<void> _boot() async {
+    StartupTrace.mark('splash/boot-start');
     // La durée du splash natif dépend du démarrage réel. Aucune temporisation
     // artificielle : la présentation apparaît dès que le routage est prêt.
     final auth = AuthScope.of(context);
@@ -58,8 +64,11 @@ class _SplashScreenState extends State<SplashScreen> {
     final wellbeingEbooks = WellbeingEbooksScope.maybeOf(context);
     final rewards = RewardsScope.maybeOf(context);
     final introSeenFuture = IntroVideoStore().hasSeen();
-    await auth.restore();
+    StartupTrace.mark('splash/restore-start');
+    await auth.restoreFast();
+    StartupTrace.mark('auth/local-restore-finished:${auth.status.name}');
     final introSeen = await introSeenFuture;
+    StartupTrace.mark('storage/intro-read');
     if (!mounted) return;
     // Resynchro de l'état consultation UNIQUEMENT une fois la session restaurée
     // et valide (le GET /state exige un Bearer). Lecture seule : aucun POST,
@@ -92,10 +101,12 @@ class _SplashScreenState extends State<SplashScreen> {
       // bloquante, même instance partagée (RewardsScope).
       if (rewards != null) unawaited(rewards.refresh());
     }
+    StartupTrace.mark('refreshes/scheduled');
     // MULTI-APPAREIL — au démarrage avec session valide, si le profil local est
     // absent / incomplet / rattaché à un autre compte, on récupère le profil
     // serveur réel avant d'entrer dans l'app.
-    await _maybeRestoreProfile(auth);
+    unawaited(_maybeRestoreProfile(auth));
+    StartupTrace.mark('profile/restore-scheduled');
     if (!mounted) return;
     _goToNext(auth, introSeen: introSeen);
   }
@@ -160,6 +171,7 @@ class _SplashScreenState extends State<SplashScreen> {
       onboardingCompleted: onboardingCompleted,
       introVideoSeen: introSeen,
     );
+    StartupTrace.mark('router/decision:${step.name}');
 
     final Widget next;
     switch (step) {
@@ -194,6 +206,7 @@ class _SplashScreenState extends State<SplashScreen> {
             enteringApp = false;
         }
         navigator.pushReplacement(_fadeRoute(next));
+        StartupTrace.mark('router/home-route-pushed');
         // RÉVEIL AURYEL — l'app a été (re)lancée par le déclenchement natif
         // de l'alarme (notification plein écran / activité directe) : on
         // affiche l'écran de sonnerie PAR-DESSUS l'app normale, jamais à la

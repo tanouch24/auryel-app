@@ -167,6 +167,37 @@ void main() {
     expect(r.outcome, RestoreOutcome.noToken);
   });
 
+  test('restoreFast : token local -> mode dégradé immédiat puis validation',
+      () async {
+    final b = _build((req) async {
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+      return _json({'user_id': 'fast-user', 'email': 'fast@example.com'});
+    }, initialToken: 'fast-token');
+    final c = _controller(b);
+
+    await c.restoreFast();
+    expect(c.status, AuthStatus.networkError);
+    expect(c.isSignedIn, isTrue);
+
+    await Future<void>.delayed(const Duration(milliseconds: 40));
+    expect(c.status, AuthStatus.signedIn);
+    expect(c.account?.userId, 'fast-user');
+  });
+
+  test('restoreFast : 401 en arrière-plan -> session expirée et token purgé',
+      () async {
+    final b = _build(
+      (req) async => _json({'error': 'invalid_token'}, 401),
+      initialToken: 'expired-fast-token',
+    );
+    final c = _controller(b);
+
+    await c.restoreFast();
+    await Future<void>.delayed(Duration.zero);
+    expect(c.status, AuthStatus.sessionExpired);
+    expect(await b.tokens.read(), isNull);
+  });
+
   // ---------------------------------------------------------------------------
   test('logout : POST /api/auth/logout puis suppression locale du token',
       () async {

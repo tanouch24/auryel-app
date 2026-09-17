@@ -35,6 +35,7 @@ import 'analytics/meta_events.dart';
 import 'ads/ad_service.dart';
 import 'state/meta_consent_controller.dart';
 import 'screens/splash_screen.dart';
+import 'screens/onboarding/email_auth_screen.dart';
 import 'state/auryel_state.dart';
 import 'state/auth_controller.dart';
 import 'state/consultation_controller.dart';
@@ -45,22 +46,28 @@ import 'state/wellbeing_program_controller.dart';
 import 'state/wellbeing_ebooks_controller.dart';
 import 'state/unread_controller.dart';
 import 'theme/auryel_theme.dart';
+import 'startup_trace.dart';
 
 void main() async {
+  StartupTrace.mark('process/main');
   WidgetsFlutterBinding.ensureInitialized();
+  StartupTrace.mark('flutter/engine-ready');
 
   final repository = LocalOnboardingRepository();
   final record = await repository.load();
+  StartupTrace.mark('storage/onboarding-restored');
 
   // Meta App Events — INACTIF par défaut : sans config de build OU sans
   // consentement explicite persisté, `MetaEvents.create` renvoie un no-op.
   // Aucune collecte (identifiant publicitaire inclus) tant que l'utilisateur
   // n'a pas activé la mesure dans « Mon compte ».
   final metaConsentGranted = await MetaConsentController.readPersisted();
+  StartupTrace.mark('storage/meta-consent-read');
   final metaEvents = await MetaEvents.create(
     config: MetaConfig.fromEnvironment,
     consentGranted: metaConsentGranted,
   );
+  StartupTrace.mark('analytics/ready');
   final metaConsent = MetaConsentController(events: metaEvents);
   unawaited(metaConsent.load());
   // AdMob/UMP : initialisation non bloquante et fail-open.
@@ -94,6 +101,7 @@ void main() async {
     // au backend tant que le contrat ne l'accepte pas (cf. rapport / doc).
     installationIdStore: SecureInstallationIdStore(),
   );
+  StartupTrace.mark('controllers/auth-ready');
 
   // UX-B §6 — changement de conseiller préféré : synchro `guide` seul via
   // l'`AuthController` existant (aucun second client HTTP).
@@ -186,6 +194,7 @@ void main() async {
     }
   });
   unawaited(notifications.start());
+  StartupTrace.mark('initializations/scheduled');
 
   runApp(
     AuryelApp(
@@ -204,6 +213,7 @@ void main() async {
       unread: unread,
     ),
   );
+  StartupTrace.mark('runApp-called');
 }
 
 class AuryelApp extends StatefulWidget {
@@ -276,11 +286,14 @@ class _AuryelAppState extends State<AuryelApp> with WidgetsBindingObserver {
   /// (Android n'affiche rien tout seul). `null` si aucun coordinateur (tests).
   StreamSubscription<NotificationPayload>? _foregroundSub;
   bool _wasBackgrounded = false;
+  bool _routingToLogin = false;
+  final _navigatorKey = GlobalKey<NavigatorState>();
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    widget.auth.addListener(_handleAuthChanged);
     final notifications = widget.notifications;
     if (notifications != null) {
       final presenter = LocalNotificationPresenter()
@@ -293,9 +306,22 @@ class _AuryelAppState extends State<AuryelApp> with WidgetsBindingObserver {
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    widget.auth.removeListener(_handleAuthChanged);
     _foregroundSub?.cancel();
     widget.notifications?.dispose();
     super.dispose();
+  }
+
+  void _handleAuthChanged() {
+    if (!mounted || widget.auth.status != AuthStatus.sessionExpired) return;
+    if (_routingToLogin) return;
+    final navigator = _navigatorKey.currentState;
+    if (navigator == null) return;
+    _routingToLogin = true;
+    navigator.pushAndRemoveUntil(
+      MaterialPageRoute(builder: (_) => const EmailAuthScreen()),
+      (route) => false,
+    );
   }
 
   @override
@@ -341,6 +367,7 @@ class _AuryelAppState extends State<AuryelApp> with WidgetsBindingObserver {
         store: _cart,
         child: MaterialApp(
           title: 'Auryel',
+          navigatorKey: _navigatorKey,
           debugShowCheckedModeBanner: false,
           theme: AuryelTheme.dark,
           home: const SplashScreen(),
