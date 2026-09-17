@@ -152,10 +152,13 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Respiration'), findsOneWidget);
     expect(find.text('Pratique 1'), findsOneWidget);
+    expect(find.byType(Image), findsOneWidget);
     expect(find.text('/50'), findsNothing);
     await tester.tap(find.text('Pratique 1'));
     await tester.pumpAndSettle();
     expect(find.byType(ExerciseDetailScreen), findsOneWidget);
+    final detailImageFrame = tester.widget<AspectRatio>(find.byType(AspectRatio));
+    expect(detailImageFrame.aspectRatio, closeTo(4 / 5, 0.001));
     await tester.scrollUntilVisible(
       find.text('Commencer'),
       500,
@@ -167,4 +170,51 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byType(ExerciseSessionScreen), findsOneWidget);
   });
+
+  testWidgets(
+    'méditations charge le catalogue à l’ouverture après disponibilité auth',
+    (tester) async {
+      var meditationCalls = 0;
+      final repository = ContentRepository(
+        api: ContentApi(
+          ApiClient(
+            baseUrl: 'http://test.local',
+            httpClient: MockClient((request) async {
+              if (request.url.queryParameters['media'] == 'video') {
+                meditationCalls++;
+                return http.Response(
+                  jsonEncode({'meditation_videos': []}),
+                  200,
+                  headers: {'content-type': 'application/json'},
+                );
+              }
+              return http.Response(
+                jsonEncode({'exercises': [_exercise('breathing', 0)]}),
+                200,
+                headers: {'content-type': 'application/json'},
+              );
+            }),
+          ),
+        ),
+        tokenProvider: () async => 'token',
+      );
+      await tester.pumpWidget(
+        MaterialApp(
+          home: ContentScope(
+            repository: repository,
+            child: const WellbeingLibraryScreen(),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(meditationCalls, 0);
+
+      await tester.tap(find.text('Méditations'));
+      await tester.pumpAndSettle();
+
+      expect(meditationCalls, 1);
+      expect(find.text('Aucune vidéo n’est disponible pour le moment.'),
+          findsOneWidget);
+    },
+  );
 }

@@ -83,16 +83,21 @@ class _ExerciseImage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => AspectRatio(
-    aspectRatio: 16 / 10,
+    // Les illustrations montrent des postures : un cadre plus haut évite de
+    // couper la tête, les mains ou les jambes comme le faisait le 16:10.
+    aspectRatio: 4 / 5,
     child: ClipRRect(
       borderRadius: BorderRadius.circular(20),
-      child: Image.network(
-        url,
-        fit: BoxFit.cover,
-        loadingBuilder: (context, child, progress) =>
-            progress == null ? child : const _ExerciseImageFallback(),
-        errorBuilder: (context, error, stackTrace) =>
-            const _ExerciseImageFallback(),
+      child: ColoredBox(
+        color: AuryelColors.surfaceLight,
+        child: Image.network(
+          url,
+          fit: BoxFit.contain,
+          loadingBuilder: (context, child, progress) =>
+              progress == null ? child : const _ExerciseImageFallback(),
+          errorBuilder: (context, error, stackTrace) =>
+              const _ExerciseImageFallback(),
+        ),
       ),
     ),
   );

@@ -27,7 +27,6 @@ class WellbeingLibraryScreen extends StatefulWidget {
 class _WellbeingLibraryScreenState extends State<WellbeingLibraryScreen> {
   WellbeingEbooksController? _ebooks;
   WellbeingProgramController? _program;
-  late Future<List<RelaxationVideo>> _videos;
   late Future<List<Exercise>> _exercises;
 
   @override
@@ -37,13 +36,16 @@ class _WellbeingLibraryScreenState extends State<WellbeingLibraryScreen> {
     _ebooks = widget.ebooksController ?? WellbeingEbooksScope.maybeOf(context);
     _program = WellbeingProgramScope.maybeOf(context);
     final content = ContentScope.maybeOf(context);
-    _videos =
-        content?.meditationVideos() ?? Future.value(const <RelaxationVideo>[]);
     _exercises = content?.exercises() ?? Future.value(const <Exercise>[]);
   }
 
   Future<void> openMeditations() async {
-    final videos = await _videos;
+    // Résoudre au moment de l'ouverture : le catalogue ne doit pas être figé
+    // pendant le démarrage, avant que l'authentification soit disponible.
+    final content = ContentScope.maybeOf(context);
+    final videos = content == null
+        ? const <RelaxationVideo>[]
+        : await content.meditationVideos();
     if (!mounted) return;
     final prefs = await SharedPreferences.getInstance();
     if (!mounted) return;
@@ -287,11 +289,7 @@ class _ExerciseCard extends StatelessWidget {
         padding: const EdgeInsets.all(16),
         child: Row(
           children: [
-            const Icon(
-              Icons.self_improvement_outlined,
-              color: AuryelColors.goldLight,
-              size: 28,
-            ),
+            _ExerciseThumbnail(url: item.imageUrl),
             const SizedBox(width: 14),
             Expanded(
               child: Column(
@@ -344,6 +342,47 @@ class _ExerciseCard extends StatelessWidget {
       ),
     ),
   );
+}
+
+class _ExerciseThumbnail extends StatelessWidget {
+  const _ExerciseThumbnail({this.url});
+
+  final String? url;
+
+  @override
+  Widget build(BuildContext context) {
+    final imageUrl = url;
+    if (imageUrl == null || imageUrl.isEmpty) {
+      return const SizedBox(
+        width: 64,
+        height: 64,
+        child: Icon(
+          Icons.self_improvement_outlined,
+          color: AuryelColors.goldLight,
+          size: 28,
+        ),
+      );
+    }
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(12),
+      child: SizedBox(
+        width: 64,
+        height: 64,
+        child: Image.network(
+          imageUrl,
+          fit: BoxFit.cover,
+          errorBuilder: (context, error, stackTrace) => const ColoredBox(
+            color: AuryelColors.surfaceLight,
+            child: Icon(
+              Icons.self_improvement_outlined,
+              color: AuryelColors.goldLight,
+              size: 28,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 class _MeditationsPreview extends StatelessWidget {
