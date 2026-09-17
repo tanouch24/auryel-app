@@ -66,8 +66,11 @@ class MeditationPlayQueue {
   }
 }
 
-/// Nettoyage visuel uniquement. La valeur originale reste utilisée pour
-/// l'identification, le cache et l'URL du média.
+/// Conserve le titre éditorial du média courant.
+///
+/// Les vidéos numérotées ont des titres distincts (`... 002`, `... 003`, ...).
+/// Supprimer leur suffixe numérique rendait tous les éléments visuellement
+/// identiques alors que le swipe changeait bien de slug et de média.
 String meditationDisplayTitle(String source) {
-  return source.replaceFirst(RegExp(r'\s+\d+$'), '').trim();
+  return source.trim();
 }

@@ -13,19 +13,25 @@ RelaxationVideo _video(String slug, String title) => RelaxationVideo(
 );
 
 void main() {
-  test('nettoie uniquement le suffixe numérique final en affichage', () {
+  test('préserve le titre distinct du média courant', () {
     expect(
       meditationDisplayTitle('Auryel apaisement 009'),
-      'Auryel apaisement',
+      'Auryel apaisement 009',
     );
     expect(
       meditationDisplayTitle('Respirer doucement 12'),
-      'Respirer doucement',
+      'Respirer doucement 12',
     );
     expect(meditationDisplayTitle('Auryel apaisement'), 'Auryel apaisement');
     final source = 'Auryel apaisement 009';
     meditationDisplayTitle(source);
     expect(source, 'Auryel apaisement 009');
+  });
+
+  test('deux médias numérotés gardent deux titres affichés distincts', () {
+    final first = meditationDisplayTitle('Auryel apaisement 002');
+    final second = meditationDisplayTitle('Auryel apaisement 003');
+    expect(first, isNot(second));
   });
 
   test('queue mélange et parcourt chaque élément une fois par cycle', () {
