@@ -104,4 +104,16 @@ class ConsultationApi {
     }
     return ConsultationDto.fromJson(c);
   }
+
+  Future<void> recordRecommendationEvent({
+    required String bearer,
+    required String recommendationId,
+    required String event,
+  }) async {
+    await _client.postJson(
+      '/api/app/content-recommendations/$recommendationId/event',
+      {'event': event},
+      bearer: bearer,
+    );
+  }
 }

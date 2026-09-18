@@ -1,3 +1,5 @@
+import 'content_recommendation.dart';
+
 /// Portefeuille de temps de consultation renvoyé par le backend (bloc `time`
 /// de `GET /api/consultation/state`, `POST /api/consultation/message` et du
 /// corps d'un 402 `time_exhausted`).
@@ -208,6 +210,7 @@ class ConsultationMessageDto {
     required this.timestamp,
     this.messageId,
     this.llmStatus,
+    this.recommendation,
   });
 
   /// `user` ou `assistant`. Toute autre valeur est traitée côté UI comme
@@ -226,17 +229,30 @@ class ConsultationMessageDto {
   /// `ok`, `fallback`, `error`). `null` si absent / non pertinent (message
   /// utilisateur, backend ancien).
   final String? llmStatus;
+  final ContentRecommendation? recommendation;
 
   bool get isUser => role == 'user';
 
-  factory ConsultationMessageDto.fromJson(Map<String, dynamic> json) =>
-      ConsultationMessageDto(
-        role: (json['role'] ?? '').toString(),
-        content: (json['content'] ?? '').toString(),
-        timestamp: _date(json['timestamp']),
-        messageId: _str(json['message_id']) ?? _str(json['id']),
-        llmStatus: _str(json['llm_status']),
-      );
+  factory ConsultationMessageDto.fromJson(Map<String, dynamic> json) {
+    ContentRecommendation? recommendation;
+    try {
+      if (json['recommendation'] != null) {
+        recommendation = ContentRecommendation.tryFromJson(
+          json['recommendation'],
+        );
+      }
+    } on FormatException {
+      recommendation = null;
+    }
+    return ConsultationMessageDto(
+      role: (json['role'] ?? '').toString(),
+      content: (json['content'] ?? '').toString(),
+      timestamp: _date(json['timestamp']),
+      messageId: _str(json['message_id']) ?? _str(json['id']),
+      llmStatus: _str(json['llm_status']),
+      recommendation: recommendation,
+    );
+  }
 }
 
 /// Réponse 200 de `GET /api/consultation/messages`. Lecture seule : aucun
@@ -336,6 +352,7 @@ class ConsultationMessageResponse {
     this.time,
     this.replyMessageId,
     this.llmStatus,
+    this.recommendation,
   });
 
   final String reply;
@@ -358,12 +375,23 @@ class ConsultationMessageResponse {
   /// `llm_status` de la réponse assistant (racine ou `message.llm_status`).
   /// `null` si absent.
   final String? llmStatus;
+  final ContentRecommendation? recommendation;
 
   factory ConsultationMessageResponse.fromJson(Map<String, dynamic> json) {
     final c = json['consultation'];
     final q = json['quota'];
     final m = json['message'];
     final msg = m is Map<String, dynamic> ? m : const <String, dynamic>{};
+    ContentRecommendation? recommendation;
+    try {
+      if (json['recommendation'] != null) {
+        recommendation = ContentRecommendation.tryFromJson(
+          json['recommendation'],
+        );
+      }
+    } on FormatException {
+      recommendation = null;
+    }
     return ConsultationMessageResponse(
       reply: (json['reply'] ?? '').toString(),
       consultation: c is Map<String, dynamic>
@@ -376,6 +404,7 @@ class ConsultationMessageResponse {
           _str(msg['message_id']) ??
           _str(msg['id']),
       llmStatus: _str(json['llm_status']) ?? _str(msg['llm_status']),
+      recommendation: recommendation,
     );
   }
 }

@@ -1,10 +1,15 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
+import 'package:path_provider/path_provider.dart';
+import 'package:share_plus/share_plus.dart';
 
 import '../api/ai_report_api.dart';
 import '../api/api_client.dart';
 import '../data/consultation.dart';
+import '../data/content_recommendation.dart';
 import '../state/auth_controller.dart';
 import '../state/consultation_controller.dart';
 import '../state/rewards_controller.dart';
@@ -16,6 +21,9 @@ import 'adult_gate.dart';
 import 'onboarding/email_auth_screen.dart';
 import 'premium_screen.dart';
 import 'rewards_wallet_screen.dart';
+import 'ebook_reader_screen.dart';
+import 'meditation_screen.dart';
+import 'exercise_detail_screen.dart';
 
 /// Délai de présentation naturel après réception de la réponse réelle.
 /// Le réseau n’est jamais ralenti : seule l’apparition de la réponse est
@@ -101,6 +109,7 @@ class _ChatMessage {
     required this.fromUser,
     required this.text,
     this.messageId,
+    this.recommendation,
   });
   final bool fromUser;
   final String text;
@@ -110,6 +119,7 @@ class _ChatMessage {
   /// backend qui ne l'expose pas encore (le signalement retombe alors sur le
   /// `consultation_id`).
   final String? messageId;
+  final ContentRecommendation? recommendation;
 }
 
 class _ChatScreenState extends State<ChatScreen> {
@@ -132,6 +142,7 @@ class _ChatScreenState extends State<ChatScreen> {
   QuotaDto? _noCreditQuota;
 
   bool _seeded = false;
+  final Set<String> _recommendationBusy = <String>{};
 
   /// Chargement de l'historique backend : tenté au plus une fois par ouverture
   /// (le retry remet le drapeau à `false`). `_historyLoading` / `_historyError`
@@ -248,6 +259,7 @@ class _ChatScreenState extends State<ChatScreen> {
               fromUser: m.isUser,
               text: m.content,
               messageId: m.messageId,
+              recommendation: m.recommendation,
             ),
       ];
       setState(() {
@@ -354,8 +366,7 @@ class _ChatScreenState extends State<ChatScreen> {
       await _waitBeforeShowingReply(res.reply);
       if (!mounted) return;
       final showCreditChoices =
-          _pendingRewardedMicro &&
-          (res.time?.totalRemainingSeconds ?? 0) <= 0;
+          _pendingRewardedMicro && (res.time?.totalRemainingSeconds ?? 0) <= 0;
       // F4 — l'état renvoyé alimente aussi le state partagé de l'app.
       consultation?.updateFromMessageResponse(res);
       setState(() {
@@ -365,6 +376,7 @@ class _ChatScreenState extends State<ChatScreen> {
             fromUser: false,
             text: res.reply,
             messageId: res.replyMessageId,
+            recommendation: res.recommendation,
           ),
         );
         _consultation = res.consultation ?? _consultation;
@@ -476,7 +488,10 @@ class _ChatScreenState extends State<ChatScreen> {
     });
   }
 
-  Future<void> _openCreditPath(Widget destination, {bool rewarded = false}) async {
+  Future<void> _openCreditPath(
+    Widget destination, {
+    bool rewarded = false,
+  }) async {
     await Navigator.of(context)
         .push(MaterialPageRoute(builder: (_) => destination));
     if (!mounted) return;
@@ -679,8 +694,10 @@ class _ChatScreenState extends State<ChatScreen> {
                   onExtraHour: () =>
                       _openCreditPath(const ExtraHourPurchaseScreen()),
                   onUseQuestion: () => setState(() => _noCredit = false),
-                  onRewarded: () =>
-                      _openCreditPath(const RewardsWalletScreen(), rewarded: true),
+                  onRewarded: () => _openCreditPath(
+                    const RewardsWalletScreen(),
+                    rewarded: true,
+                  ),
                 )
               else
                 _InputBar(
@@ -699,15 +716,147 @@ class _ChatScreenState extends State<ChatScreen> {
     );
   }
 
+  void _recordRecommendationEvent(
+    ContentRecommendation recommendation,
+    String event,
+  ) {
+    final auth = _auth;
+    if (auth == null) return;
+    unawaited(() async {
+      try {
+        final token = await auth.currentToken();
+        if (token == null || token.isEmpty) return;
+        await auth.consultationApi.recordRecommendationEvent(
+          bearer: token,
+          recommendationId: recommendation.recommendationId,
+          event: event,
+        );
+      } catch (_) {
+        // Tracking is best effort and never blocks reading or navigation.
+      }
+    }());
+  }
+
+  Future<void> _openRecommendation(ContentRecommendation recommendation) async {
+    _recordRecommendationEvent(recommendation, 'opened');
+    if (!mounted) return;
+    if (recommendation.isEbook) {
+      final url = recommendation.pdfUrl;
+      if (url == null) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Ce guide est momentanément indisponible.'),
+          ),
+        );
+        return;
+      }
+      await Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) =>
+              EbookReaderScreen(title: recommendation.title, url: url),
+        ),
+      );
+      return;
+    }
+    if (recommendation.isMeditation) {
+      final item = recommendation.asMeditation();
+      if (item == null) return;
+      await Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (_) => MeditationScreen(item: item, autoplayOnOpen: true),
+        ),
+      );
+      return;
+    }
+    final exercise = recommendation.asExercise();
+    if (exercise == null) return;
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => ExerciseDetailScreen(exercise: exercise),
+      ),
+    );
+  }
+
+  Future<void> _downloadRecommendation(
+    ContentRecommendation recommendation,
+  ) async {
+    if (!recommendation.isEbook ||
+        _recommendationBusy.contains(recommendation.recommendationId)) {
+      return;
+    }
+    final url = recommendation.pdfUrl;
+    final uri = url == null ? null : Uri.tryParse(url);
+    if (uri == null || uri.scheme != 'https' || uri.host.isEmpty) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Le téléchargement est momentanément indisponible.'),
+          ),
+        );
+      }
+      return;
+    }
+    setState(() => _recommendationBusy.add(recommendation.recommendationId));
+    try {
+      final response = await http.get(uri).timeout(const Duration(seconds: 30));
+      if (response.statusCode < 200 ||
+          response.statusCode >= 300 ||
+          response.bodyBytes.isEmpty) {
+        throw const HttpException('download');
+      }
+      final directory = await getTemporaryDirectory();
+      final safeName = recommendation.title
+          .replaceAll(RegExp(r'[^a-zA-Z0-9À-ÿ]+'), '_')
+          .replaceAll(RegExp(r'^_+|_+$'), '')
+          .toLowerCase();
+      final file = File(
+        '${directory.path}/${safeName.isEmpty ? 'auryel_ebook' : safeName}.pdf',
+      );
+      await file.writeAsBytes(response.bodyBytes, flush: true);
+      _recordRecommendationEvent(recommendation, 'download_requested');
+      if (!mounted) return;
+      await SharePlus.instance.share(
+        ShareParams(files: [XFile(file.path)], text: recommendation.title),
+      );
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Impossible de télécharger ce PDF pour le moment.'),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(
+          () => _recommendationBusy.remove(recommendation.recommendationId),
+        );
+      }
+    }
+  }
+
   Widget _messageList() {
     final items = <Widget>[
       for (final m in _messages)
-        _Bubble(
-          fromUser: m.fromUser,
-          text: m.text,
-          // Signalement possible UNIQUEMENT sur une réponse conseiller/IA.
-          // La closure capture le `messageId` de CETTE bulle (nullable).
-          onReport: m.fromUser ? null : () => _reportResponse(m.messageId),
+        Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _Bubble(
+              fromUser: m.fromUser,
+              text: m.text,
+              // Signalement possible UNIQUEMENT sur une réponse conseiller/IA.
+              onReport: m.fromUser ? null : () => _reportResponse(m.messageId),
+            ),
+            if (!m.fromUser && m.recommendation != null)
+              RecommendationCard(
+                recommendation: m.recommendation!,
+                busy: _recommendationBusy.contains(
+                  m.recommendation!.recommendationId,
+                ),
+                onOpen: () => _openRecommendation(m.recommendation!),
+                onDownload: () => _downloadRecommendation(m.recommendation!),
+              ),
+          ],
         ),
       if (_pending != null)
         _Bubble(fromUser: true, text: _pending!, pending: true),
@@ -958,6 +1107,154 @@ class _ReportMenuButton extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+class RecommendationCard extends StatelessWidget {
+  const RecommendationCard({
+    super.key,
+    required this.recommendation,
+    required this.onOpen,
+    required this.onDownload,
+    required this.busy,
+  });
+
+  final ContentRecommendation recommendation;
+  final VoidCallback onOpen;
+  final VoidCallback onDownload;
+  final bool busy;
+
+  @override
+  Widget build(BuildContext context) {
+    final isEbook = recommendation.isEbook;
+    final image = recommendation.coverUrl ?? recommendation.imageUrl;
+    return Container(
+      margin: const EdgeInsets.only(left: 2, right: 34, top: 2, bottom: 10),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AuryelColors.surface.withValues(alpha: 0.82),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AuryelColors.gold.withValues(alpha: 0.38)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          _RecommendationImage(url: image, ebook: isEbook),
+          const SizedBox(width: 11),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  recommendation.title,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: AuryelText.body(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                if (recommendation.subtitle.isNotEmpty) ...[
+                  const SizedBox(height: 3),
+                  Text(
+                    recommendation.subtitle,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: AuryelText.body(
+                      fontSize: 11,
+                      color: AuryelColors.textMuted,
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 8),
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 4,
+                  children: [
+                    OutlinedButton(
+                      onPressed: onOpen,
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: AuryelColors.goldLight,
+                        side: const BorderSide(color: AuryelColors.gold),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 9,
+                          vertical: 5,
+                        ),
+                        minimumSize: const Size(0, 32),
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      ),
+                      child: Text(
+                        isEbook
+                            ? 'Lire dans Auryel'
+                            : recommendation.isMeditation
+                            ? 'Écouter'
+                            : "Faire l'exercice",
+                      ),
+                    ),
+                    if (isEbook)
+                      TextButton.icon(
+                        onPressed: busy ? null : onDownload,
+                        icon: busy
+                            ? const SizedBox(
+                                width: 13,
+                                height: 13,
+                                child: CircularProgressIndicator(
+                                  strokeWidth: 1.5,
+                                ),
+                              )
+                            : const Icon(Icons.download_rounded, size: 16),
+                        label: const Text('Télécharger le PDF'),
+                        style: TextButton.styleFrom(
+                          foregroundColor: AuryelColors.textMuted,
+                          padding: const EdgeInsets.symmetric(horizontal: 4),
+                          minimumSize: const Size(0, 32),
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        ),
+                      ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _RecommendationImage extends StatelessWidget {
+  const _RecommendationImage({this.url, required this.ebook});
+  final String? url;
+  final bool ebook;
+
+  @override
+  Widget build(BuildContext context) {
+    final child = url == null
+        ? Icon(
+            ebook ? Icons.menu_book_rounded : Icons.self_improvement_rounded,
+            color: AuryelColors.goldLight,
+            size: 28,
+          )
+        : Image.network(
+            url!,
+            fit: BoxFit.cover,
+            errorBuilder: (_, error, stack) => Icon(
+              ebook ? Icons.menu_book_rounded : Icons.self_improvement_rounded,
+              color: AuryelColors.goldLight,
+              size: 28,
+            ),
+          );
+    return Container(
+      width: ebook ? 62 : 58,
+      height: 78,
+      decoration: BoxDecoration(
+        color: AuryelColors.backgroundDeep,
+        borderRadius: BorderRadius.circular(10),
+      ),
+      clipBehavior: Clip.antiAlias,
+      alignment: Alignment.center,
+      child: child,
     );
   }
 }
