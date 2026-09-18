@@ -632,15 +632,31 @@ class _ChatScreenState extends State<ChatScreen> {
   }
 
   void _scrollToEnd() {
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (_scroll.hasClients) {
-        _scroll.animateTo(
+    void settle(int attempt) {
+      WidgetsBinding.instance.addPostFrameCallback((_) async {
+        // History insertion can trigger more than one layout pass. Do not
+        // commit to an extent of zero while the restored children are still
+        // being laid out.
+        await WidgetsBinding.instance.endOfFrame;
+        if (!mounted) return;
+        if (!_scroll.hasClients && attempt < 4) {
+          settle(attempt + 1);
+          return;
+        }
+        if (!_scroll.hasClients) return;
+        if (_scroll.position.maxScrollExtent == 0 && attempt < 4) {
+          settle(attempt + 1);
+          return;
+        }
+        await _scroll.animateTo(
           _scroll.position.maxScrollExtent,
           duration: const Duration(milliseconds: 250),
           curve: Curves.easeOut,
         );
-      }
-    });
+      });
+    }
+
+    settle(0);
   }
 
   /// TIMER-D.1/D.2 — `seconds` = portefeuille de temps TOTAL (`time.total`).

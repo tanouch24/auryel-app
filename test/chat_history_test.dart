@@ -616,6 +616,36 @@ void main() {
     e.consultation.dispose();
   });
 
+  testWidgets('§20 historique long revient sur le message le plus récent', (
+    t,
+  ) async {
+    final messages = <(String, String)>[
+      for (var i = 0; i < 24; i++) ...[
+        ('user', 'ancien message $i'),
+        ('assistant', 'ancienne réponse $i'),
+      ],
+    ];
+    final e = _env((_) async => _json(_history('c-ezra', messages)));
+
+    await _pumpChat(t, e, consultationId: 'c-ezra', advisorName: 'Ezra');
+    await t.pumpAndSettle(const Duration(milliseconds: 100));
+
+    final messageScrollables = find
+        .byType(Scrollable)
+        .evaluate()
+        .whereType<StatefulElement>()
+        .map((element) => element.state)
+        .whereType<ScrollableState>()
+        .where((state) => state.position.maxScrollExtent > 0);
+    expect(messageScrollables, isNotEmpty);
+    expect(
+      messageScrollables.any((state) => state.position.pixels > 0),
+      isTrue,
+    );
+    expect(find.text('ancienne réponse 23'), findsOneWidget);
+    e.consultation.dispose();
+  });
+
   testWidgets('§19 fil fourni + tirageId : 1er POST porte les deux, pas de '
       'confirmation', (t) async {
     final e = _env((_) async => _json(_history('c-ezra', const [])));
