@@ -199,6 +199,71 @@ void main() {
     expect(empty.messages, isEmpty);
   });
 
+  test('historique conserve la recommendation native du message assistant', () {
+    final r = ConsultationMessagesResponse.fromJson({
+      'consultation_id': 'c-1',
+      'messages': [
+        {
+          'id': 'm-1',
+          'role': 'assistant',
+          'content': 'Je te recommande cette méditation.',
+          'timestamp': '2026-08-31T10:00:00Z',
+          'recommendation': {
+            'recommendation_id': 'rec-1',
+            'content_type': 'meditation',
+            'content_id': 'med-1',
+            'title': 'Déposer la journée avant de dormir',
+            'audio_url': 'https://example.test/med.mp3',
+          },
+        },
+      ],
+    });
+    expect(r.messages.single.recommendation, isNotNull);
+    expect(r.messages.single.recommendation!.recommendationId, 'rec-1');
+    expect(
+      r.messages.single.recommendation!.title,
+      'Déposer la journée avant de dormir',
+    );
+  });
+
+  test('un historique avec l’ancien alias id est fail-safe sans carte', () {
+    final r = ConsultationMessagesResponse.fromJson({
+      'consultation_id': 'c-1',
+      'messages': [
+        {
+          'role': 'assistant',
+          'content': 'Réponse historique',
+          'recommendation': {
+            'id': 'rec-legacy',
+            'content_type': 'meditation',
+            'content_id': 'med-1',
+            'title': 'Titre',
+          },
+        },
+      ],
+    });
+    expect(r.messages.single.recommendation, isNull);
+  });
+
+  test('message historique manifestement percent-encodé retrouve ses espaces',
+      () {
+    final r = ConsultationMessagesResponse.fromJson({
+      'consultation_id': 'c-1',
+      'messages': [
+        {
+          'role': 'user',
+          'content': 'oui%20conseille%20moi%20une%20meditation',
+          'timestamp': '2026-08-31T10:00:00Z',
+        },
+      ],
+    });
+    expect(r.messages.single.content, 'oui conseille moi une meditation');
+    expect(
+      displayMessageContent('prix 20% aujourd’hui'),
+      'prix 20% aujourd’hui',
+    );
+  });
+
   testWidgets(
     'reprise avec historique -> anciens messages affichés, dans l’ordre',
     (t) async {
@@ -244,6 +309,39 @@ void main() {
       e.consultation.dispose();
     },
   );
+
+  testWidgets('reprise avec historique -> carte recommendation reconstruite', (
+    t,
+  ) async {
+    final e = _env(
+      (_) async => _json({
+        'consultation_id': 'c-live',
+        'messages': [
+          {
+            'id': 'm-1',
+            'role': 'assistant',
+            'content': 'Je te recommande cette méditation.',
+            'timestamp': '2026-08-31T10:00:00Z',
+            'recommendation': {
+              'recommendation_id': 'rec-1',
+              'content_type': 'meditation',
+              'content_id': 'med-1',
+              'title': 'Déposer la journée avant de dormir',
+              'audio_url': 'https://example.test/med.mp3',
+            },
+          },
+        ],
+      }),
+    );
+    await _pumpChat(t, e);
+    await t.pump();
+    await t.pump();
+
+    expect(find.text('Je te recommande cette méditation.'), findsOneWidget);
+    expect(find.text('Déposer la journée avant de dormir'), findsOneWidget);
+    expect(find.text('Écouter'), findsOneWidget);
+    e.consultation.dispose();
+  });
 
   testWidgets('chargement une seule fois (GET /messages == 1)', (t) async {
     final e = _env((_) async => _json(_history('c-live', [('user', 'x')])));

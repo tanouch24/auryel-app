@@ -1,5 +1,22 @@
 import 'content_recommendation.dart';
 
+/// Corrige uniquement une valeur de message manifestement encodée par un
+/// transport de test/ancien client. Un texte normal, ou un texte contenant
+/// déjà des espaces, reste inchangé : on ne réinterprète pas les pourcentages
+/// saisis volontairement par l'utilisateur.
+String displayMessageContent(Object? raw) {
+  final value = (raw ?? '').toString();
+  if (value.contains(' ') || !RegExp(r'%[0-9a-fA-F]{2}').hasMatch(value)) {
+    return value;
+  }
+  try {
+    final decoded = Uri.decodeComponent(value);
+    return decoded.isEmpty ? value : decoded;
+  } on FormatException {
+    return value;
+  }
+}
+
 /// Portefeuille de temps de consultation renvoyé par le backend (bloc `time`
 /// de `GET /api/consultation/state`, `POST /api/consultation/message` et du
 /// corps d'un 402 `time_exhausted`).
@@ -246,7 +263,7 @@ class ConsultationMessageDto {
     }
     return ConsultationMessageDto(
       role: (json['role'] ?? '').toString(),
-      content: (json['content'] ?? '').toString(),
+      content: displayMessageContent(json['content']),
       timestamp: _date(json['timestamp']),
       messageId: _str(json['message_id']) ?? _str(json['id']),
       llmStatus: _str(json['llm_status']),

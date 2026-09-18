@@ -370,7 +370,9 @@ class _ChatScreenState extends State<ChatScreen> {
       // F4 — l'état renvoyé alimente aussi le state partagé de l'app.
       consultation?.updateFromMessageResponse(res);
       setState(() {
-        _messages.add(_ChatMessage(fromUser: true, text: _pending!));
+        _messages.add(
+          _ChatMessage(fromUser: true, text: displayMessageContent(_pending!)),
+        );
         _messages.add(
           _ChatMessage(
             fromUser: false,
@@ -859,7 +861,11 @@ class _ChatScreenState extends State<ChatScreen> {
           ],
         ),
       if (_pending != null)
-        _Bubble(fromUser: true, text: _pending!, pending: true),
+        _Bubble(
+          fromUser: true,
+          text: displayMessageContent(_pending!),
+          pending: true,
+        ),
       if (_sending) const _TypingIndicator(),
     ];
     if (items.isEmpty) {
