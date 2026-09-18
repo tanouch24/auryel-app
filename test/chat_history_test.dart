@@ -245,23 +245,34 @@ void main() {
     expect(r.messages.single.recommendation, isNull);
   });
 
-  test('message historique manifestement percent-encodé retrouve ses espaces',
-      () {
-    final r = ConsultationMessagesResponse.fromJson({
-      'consultation_id': 'c-1',
-      'messages': [
-        {
-          'role': 'user',
-          'content': 'oui%20conseille%20moi%20une%20meditation',
-          'timestamp': '2026-08-31T10:00:00Z',
-        },
-      ],
-    });
-    expect(r.messages.single.content, 'oui conseille moi une meditation');
-    expect(
-      displayMessageContent('prix 20% aujourd’hui'),
-      'prix 20% aujourd’hui',
-    );
+  test('affichage des messages ne devine jamais un percent-encoding', () {
+    const cases = <String, String>{
+      'oui%20conseille%20moi%20une%20meditation':
+          'oui%20conseille%20moi%20une%20meditation',
+      'je vois littéralement %20 dans ce texte':
+          'je vois littéralement %20 dans ce texte',
+      '50%': '50%',
+      '100% naturel 😊': '100% naturel 😊',
+      '2 + 2 = 4': '2 + 2 = 4',
+      'bonjour%20toi': 'bonjour%20toi',
+      '%20': '%20',
+      '%2520': '%2520',
+      '%252F': '%252F',
+      '%253F': '%253F',
+      'https://example.com/test?q=bonjour%20toi':
+          'https://example.com/test?q=bonjour%20toi',
+      'https://example.com/a%20b/c%2Fd?q=hello%20world':
+          'https://example.com/a%20b/c%2Fd?q=hello%20world',
+      'https://auryelvoyance.com/test?q=%C3%A9nergie%20positive':
+          'https://auryelvoyance.com/test?q=%C3%A9nergie%20positive',
+      'J\'ai besoin de souffler ce soir 😊':
+          'J\'ai besoin de souffler ce soir 😊',
+      'Ça va mieux à 50% aujourd\'hui.':
+          'Ça va mieux à 50% aujourd\'hui.',
+    };
+    for (final entry in cases.entries) {
+      expect(displayMessageContent(entry.key), entry.value);
+    }
   });
 
   testWidgets(

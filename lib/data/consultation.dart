@@ -1,20 +1,10 @@
 import 'content_recommendation.dart';
 
-/// Corrige uniquement une valeur de message manifestement encodée par un
-/// transport de test/ancien client. Un texte normal, ou un texte contenant
-/// déjà des espaces, reste inchangé : on ne réinterprète pas les pourcentages
-/// saisis volontairement par l'utilisateur.
+/// Message content is already transported as JSON text and persisted as-is.
+/// There is no reliable legacy-format marker, so display must never guess
+/// whether a literal `%XX` belongs to an URL or to an old encoded message.
 String displayMessageContent(Object? raw) {
-  final value = (raw ?? '').toString();
-  if (value.contains(' ') || !RegExp(r'%[0-9a-fA-F]{2}').hasMatch(value)) {
-    return value;
-  }
-  try {
-    final decoded = Uri.decodeComponent(value);
-    return decoded.isEmpty ? value : decoded;
-  } on FormatException {
-    return value;
-  }
+  return (raw ?? '').toString();
 }
 
 /// Portefeuille de temps de consultation renvoyé par le backend (bloc `time`
