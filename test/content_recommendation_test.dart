@@ -162,6 +162,40 @@ void main() {
     expect(opened, 2);
   });
 
+  testWidgets('une nouvelle recommandation méditation navigue sans lecteur', (
+    tester,
+  ) async {
+    var opened = 0;
+    final recommendation = ContentRecommendation.tryFromJson({
+      'recommendation_id': '55555555-5555-4555-8555-555555555555',
+      'content_type': 'meditation',
+      'content_id': 'video-med-1',
+      'title': 'Déposer la journée avant de dormir',
+      'image_url': 'https://example.test/thumb.webp',
+      'navigation_only': true,
+    });
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: RecommendationCard(
+            recommendation: recommendation,
+            onOpen: () => opened++,
+            onDownload: () => fail('une méditation ne télécharge pas de PDF'),
+            busy: false,
+          ),
+        ),
+      ),
+    );
+
+    expect(recommendation.audioUrl, isNull);
+    expect(recommendation.navigationOnly, isTrue);
+    expect(find.text('Voir les méditations'), findsOneWidget);
+    expect(find.text('Écouter'), findsNothing);
+    await tester.tap(find.text('Voir les méditations'));
+    expect(opened, 1);
+  });
+
   testWidgets('la carte ebook reste utilisable sur petite largeur', (
     tester,
   ) async {

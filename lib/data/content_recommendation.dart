@@ -23,6 +23,7 @@ class ContentRecommendation {
     this.precautions = '',
     this.sortOrder = 0,
     this.version = 1,
+    this.navigationOnly = false,
   });
 
   final String recommendationId;
@@ -42,6 +43,10 @@ class ContentRecommendation {
   final String precautions;
   final int sortOrder;
   final int version;
+
+  /// New meditation recommendations navigate to the library only. Historical
+  /// rows omit this field and retain their legacy card behavior.
+  final bool navigationOnly;
 
   bool get isEbook => type == 'ebook';
   bool get isMeditation => type == 'meditation';
@@ -85,6 +90,7 @@ class ContentRecommendation {
       precautions: _text(raw['precautions']),
       sortOrder: _int(raw['sort_order']),
       version: _int(raw['version'], fallback: 1),
+      navigationOnly: raw['navigation_only'] == true,
     );
   }
 
@@ -103,6 +109,7 @@ class ContentRecommendation {
     'precautions': precautions,
     'sort_order': sortOrder,
     'version': version,
+    'navigation_only': navigationOnly,
   };
 
   MeditationItem? asMeditation() =>

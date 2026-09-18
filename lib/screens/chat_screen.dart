@@ -22,6 +22,7 @@ import 'onboarding/email_auth_screen.dart';
 import 'premium_screen.dart';
 import 'rewards_wallet_screen.dart';
 import 'ebook_reader_screen.dart';
+import 'meditation_library_screen.dart';
 import 'meditation_screen.dart';
 import 'exercise_detail_screen.dart';
 
@@ -761,6 +762,12 @@ class _ChatScreenState extends State<ChatScreen> {
       return;
     }
     if (recommendation.isMeditation) {
+      if (recommendation.navigationOnly) {
+        await Navigator.of(context).push(
+          MaterialPageRoute(builder: (_) => const MeditationLibraryScreen()),
+        );
+        return;
+      }
       final item = recommendation.asMeditation();
       if (item == null) return;
       await Navigator.of(context).push(
@@ -1134,6 +1141,8 @@ class RecommendationCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isEbook = recommendation.isEbook;
+    final isMeditationNavigation =
+        recommendation.isMeditation && recommendation.navigationOnly;
     final image = recommendation.coverUrl ?? recommendation.imageUrl;
     return Container(
       margin: const EdgeInsets.only(left: 2, right: 34, top: 2, bottom: 10),
@@ -1194,7 +1203,9 @@ class RecommendationCard extends StatelessWidget {
                         isEbook
                             ? 'Lire dans Auryel'
                             : recommendation.isMeditation
-                            ? 'Écouter'
+                            ? isMeditationNavigation
+                                  ? 'Voir les méditations'
+                                  : 'Écouter'
                             : "Faire l'exercice",
                       ),
                     ),

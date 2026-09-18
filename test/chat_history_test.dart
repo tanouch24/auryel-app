@@ -226,6 +226,32 @@ void main() {
     );
   });
 
+  test('historique conserve le mode navigation des nouvelles méditations', () {
+    final r = ConsultationMessagesResponse.fromJson({
+      'consultation_id': 'c-2',
+      'messages': [
+        {
+          'id': 'm-2',
+          'role': 'assistant',
+          'content': 'Tu la trouveras dans Méditations.',
+          'timestamp': '2026-09-18T10:00:00Z',
+          'recommendation': {
+            'recommendation_id': 'rec-2',
+            'content_type': 'meditation',
+            'content_id': 'video-med-1',
+            'title': 'Déposer la journée avant de dormir',
+            'image_url': 'https://example.test/thumb.webp',
+            'navigation_only': true,
+          },
+        },
+      ],
+    });
+    final recommendation = r.messages.single.recommendation;
+    expect(recommendation, isNotNull);
+    expect(recommendation!.navigationOnly, isTrue);
+    expect(recommendation.audioUrl, isNull);
+  });
+
   test('un historique avec l’ancien alias id est fail-safe sans carte', () {
     final r = ConsultationMessagesResponse.fromJson({
       'consultation_id': 'c-1',
@@ -267,8 +293,7 @@ void main() {
           'https://auryelvoyance.com/test?q=%C3%A9nergie%20positive',
       'J\'ai besoin de souffler ce soir 😊':
           'J\'ai besoin de souffler ce soir 😊',
-      'Ça va mieux à 50% aujourd\'hui.':
-          'Ça va mieux à 50% aujourd\'hui.',
+      'Ça va mieux à 50% aujourd\'hui.': 'Ça va mieux à 50% aujourd\'hui.',
     };
     for (final entry in cases.entries) {
       expect(displayMessageContent(entry.key), entry.value);
