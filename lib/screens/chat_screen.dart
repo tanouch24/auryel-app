@@ -233,11 +233,12 @@ class _ChatScreenState extends State<ChatScreen> {
         setState(() => _historyLoading = false);
         return;
       }
-      // J6-F2 — fil ciblé : `?consultation_id=<id>`. Chemin hérité : aucune
-      // query (le backend renvoie le fil courant).
+      // J6-F2 — toujours cibler le fil réellement repris. Le chemin issu de
+      // l'état partagé possède lui aussi un identifiant fiable (`activeId`) :
+      // ne pas retomber sur le choix serveur du « dernier fil ».
       final res = await auth.consultationApi.getMessages(
         bearer: token,
-        consultationId: widget.consultationId,
+        consultationId: activeId,
       );
       if (!mounted) return;
 

@@ -346,6 +346,26 @@ void main() {
     },
   );
 
+  testWidgets(
+    'reprise depuis l’état partagé cible toujours le fil actif',
+    (t) async {
+      final e = _env(
+        (_) async => _json(_history('c-live', [
+          ('user', 'message récent'),
+          ('assistant', 'réponse récente'),
+        ])),
+      );
+      await _pumpChat(t, e);
+      await t.pump();
+      await t.pump();
+
+      expect(e.getMessagesUrls.single.queryParameters['consultation_id'], 'c-live');
+      expect(find.text('message récent'), findsOneWidget);
+      expect(find.text('réponse récente'), findsOneWidget);
+      e.consultation.dispose();
+    },
+  );
+
   testWidgets('reprise avec historique -> carte recommendation reconstruite', (
     t,
   ) async {
