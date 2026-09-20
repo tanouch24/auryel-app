@@ -213,7 +213,9 @@ void main() {
     await t.pumpWidget(_host(channel: channel, store: store));
     await t.pumpAndSettle();
 
-    await t.tap(find.text('L')); // lundi -> Calendar.DAY_OF_WEEK = 2
+    final monday = find.text('L');
+    await t.ensureVisible(monday); // lundi -> Calendar.DAY_OF_WEEK = 2
+    await t.tap(monday);
     await t.pumpAndSettle();
 
     final reloaded = await store.load();

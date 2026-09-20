@@ -365,83 +365,125 @@ class _WakeSettingsScreenState extends State<WakeSettingsScreen>
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Text(
-                'AURYEL · RÉVEIL',
-                style: AuryelText.body(
-                  fontSize: 11,
-                  fontWeight: FontWeight.w600,
-                  color: AuryelColors.gold,
-                  letterSpacing: 3.2,
-                ),
+              Row(
+                children: [
+                  Expanded(
+                    child: Text(
+                      'AURYEL · RÉVEIL',
+                      style: AuryelText.overline(color: AuryelColors.gold),
+                    ),
+                  ),
+                  if (widget.onSkip != null)
+                    TextButton(
+                      onPressed: widget.onSkip,
+                      style: TextButton.styleFrom(
+                        foregroundColor: AuryelColors.textMuted,
+                        padding: const EdgeInsets.symmetric(horizontal: 4),
+                      ),
+                      child: const Text('Plus tard'),
+                    ),
+                ],
               ),
-              if (widget.onSkip != null) ...[
-                const SizedBox(height: 18),
-                TextButton(
-                  onPressed: widget.onSkip,
-                  child: const Text('Plus tard'),
-                ),
-              ],
-              const SizedBox(height: 10),
+              const SizedBox(height: 20),
               Text(
                 'Commence ta journée avec Auryel',
-                style: AuryelText.display(
-                  fontSize: 24,
-                  fontWeight: FontWeight.w600,
-                  color: AuryelColors.textCream,
-                ),
+                style: AuryelText.screenTitle(),
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 10),
               Text(
-                "Choisis l'heure de ton réveil et commence ta journée avec "
-                'une voix douce et un message positif.',
-                style: AuryelText.body(
-                  fontSize: 12.5,
-                  height: 1.4,
+                "Choisis l'heure de ton réveil, puis laisse Auryel t'offrir "
+                'un moment pour toi avant que la journée commence.',
+                style: AuryelText.bodySecondary(
                   color: AuryelColors.textSecondary,
                 ),
               ),
-              const SizedBox(height: 24),
+              const SizedBox(height: 28),
               Container(
-                padding: const EdgeInsets.all(18),
+                padding: const EdgeInsets.fromLTRB(20, 20, 20, 18),
                 decoration: BoxDecoration(
-                  color: AuryelColors.surface,
-                  borderRadius: BorderRadius.circular(18),
-                  border: Border.all(color: AuryelColors.warmBorder),
+                  gradient: const LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [AuryelColors.surfaceLight, AuryelColors.surface],
+                  ),
+                  borderRadius: BorderRadius.circular(26),
+                  border: Border.all(
+                    color: AuryelColors.gold.withValues(alpha: 0.32),
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: AuryelColors.backgroundDeep.withValues(alpha: 0.4),
+                      blurRadius: 24,
+                      offset: const Offset(0, 12),
+                    ),
+                  ],
                 ),
                 child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Row(
                       children: [
                         Expanded(
-                          child: Text(
-                            'Réveil',
-                            style: AuryelText.body(
-                              fontSize: 14,
-                              fontWeight: FontWeight.w600,
-                              color: AuryelColors.textCream,
-                            ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                _settings.enabled
+                                    ? 'Réveil activé'
+                                    : 'Réveil en pause',
+                                style: AuryelText.cardTitle(),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                _settings.enabled
+                                    ? 'Auryel sera là demain matin'
+                                    : 'Prends le temps de le configurer',
+                                style: AuryelText.bodySecondary(),
+                              ),
+                            ],
                           ),
                         ),
-                        Switch(
-                          key: const Key('wake-enabled-switch'),
-                          value: _settings.enabled,
-                          activeThumbColor: AuryelColors.goldLight,
-                          onChanged: (v) {
-                            if (v) {
-                              _tryEnable();
-                            } else {
-                              _persist(_settings.copyWith(enabled: false));
-                            }
-                          },
+                        Container(
+                          padding: const EdgeInsets.all(4),
+                          decoration: BoxDecoration(
+                            color: _settings.enabled
+                                ? AuryelColors.gold.withValues(alpha: 0.18)
+                                : AuryelColors.backgroundDeep.withValues(
+                                    alpha: 0.45,
+                                  ),
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: Switch(
+                            key: const Key('wake-enabled-switch'),
+                            value: _settings.enabled,
+                            activeThumbColor: AuryelColors.goldLight,
+                            activeTrackColor: AuryelColors.goldDark,
+                            inactiveThumbColor: AuryelColors.textMuted,
+                            inactiveTrackColor: AuryelColors.backgroundDeep,
+                            onChanged: (v) {
+                              if (v) {
+                                _tryEnable();
+                              } else {
+                                _persist(_settings.copyWith(enabled: false));
+                              }
+                            },
+                          ),
                         ),
                       ],
                     ),
-                    const SizedBox(height: 6),
+                    const SizedBox(height: 22),
                     InkWell(
                       onTap: _pickTime,
-                      borderRadius: BorderRadius.circular(12),
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 10),
+                      borderRadius: BorderRadius.circular(18),
+                      child: Container(
+                        padding: const EdgeInsets.fromLTRB(16, 14, 14, 14),
+                        decoration: BoxDecoration(
+                          color: AuryelColors.backgroundDeep.withValues(
+                            alpha: 0.35,
+                          ),
+                          borderRadius: BorderRadius.circular(18),
+                          border: Border.all(color: AuryelColors.warmBorder),
+                        ),
                         child: Row(
                           children: [
                             const PhosphorIcon(
@@ -449,42 +491,138 @@ class _WakeSettingsScreenState extends State<WakeSettingsScreen>
                               size: 20,
                               color: AuryelColors.goldLight,
                             ),
-                            const SizedBox(width: 10),
-                            Text(
-                              _timeLabel,
-                              style: AuryelText.display(
-                                fontSize: 28,
-                                fontWeight: FontWeight.w600,
-                                color: AuryelColors.textCream,
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    'Prochain réveil',
+                                    style: AuryelText.overline(),
+                                  ),
+                                  const SizedBox(height: 3),
+                                  Text(
+                                    _timeLabel,
+                                    style: AuryelText.display(
+                                      fontSize: 36,
+                                      fontWeight: FontWeight.w700,
+                                      color: AuryelColors.textCream,
+                                    ),
+                                  ),
+                                ],
                               ),
                             ),
-                            const Spacer(),
-                            Text(
-                              "Changer l'heure",
-                              style: AuryelText.body(
-                                fontSize: 12,
-                                fontWeight: FontWeight.w600,
-                                color: AuryelColors.goldLight,
-                              ),
+                            const Icon(
+                              Icons.chevron_right_rounded,
+                              color: AuryelColors.goldLight,
                             ),
                           ],
                         ),
                       ),
                     ),
-                    const SizedBox(height: 10),
-                    Align(
-                      alignment: Alignment.centerLeft,
-                      child: Text(
-                        'JOURS (optionnel — tous les jours si aucun choisi)',
-                        style: AuryelText.body(
-                          fontSize: 10,
-                          fontWeight: FontWeight.w600,
-                          color: AuryelColors.textMuted,
-                          letterSpacing: 0.8,
+                  ],
+                ),
+              ),
+              const SizedBox(height: 16),
+              Container(
+                padding: const EdgeInsets.fromLTRB(20, 18, 20, 20),
+                decoration: BoxDecoration(
+                  color: AuryelColors.surface.withValues(alpha: 0.78),
+                  borderRadius: BorderRadius.circular(24),
+                  border: Border.all(color: AuryelColors.warmBorder),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Container(
+                          width: 44,
+                          height: 44,
+                          decoration: BoxDecoration(
+                            color: AuryelColors.gold.withValues(alpha: 0.14),
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                          child: const Icon(
+                            Icons.wb_sunny_rounded,
+                            color: AuryelColors.goldLight,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Réveil du jour',
+                                style: AuryelText.cardTitle(),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                _dailyVideo.title,
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
+                                style: AuryelText.bodySecondary(
+                                  color: AuryelColors.textSecondary,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        if (_dailyVideo.durationSeconds != null)
+                          Text(
+                            '${_dailyVideo.durationSeconds}s',
+                            style: AuryelText.overline(),
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 18),
+                    SizedBox(
+                      width: double.infinity,
+                      child: FilledButton.icon(
+                        onPressed: _testWake,
+                        icon: const Icon(Icons.play_arrow_rounded),
+                        label: const Text('Tester mon réveil'),
+                        style: FilledButton.styleFrom(
+                          backgroundColor: AuryelColors.gold,
+                          foregroundColor: AuryelColors.backgroundDeep,
+                          minimumSize: const Size.fromHeight(52),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(16),
+                          ),
                         ),
                       ),
                     ),
-                    const SizedBox(height: 8),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 18),
+              Container(
+                padding: const EdgeInsets.fromLTRB(18, 16, 18, 17),
+                decoration: BoxDecoration(
+                  color: AuryelColors.surface.withValues(alpha: 0.42),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: AuryelColors.warmBorder),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Répétition',
+                      style: AuryelText.body(
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                        color: AuryelColors.textCream,
+                      ),
+                    ),
+                    const SizedBox(height: 5),
+                    Text(
+                      _settings.days.isEmpty
+                          ? 'Aucun jour choisi · tous les jours'
+                          : 'Jours sélectionnés',
+                      style: AuryelText.bodySecondary(),
+                    ),
+                    const SizedBox(height: 14),
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
@@ -496,22 +634,12 @@ class _WakeSettingsScreenState extends State<WakeSettingsScreen>
                           ),
                       ],
                     ),
+                    const SizedBox(height: 14),
+                    Text(
+                      'En cas de report, le réveil sonne à nouveau 10 minutes plus tard.',
+                      style: AuryelText.bodySecondary(),
+                    ),
                   ],
-                ),
-              ),
-              const SizedBox(height: 16),
-              OutlinedButton.icon(
-                onPressed: _testWake,
-                icon: const Icon(Icons.play_circle_outline),
-                label: const Text('Tester mon réveil'),
-              ),
-              const SizedBox(height: 16),
-              Text(
-                'En cas de report, le réveil sonne à nouveau 10 minutes plus '
-                'tard.',
-                style: AuryelText.body(
-                  fontSize: 11.5,
-                  color: AuryelColors.textMuted,
                 ),
               ),
             ],
