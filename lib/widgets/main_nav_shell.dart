@@ -12,6 +12,7 @@ import '../screens/home_screen.dart';
 import '../screens/boutique_coming_soon_screen.dart';
 import '../screens/wellbeing_program_screen.dart';
 import '../screens/wake_settings_screen.dart';
+import '../services/app_update_alert.dart';
 import '../state/auth_controller.dart';
 import '../state/rewards_controller.dart';
 import '../state/wellbeing_controller.dart';
@@ -79,6 +80,9 @@ class _MainNavShellState extends State<MainNavShell> {
       BoutiqueComingSoonScreen(),
       WakeSettingsScreen(),
     ];
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) unawaited(AppUpdateAlertService().showIfNeeded(context));
+    });
   }
 
   void _goToTab(int i) {

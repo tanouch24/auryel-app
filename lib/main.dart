@@ -36,6 +36,7 @@ import 'ads/ad_service.dart';
 import 'state/meta_consent_controller.dart';
 import 'screens/splash_screen.dart';
 import 'screens/onboarding/email_auth_screen.dart';
+import 'services/launcher_badge_channel.dart';
 import 'state/auryel_state.dart';
 import 'state/auth_controller.dart';
 import 'state/consultation_controller.dart';
@@ -138,6 +139,7 @@ void main() async {
   final unread = UnreadController(
     api: UnreadApi(apiClient),
     tokenProvider: auth.currentToken,
+    badgeChannel: MethodChannelLauncherBadge(),
   );
   // GROS CHANTIER AURYEL (Prompt 2/5) — ÉTOILES : instance UNIQUE et PARTAGÉE
   // (cf. RewardsScope), même schéma que WellbeingController ci-dessus. Le

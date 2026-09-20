@@ -1,13 +1,25 @@
+// ignore_for_file: prefer_initializing_formals
+
+import 'dart:async';
+
 import 'package:flutter/widgets.dart';
 
 import '../api/api_client.dart';
 import '../api/unread_api.dart';
+import '../services/launcher_badge_channel.dart';
 
 class UnreadController extends ChangeNotifier {
-  UnreadController({required this._api, required this._tokenProvider});
+  // The public parameter name must stay `badgeChannel`; the field is private
+  // so callers cannot use an initializing formal across library boundaries.
+  UnreadController({
+    required this._api,
+    required this._tokenProvider,
+    LauncherBadgeChannel? badgeChannel,
+  }) : _badgeChannel = badgeChannel;
 
   final UnreadApi _api;
   final Future<String?> Function() _tokenProvider;
+  final LauncherBadgeChannel? _badgeChannel;
   Map<String, int> _counts = const {};
   final Set<String> _consultationAdvisorIds = <String>{};
   bool _refreshing = false;
@@ -33,6 +45,7 @@ class UnreadController extends ChangeNotifier {
       _counts = await _api.counts(bearer: token);
       if (consultation == 0) _consultationAdvisorIds.clear();
       notifyListeners();
+      await _syncBadge();
     } on ApiUnauthorizedException {
       clear();
     } on ApiException {
@@ -55,6 +68,7 @@ class UnreadController extends ChangeNotifier {
         if (category == 'consultation') _consultationAdvisorIds.clear();
         notifyListeners();
       }
+      await _syncBadge();
       await refresh();
     } on ApiUnauthorizedException {
       clear();
@@ -70,6 +84,16 @@ class UnreadController extends ChangeNotifier {
     _counts = const {};
     _consultationAdvisorIds.clear();
     notifyListeners();
+    unawaited(_syncBadge());
+  }
+
+  Future<void> _syncBadge() async {
+    final count = consultation + wellbeing;
+    try {
+      await _badgeChannel?.sync(count);
+    } catch (_) {
+      // A launcher/plugin failure is never a consultation failure.
+    }
   }
 }
 

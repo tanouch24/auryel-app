@@ -1,6 +1,8 @@
 package com.auryel.auryel
 
 import android.app.NotificationManager
+import android.app.Notification
+import android.app.NotificationChannel
 import android.content.Intent
 import android.net.Uri
 import android.os.Build
@@ -20,6 +22,8 @@ import io.flutter.plugin.common.MethodChannel
 class MainActivity : FlutterActivity() {
     private val channelName = "auryel/wake_alarm"
     private var pendingWakeRinging = false
+    private val launcherBadgeChannel = "auryel_unread_badge"
+    private val launcherBadgeNotificationId = 19001
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -57,6 +61,26 @@ class MainActivity : FlutterActivity() {
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, channelName)
             .setMethodCallHandler { call, result ->
                 when (call.method) {
+                    "getAppVersion" -> {
+                        try {
+                            val info = packageManager.getPackageInfo(packageName, 0)
+                            val code = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                                info.longVersionCode
+                            } else {
+                                @Suppress("DEPRECATION")
+                                info.versionCode.toLong()
+                            }
+                            result.success("${info.versionName ?: ""}+$code")
+                        } catch (_: Exception) {
+                            result.success(null)
+                        }
+                    }
+
+                    "syncLauncherBadge" -> {
+                        syncLauncherBadge(call.argument<Int>("count") ?: 0)
+                        result.success(null)
+                    }
+
                     "setAlarmSound" -> {
                         AlarmScheduler.setSound(this, call.argument<String>("soundId") ?: AlarmScheduler.DEFAULT_SOUND)
                         result.success(null)
@@ -147,5 +171,45 @@ class MainActivity : FlutterActivity() {
                     else -> result.notImplemented()
                 }
             }
+    }
+
+    private fun syncLauncherBadge(count: Int) {
+        try {
+            val manager = getSystemService(NotificationManager::class.java) ?: return
+            if (count <= 0) {
+                manager.cancel(launcherBadgeNotificationId)
+                return
+            }
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                val channel = NotificationChannel(
+                    launcherBadgeChannel,
+                    "Auryel — nouveautés",
+                    NotificationManager.IMPORTANCE_LOW,
+                ).apply {
+                    setShowBadge(true)
+                    description = "Indicateur des contenus Auryel non lus."
+                }
+                manager.createNotificationChannel(channel)
+            }
+            val notification = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                Notification.Builder(this, launcherBadgeChannel)
+            } else {
+                @Suppress("DEPRECATION")
+                Notification.Builder(this)
+            }
+                .setSmallIcon(R.drawable.ic_stat_auryel)
+                .setContentTitle("Auryel")
+                .setContentText("Une nouveauté t'attend dans Consultation.")
+                .setNumber(count)
+                .setShowWhen(false)
+                .setOnlyAlertOnce(true)
+                .setAutoCancel(false)
+                .setCategory(Notification.CATEGORY_SOCIAL)
+                .setVisibility(Notification.VISIBILITY_PRIVATE)
+                .build()
+            manager.notify(launcherBadgeNotificationId, notification)
+        } catch (_: Exception) {
+            // Permission refusée / launcher incompatible : badge best-effort.
+        }
     }
 }
