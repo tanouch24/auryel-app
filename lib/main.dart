@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import 'api/account_api.dart';
 import 'api/ai_report_api.dart';
@@ -26,6 +27,7 @@ import 'data/installation_id_store.dart';
 import 'data/onboarding_repository.dart';
 import 'data/shop_cart_store.dart';
 import 'data/token_store.dart';
+import 'data/wake_video.dart';
 import 'notifications/fcm_notification_service.dart';
 import 'notifications/local_notification_presenter.dart';
 import 'notifications/notification_coordinator.dart';
@@ -36,6 +38,7 @@ import 'ads/ad_service.dart';
 import 'state/meta_consent_controller.dart';
 import 'screens/splash_screen.dart';
 import 'screens/onboarding/email_auth_screen.dart';
+import 'screens/wake_ringing_screen.dart';
 import 'services/launcher_badge_channel.dart';
 import 'state/auryel_state.dart';
 import 'state/auth_controller.dart';
@@ -290,12 +293,14 @@ class _AuryelAppState extends State<AuryelApp> with WidgetsBindingObserver {
   bool _wasBackgrounded = false;
   bool _routingToLogin = false;
   final _navigatorKey = GlobalKey<NavigatorState>();
+  static const _wakeAlarmPlatformChannel = MethodChannel('auryel/wake_alarm');
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     widget.auth.addListener(_handleAuthChanged);
+    _wakeAlarmPlatformChannel.setMethodCallHandler(_handleWakeAlarmCall);
     final notifications = widget.notifications;
     if (notifications != null) {
       final presenter = LocalNotificationPresenter()
@@ -319,7 +324,27 @@ class _AuryelAppState extends State<AuryelApp> with WidgetsBindingObserver {
     widget.auth.removeListener(_handleAuthChanged);
     _foregroundSub?.cancel();
     widget.notifications?.dispose();
+    _wakeAlarmPlatformChannel.setMethodCallHandler(null);
     super.dispose();
+  }
+
+  Future<void> _handleWakeAlarmCall(MethodCall call) async {
+    if (call.method != 'wakeRingingIntent') return;
+    final raw = call.arguments;
+    final map = raw is Map
+        ? raw.map((key, value) => MapEntry(key.toString(), value))
+        : const <String, dynamic>{};
+    final video = WakeVideo.tryFromJson({
+      'id': map['wakeVideoId'],
+      'video_url': map['wakeVideoUrl'],
+      'title': map['wakeVideoTitle'],
+    });
+    if (!mounted || video == null) return;
+    final navigator = _navigatorKey.currentState;
+    if (navigator == null) return;
+    await navigator.push(
+      MaterialPageRoute(builder: (_) => WakeRingingScreen(video: video)),
+    );
   }
 
   void _handleAuthChanged() {

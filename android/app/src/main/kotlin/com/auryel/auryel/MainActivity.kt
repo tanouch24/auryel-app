@@ -23,6 +23,7 @@ class MainActivity : FlutterActivity() {
     private val channelName = "auryel/wake_alarm"
     private var pendingWakeRinging = false
     private var pendingWakeVideo: Map<String, String?>? = null
+    private var wakeRingingChannel: MethodChannel? = null
     private val launcherBadgeChannel = "auryel_unread_badge"
     private val launcherBadgeNotificationId = 19001
 
@@ -35,6 +36,7 @@ class MainActivity : FlutterActivity() {
         super.onNewIntent(intent)
         setIntent(intent)
         applyWakeRingingFlagsIfNeeded(intent)
+        dispatchWakeRingingIntentIfReady()
     }
 
     /** Affiche l'activité PAR-DESSUS l'écran verrouillé + rallume l'écran
@@ -63,9 +65,19 @@ class MainActivity : FlutterActivity() {
         }
     }
 
+    private fun dispatchWakeRingingIntentIfReady() {
+        val channel = wakeRingingChannel ?: return
+        if (!pendingWakeRinging) return
+        channel.invokeMethod("wakeRingingIntent", pendingWakeVideo ?: emptyMap<String, String?>())
+        pendingWakeRinging = false
+        pendingWakeVideo = null
+    }
+
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
-        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, channelName)
+        val channel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, channelName)
+        wakeRingingChannel = channel
+        channel
             .setMethodCallHandler { call, result ->
                 when (call.method) {
                     "getAppVersion" -> {
