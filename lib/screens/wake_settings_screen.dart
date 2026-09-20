@@ -361,7 +361,7 @@ class _WakeSettingsScreenState extends State<WakeSettingsScreen>
       ),
       child: SafeArea(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(24, 24, 24, 32),
+          padding: const EdgeInsets.fromLTRB(24, 20, 24, 112),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
@@ -384,12 +384,12 @@ class _WakeSettingsScreenState extends State<WakeSettingsScreen>
                     ),
                 ],
               ),
-              const SizedBox(height: 20),
+              const SizedBox(height: 14),
               Text(
                 'Commence ta journée avec Auryel',
                 style: AuryelText.screenTitle(),
               ),
-              const SizedBox(height: 10),
+              const SizedBox(height: 8),
               Text(
                 "Choisis l'heure de ton réveil, puis laisse Auryel t'offrir "
                 'un moment pour toi avant que la journée commence.',
@@ -559,7 +559,7 @@ class _WakeSettingsScreenState extends State<WakeSettingsScreen>
                               ),
                               const SizedBox(height: 4),
                               Text(
-                                _dailyVideo.title,
+                                'Une nouvelle attention chaque matin',
                                 maxLines: 2,
                                 overflow: TextOverflow.ellipsis,
                                 style: AuryelText.bodySecondary(
@@ -596,13 +596,13 @@ class _WakeSettingsScreenState extends State<WakeSettingsScreen>
                   ],
                 ),
               ),
-              const SizedBox(height: 18),
+              const SizedBox(height: 16),
               Container(
-                padding: const EdgeInsets.fromLTRB(18, 16, 18, 17),
-                decoration: BoxDecoration(
-                  color: AuryelColors.surface.withValues(alpha: 0.42),
-                  borderRadius: BorderRadius.circular(20),
-                  border: Border.all(color: AuryelColors.warmBorder),
+                padding: const EdgeInsets.fromLTRB(2, 18, 2, 4),
+                decoration: const BoxDecoration(
+                  border: Border(
+                    top: BorderSide(color: AuryelColors.warmBorder),
+                  ),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
