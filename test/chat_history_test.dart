@@ -639,7 +639,9 @@ void main() {
         .where((state) => state.position.maxScrollExtent > 0);
     expect(messageScrollables, isNotEmpty);
     expect(
-      messageScrollables.any((state) => state.position.pixels > 0),
+      messageScrollables.any(
+        (state) => state.position.pixels == state.position.minScrollExtent,
+      ),
       isTrue,
     );
     expect(find.text('ancienne réponse 23'), findsOneWidget);

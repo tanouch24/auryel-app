@@ -649,7 +649,7 @@ class _ChatScreenState extends State<ChatScreen> {
           return;
         }
         await _scroll.animateTo(
-          _scroll.position.maxScrollExtent,
+          _scroll.position.minScrollExtent,
           duration: const Duration(milliseconds: 250),
           curve: Curves.easeOut,
         );
@@ -906,8 +906,9 @@ class _ChatScreenState extends State<ChatScreen> {
     }
     return ListView(
       controller: _scroll,
+      reverse: true,
       padding: const EdgeInsets.fromLTRB(18, 16, 18, 12),
-      children: items,
+      children: items.reversed.toList(growable: false),
     );
   }
 }
