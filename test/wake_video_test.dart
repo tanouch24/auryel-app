@@ -27,6 +27,38 @@ void main() {
     expect(next.id, isNot(first.id));
   });
 
+  test('pilote exclu de la rotation quand les vraies vidéos existent', () {
+    final catalog = [
+      WakeVideoCatalog.pilot,
+      ...List.generate(
+        59,
+        (i) => WakeVideo(
+          id: 'wake-$i',
+          remoteUrl: 'https://cdn.example/wake-$i.mp4',
+          sortOrder: i,
+        ),
+      ),
+    ];
+    final ids = List.generate(
+      7,
+      (i) => WakeVideoDailySelection.pick(
+        catalog,
+        DateTime(2026, 9, 20 + i),
+      ).id,
+    );
+    expect(ids, everyElement(isNot(WakeVideoCatalog.pilot.id)));
+  });
+
+  test('pilote conservé comme fallback si aucune vraie vidéo existe', () {
+    expect(
+      WakeVideoDailySelection.pick(
+        [WakeVideoCatalog.pilot],
+        DateTime(2026, 9, 20),
+      ).id,
+      WakeVideoCatalog.pilot.id,
+    );
+  });
+
   test('rotation déterministe sur sept jours avec catalogue suffisant', () {
     final catalog = List.generate(
       59,

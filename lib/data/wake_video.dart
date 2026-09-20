@@ -25,6 +25,10 @@ class WakeVideo {
 
   bool get hasLocalPath => localPath != null && localPath!.isNotEmpty;
 
+  bool get isPilot => remoteUrl.endsWith(
+    '/wake-videos/auryel-reveil-video-test-01.mp4',
+  );
+
   WakeVideo withLocalPath(String path) => WakeVideo(
     id: id,
     remoteUrl: remoteUrl,
@@ -93,7 +97,9 @@ class WakeVideoDailySelection {
   const WakeVideoDailySelection._();
 
   static WakeVideo pick(List<WakeVideo> catalog, DateTime date) {
-    final items = [...catalog]
+    final realVideos = catalog.where((video) => !video.isPilot).toList();
+    final source = realVideos.isNotEmpty ? realVideos : catalog;
+    final items = [...source]
       ..sort((a, b) {
         final order = a.sortOrder.compareTo(b.sortOrder);
         return order != 0 ? order : a.id.compareTo(b.id);
