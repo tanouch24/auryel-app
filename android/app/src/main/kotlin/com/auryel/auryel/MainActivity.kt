@@ -22,6 +22,7 @@ import io.flutter.plugin.common.MethodChannel
 class MainActivity : FlutterActivity() {
     private val channelName = "auryel/wake_alarm"
     private var pendingWakeRinging = false
+    private var pendingWakeVideo: Map<String, String?>? = null
     private val launcherBadgeChannel = "auryel_unread_badge"
     private val launcherBadgeNotificationId = 19001
 
@@ -42,6 +43,12 @@ class MainActivity : FlutterActivity() {
     private fun applyWakeRingingFlagsIfNeeded(intent: Intent) {
         if (!intent.getBooleanExtra(AlarmScheduler.EXTRA_WAKE_RINGING, false)) return
         pendingWakeRinging = true
+        pendingWakeVideo = mapOf(
+            "wakeVideoId" to intent.getStringExtra(AlarmScheduler.EXTRA_WAKE_VIDEO_ID),
+            "wakeVideoUrl" to intent.getStringExtra(AlarmScheduler.EXTRA_WAKE_VIDEO_URL),
+            "wakeVideoTitle" to intent.getStringExtra(AlarmScheduler.EXTRA_WAKE_VIDEO_TITLE),
+            "wakeTargetDate" to intent.getStringExtra(AlarmScheduler.EXTRA_WAKE_TARGET_DATE),
+        )
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
             setShowWhenLocked(true)
             setTurnScreenOn(true)
@@ -138,7 +145,14 @@ class MainActivity : FlutterActivity() {
                         val minute = call.argument<Int>("minute") ?: 0
                         @Suppress("UNCHECKED_CAST")
                         val days = (call.argument<List<Int>>("days") ?: emptyList()).toSet()
-                        result.success(AlarmScheduler.save(this, enabled, hour, minute, days))
+                        result.success(AlarmScheduler.save(
+                            this, enabled, hour, minute, days,
+                            call.argument<String>("wakeVideoId"),
+                            call.argument<String>("wakeVideoUrl"),
+                            call.argument<String>("wakeVideoTitle"),
+                            call.argument<String>("wakeTargetDate"),
+                            call.argument<String>("wakeScheduleJson"),
+                        ))
                     }
 
                     "cancelAlarm" -> {
@@ -156,6 +170,13 @@ class MainActivity : FlutterActivity() {
                         val was = pendingWakeRinging
                         pendingWakeRinging = false
                         result.success(was)
+                    }
+
+                    "consumeWakeRingingLaunchDetails" -> {
+                        val details = if (pendingWakeRinging) pendingWakeVideo else null
+                        pendingWakeRinging = false
+                        pendingWakeVideo = null
+                        result.success(details)
                     }
 
                     "stopRinging" -> {

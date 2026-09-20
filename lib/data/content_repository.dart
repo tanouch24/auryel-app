@@ -15,6 +15,7 @@ import 'meditation_item.dart';
 import 'relaxation_video.dart';
 import 'wake_message.dart';
 import 'wake_message_catalog.dart';
+import 'wake_video.dart';
 
 /// Orchestrateur du contenu distant (pensée du jour + méditations) avec cache
 /// local et fallback embarqué.
@@ -55,6 +56,7 @@ class ContentRepository {
   static const String _meditationVideosKey =
       'auryel.content.meditation_videos.v1';
   static const String _wakeMessagesKey = 'auryel.content.wake_messages.v1';
+  static const String _wakeVideosKey = 'auryel.content.wake_videos.v1';
   static const String _exercisesKey = 'auryel.content.exercises.v1';
 
   Future<SharedPreferences> get _prefs async =>
@@ -239,6 +241,82 @@ class ContentRepository {
       }
     }
     return cached?.items ?? const <RelaxationVideo>[];
+  }
+
+  /// Catalogue dédié des vidéos du Réveil : serveur -> cache -> pilote.
+  /// Une erreur réseau ne bloque jamais la configuration ou la sonnerie.
+  Future<List<WakeVideo>> wakeVideos() async {
+    final cached = await _readWakeVideosCache();
+    final api = _api;
+    if (api != null) {
+      try {
+        final token = await _token?.call();
+        final res = await api.wakeVideos(bearer: token, etag: cached?.etag);
+        if (res.notModified && cached != null) return cached.items;
+        if (res.ok) {
+          if (res.videos.isNotEmpty) {
+            await _writeWakeVideosCache(
+              res.videos,
+              res.etag,
+              res.catalogVersion,
+            );
+            return res.videos;
+          }
+          return cached?.items.isNotEmpty == true
+              ? cached!.items
+              : WakeVideoCatalog.active;
+        }
+      } catch (_) {
+        // Réseau indisponible : cache puis pilote.
+      }
+    }
+    if (cached != null && cached.items.isNotEmpty) return cached.items;
+    return WakeVideoCatalog.active;
+  }
+
+  Future<WakeVideo> wakeOfDay(DateTime date) async {
+    return WakeVideoDailySelection.pick(await wakeVideos(), date);
+  }
+
+  Future<_WakeVideosCache?> _readWakeVideosCache() async {
+    try {
+      final raw = (await _prefs).getString(_wakeVideosKey);
+      if (raw == null) return null;
+      final decoded = jsonDecode(raw);
+      if (decoded is! Map) return null;
+      final rawItems = decoded['items'];
+      final items = rawItems is List
+          ? rawItems
+                .whereType<Map<String, dynamic>>()
+                .map(WakeVideo.tryFromJson)
+                .whereType<WakeVideo>()
+                .toList(growable: false)
+          : const <WakeVideo>[];
+      return _WakeVideosCache(
+        etag: decoded['etag'] as String?,
+        version: decoded['catalog_version'] as String?,
+        items: items,
+      );
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<void> _writeWakeVideosCache(
+    List<WakeVideo> items,
+    String? etag,
+    String? version,
+  ) async {
+    try {
+      await (await _prefs).setString(
+        _wakeVideosKey,
+        jsonEncode({
+          'etag': ?etag,
+          'catalog_version': ?version,
+          'items': [for (final item in items) item.toCacheJson()],
+        }),
+      );
+    } catch (_) {}
   }
 
   /// Catalogue Exercices dédié (serveur -> cache -> vide). Il ne partage
@@ -536,6 +614,14 @@ class _VideosCache {
   final String? etag;
   final String? version;
   final List<RelaxationVideo> items;
+}
+
+@immutable
+class _WakeVideosCache {
+  const _WakeVideosCache({this.etag, this.version, required this.items});
+  final String? etag;
+  final String? version;
+  final List<WakeVideo> items;
 }
 
 @immutable

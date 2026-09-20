@@ -15,6 +15,10 @@ class WakeAlarmSettings {
     required this.minute,
     required this.days,
     this.soundId = kDefaultWakeSoundId,
+    this.wakeVideoId,
+    this.wakeVideoUrl,
+    this.wakeVideoTitle,
+    this.wakeTargetDate,
   });
 
   final bool enabled;
@@ -24,6 +28,10 @@ class WakeAlarmSettings {
   /// `Calendar.DAY_OF_WEEK` (1=dimanche..7=samedi). Vide -> tous les jours.
   final Set<int> days;
   final String soundId;
+  final String? wakeVideoId;
+  final String? wakeVideoUrl;
+  final String? wakeVideoTitle;
+  final String? wakeTargetDate;
 
   static const WakeAlarmSettings defaults = WakeAlarmSettings(
     enabled: false,
@@ -39,12 +47,20 @@ class WakeAlarmSettings {
     int? minute,
     Set<int>? days,
     String? soundId,
+    String? wakeVideoId,
+    String? wakeVideoUrl,
+    String? wakeVideoTitle,
+    String? wakeTargetDate,
   }) => WakeAlarmSettings(
     enabled: enabled ?? this.enabled,
     hour: hour ?? this.hour,
     minute: minute ?? this.minute,
     days: days ?? this.days,
     soundId: soundId ?? this.soundId,
+    wakeVideoId: wakeVideoId ?? this.wakeVideoId,
+    wakeVideoUrl: wakeVideoUrl ?? this.wakeVideoUrl,
+    wakeVideoTitle: wakeVideoTitle ?? this.wakeVideoTitle,
+    wakeTargetDate: wakeTargetDate ?? this.wakeTargetDate,
   );
 }
 
@@ -59,6 +75,10 @@ class WakeAlarmPrefsStore {
   static const String _minuteKey = 'auryel.wake_alarm.minute';
   static const String _daysKey = 'auryel.wake_alarm.days';
   static const String _soundKey = 'auryel.wake_alarm.sound';
+  static const String _wakeVideoIdKey = 'auryel.wake_alarm.video_id';
+  static const String _wakeVideoUrlKey = 'auryel.wake_alarm.video_url';
+  static const String _wakeVideoTitleKey = 'auryel.wake_alarm.video_title';
+  static const String _wakeTargetDateKey = 'auryel.wake_alarm.target_date';
 
   final SharedPreferences? _injected;
 
@@ -79,6 +99,10 @@ class WakeAlarmPrefsStore {
         minute: p.getInt(_minuteKey) ?? WakeAlarmSettings.defaults.minute,
         days: days ?? WakeAlarmSettings.defaults.days,
         soundId: p.getString(_soundKey) ?? kDefaultWakeSoundId,
+        wakeVideoId: p.getString(_wakeVideoIdKey),
+        wakeVideoUrl: p.getString(_wakeVideoUrlKey),
+        wakeVideoTitle: p.getString(_wakeVideoTitleKey),
+        wakeTargetDate: p.getString(_wakeTargetDateKey),
       );
     } catch (_) {
       return WakeAlarmSettings.defaults;
@@ -96,8 +120,24 @@ class WakeAlarmPrefsStore {
         settings.days.map((d) => d.toString()).toList(),
       );
       await p.setString(_soundKey, settings.soundId);
+      await _setNullable(p, _wakeVideoIdKey, settings.wakeVideoId);
+      await _setNullable(p, _wakeVideoUrlKey, settings.wakeVideoUrl);
+      await _setNullable(p, _wakeVideoTitleKey, settings.wakeVideoTitle);
+      await _setNullable(p, _wakeTargetDateKey, settings.wakeTargetDate);
     } catch (_) {
       /* réglage local best-effort — le natif reste la source d'exécution */
+    }
+  }
+
+  Future<void> _setNullable(
+    SharedPreferences p,
+    String key,
+    String? value,
+  ) async {
+    if (value == null || value.isEmpty) {
+      await p.remove(key);
+    } else {
+      await p.setString(key, value);
     }
   }
 }

@@ -3,6 +3,7 @@ import '../data/exercise.dart';
 import '../data/meditation_item.dart';
 import '../data/relaxation_video.dart';
 import '../data/wake_message.dart';
+import '../data/wake_video.dart';
 import 'api_client.dart';
 
 /// Contenu du jour renvoyé par `GET /api/app/content/today`.
@@ -129,6 +130,23 @@ class WakeMessagesResult {
 
   final int status;
   final List<WakeMessage> messages;
+  final String? catalogVersion;
+  final String? etag;
+
+  bool get notModified => status == 304;
+  bool get ok => status == 200;
+}
+
+class WakeVideosResult {
+  const WakeVideosResult({
+    required this.status,
+    required this.videos,
+    this.catalogVersion,
+    this.etag,
+  });
+
+  final int status;
+  final List<WakeVideo> videos;
   final String? catalogVersion;
   final String? etag;
 
@@ -337,6 +355,34 @@ class ContentApi {
     return WakeMessagesResult(
       status: 200,
       messages: messages,
+      catalogVersion: _str(res.body['catalog_version']),
+      etag: res.etag ?? etag,
+    );
+  }
+
+  Future<WakeVideosResult> wakeVideos({String? bearer, String? etag}) async {
+    final res = await _client.getRaw(
+      '/api/app/content/wake-videos',
+      bearer: bearer,
+      ifNoneMatch: etag,
+    );
+    if (res.notModified) {
+      return WakeVideosResult(status: 304, videos: const [], etag: etag);
+    }
+    if (!res.ok) {
+      return WakeVideosResult(status: res.statusCode, videos: const []);
+    }
+    final raw = res.body['videos'];
+    final videos = raw is List
+        ? raw
+              .whereType<Map<String, dynamic>>()
+              .map(WakeVideo.tryFromJson)
+              .whereType<WakeVideo>()
+              .toList(growable: false)
+        : const <WakeVideo>[];
+    return WakeVideosResult(
+      status: 200,
+      videos: videos,
       catalogVersion: _str(res.body['catalog_version']),
       etag: res.etag ?? etag,
     );

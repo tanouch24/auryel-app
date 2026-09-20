@@ -32,6 +32,11 @@ abstract class WakeAlarmChannel {
     required int hour,
     required int minute,
     required List<int> days,
+    String? wakeVideoId,
+    String? wakeVideoUrl,
+    String? wakeVideoTitle,
+    String? wakeTargetDate,
+    String? wakeScheduleJson,
   });
 
   Future<void> cancelAlarm();
@@ -44,6 +49,9 @@ abstract class WakeAlarmChannel {
   /// du réveil (consommé au premier appel : un second appel renvoie `false`
   /// tant qu'une nouvelle sonnerie n'a pas eu lieu).
   Future<bool> consumeWakeRingingLaunch();
+
+  /// Snapshot du contenu associé à l'alarme native, si disponible.
+  Future<Map<String, dynamic>?> consumeWakeRingingLaunchDetails() async => null;
 
   /// Efface la notification plein écran active (si l'utilisateur éteint
   /// depuis l'écran de sonnerie sans avoir tapé la notification elle-même).
@@ -110,6 +118,11 @@ class MethodChannelWakeAlarm implements WakeAlarmChannel {
     required int hour,
     required int minute,
     required List<int> days,
+    String? wakeVideoId,
+    String? wakeVideoUrl,
+    String? wakeVideoTitle,
+    String? wakeTargetDate,
+    String? wakeScheduleJson,
   }) async {
     try {
       return (await _channel.invokeMethod<bool>('saveAlarm', {
@@ -117,6 +130,11 @@ class MethodChannelWakeAlarm implements WakeAlarmChannel {
             'hour': hour,
             'minute': minute,
             'days': days,
+            'wakeVideoId': wakeVideoId,
+            'wakeVideoUrl': wakeVideoUrl,
+            'wakeVideoTitle': wakeVideoTitle,
+            'wakeTargetDate': wakeTargetDate,
+            'wakeScheduleJson': wakeScheduleJson,
           })) ??
           false;
     } catch (_) {
@@ -149,6 +167,20 @@ class MethodChannelWakeAlarm implements WakeAlarmChannel {
           false;
     } catch (_) {
       return false;
+    }
+  }
+
+  @override
+  Future<Map<String, dynamic>?> consumeWakeRingingLaunchDetails() async {
+    try {
+      final raw = await _channel.invokeMethod<dynamic>(
+        'consumeWakeRingingLaunchDetails',
+      );
+      return raw is Map
+          ? raw.map((key, value) => MapEntry(key.toString(), value))
+          : null;
+    } catch (_) {
+      return null;
     }
   }
 

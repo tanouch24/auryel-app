@@ -1,10 +1,12 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
 
 import '../data/wake_sound_catalog.dart';
 import '../data/wake_video.dart';
+import '../data/content_repository.dart';
 
 import 'package:permission_handler/permission_handler.dart';
 import 'package:phosphor_icons/phosphor_icons.dart';
@@ -62,6 +64,8 @@ class _WakeSettingsScreenState extends State<WakeSettingsScreen>
   bool _loading = true;
   bool _awaitingPermission = false;
   int? _lastNavIndex;
+  WakeVideo _dailyVideo = WakeVideoCatalog.pilot;
+  bool _dailyVideoLoaded = false;
 
   @override
   void initState() {
@@ -91,6 +95,7 @@ class _WakeSettingsScreenState extends State<WakeSettingsScreen>
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
+    if (!_dailyVideoLoaded) unawaited(_resolveDailyVideo(DateTime.now()));
     final nav = MainNavScope.maybeOf(context);
     if (nav != null &&
         nav.currentIndex != _lastNavIndex &&
@@ -108,19 +113,79 @@ class _WakeSettingsScreenState extends State<WakeSettingsScreen>
   }
 
   Future<void> _prepareWakeVideo() async {
-    await _videoCache.prepare(WakeVideoCatalog.pilot);
+    await _videoCache.prepare(_dailyVideo);
+  }
+
+  Future<WakeVideo> _resolveDailyVideo(DateTime date) async {
+    final repository = ContentScope.maybeOf(context);
+    final video = repository == null
+        ? WakeVideoDailySelection.pick(WakeVideoCatalog.active, date)
+        : await repository.wakeOfDay(date);
+    if (mounted) {
+      setState(() {
+        _dailyVideo = video;
+        _dailyVideoLoaded = true;
+      });
+    }
+    return video;
   }
 
   Future<void> _persist(WakeAlarmSettings next) async {
-    setState(() => _settings = next);
-    await _store.save(next);
-    await _channel.setAlarmSound(wakeSoundById(next.soundId).nativeResource);
+    final target = WakeScheduleDate.nextTarget(
+      DateTime.now(),
+      next.hour,
+      next.minute,
+      next.days,
+    );
+    final repository = ContentScope.maybeOf(context);
+    final catalog = repository == null
+        ? WakeVideoCatalog.active
+        : await repository.wakeVideos();
+    final resolvedCatalog = catalog.isEmpty ? WakeVideoCatalog.active : catalog;
+    final video = WakeVideoDailySelection.pick(resolvedCatalog, target);
+    final schedule = <Map<String, dynamic>>[];
+    var cursor = target;
+    for (var i = 0; i < 31; i++) {
+      final scheduledVideo = WakeVideoDailySelection.pick(
+        resolvedCatalog,
+        cursor,
+      );
+      schedule.add({
+        'id': scheduledVideo.id,
+        'url': scheduledVideo.remoteUrl,
+        'title': scheduledVideo.title,
+        'date': ContentRepository.dayString(cursor),
+      });
+      cursor = WakeScheduleDate.nextTarget(
+        cursor.add(const Duration(minutes: 1)),
+        next.hour,
+        next.minute,
+        next.days,
+      );
+    }
+    unawaited(_videoCache.prepare(video));
+    final snapshot = next.copyWith(
+      wakeVideoId: video.id,
+      wakeVideoUrl: video.remoteUrl,
+      wakeVideoTitle: video.title,
+      wakeTargetDate: ContentRepository.dayString(target),
+    );
+    setState(() => _settings = snapshot);
+    await _store.save(snapshot);
+    await _channel.setAlarmSound(
+      wakeSoundById(snapshot.soundId).nativeResource,
+    );
     if (next.enabled) {
       final scheduled = await _channel.saveAlarm(
         enabled: true,
-        hour: next.hour,
-        minute: next.minute,
-        days: next.days.toList(),
+        hour: snapshot.hour,
+        minute: snapshot.minute,
+        days: snapshot.days.toList(),
+        wakeVideoId: snapshot.wakeVideoId,
+        wakeVideoUrl: snapshot.wakeVideoUrl,
+        wakeVideoTitle: snapshot.wakeVideoTitle,
+        wakeTargetDate: snapshot.wakeTargetDate,
+        wakeScheduleJson: jsonEncode(schedule),
       );
       if (scheduled) widget.onConfigured?.call();
     } else {
@@ -130,15 +195,13 @@ class _WakeSettingsScreenState extends State<WakeSettingsScreen>
 
   Future<void> _testWake() async {
     if (!mounted) return;
-    await _prepareWakeVideo();
+    final video = await _resolveDailyVideo(DateTime.now());
+    await _videoCache.prepare(video);
     if (!mounted) return;
     await Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (_) => WakeRingingScreen(
-          testMode: true,
-          video: WakeVideoCatalog.pilot,
-          cache: _videoCache,
-        ),
+        builder: (_) =>
+            WakeRingingScreen(testMode: true, video: video, cache: _videoCache),
       ),
     );
   }

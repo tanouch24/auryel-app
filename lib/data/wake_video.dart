@@ -8,12 +8,18 @@ class WakeVideo {
   const WakeVideo({
     required this.id,
     required this.remoteUrl,
+    this.title = 'Réveil Auryel',
+    this.durationSeconds,
+    this.sortOrder = 0,
     this.localPath,
     this.version,
   });
 
   final String id;
   final String remoteUrl;
+  final String title;
+  final int? durationSeconds;
+  final int sortOrder;
   final String? localPath;
   final String? version;
 
@@ -22,9 +28,47 @@ class WakeVideo {
   WakeVideo withLocalPath(String path) => WakeVideo(
     id: id,
     remoteUrl: remoteUrl,
+    title: title,
+    durationSeconds: durationSeconds,
+    sortOrder: sortOrder,
     localPath: path,
     version: version,
   );
+
+  static WakeVideo? tryFromJson(Map<String, dynamic> json) {
+    final id = json['id'] is String ? (json['id'] as String).trim() : '';
+    final url = json['video_url'] is String
+        ? (json['video_url'] as String).trim()
+        : '';
+    if (id.isEmpty ||
+        !(url.startsWith('https://') || url.startsWith('http://'))) {
+      return null;
+    }
+    final rawTitle = json['title'] is String
+        ? (json['title'] as String).trim()
+        : '';
+    return WakeVideo(
+      id: id,
+      remoteUrl: url,
+      title: rawTitle.isEmpty ? 'Réveil Auryel' : rawTitle,
+      durationSeconds: json['duration_seconds'] is num
+          ? (json['duration_seconds'] as num).toInt()
+          : null,
+      sortOrder: json['sort_order'] is num
+          ? (json['sort_order'] as num).toInt()
+          : 0,
+      version: json['version'] is String ? json['version'] as String : null,
+    );
+  }
+
+  Map<String, dynamic> toCacheJson() => {
+    'id': id,
+    'video_url': remoteUrl,
+    'title': title,
+    if (durationSeconds != null) 'duration_seconds': durationSeconds,
+    'sort_order': sortOrder,
+    if (version != null) 'version': version,
+  };
 }
 
 class WakeVideoCatalog {
@@ -37,9 +81,73 @@ class WakeVideoCatalog {
   static const WakeVideo pilot = WakeVideo(
     id: 'wake-test-01',
     remoteUrl: pilotRemoteUrl,
+    title: 'Réveil Auryel — pilote',
   );
 
   static const List<WakeVideo> active = [pilot];
+}
+
+/// Sélection déterministe du contenu du jour. Le catalogue est trié par le
+/// serveur ; le résultat dépend uniquement de la date et du catalogue reçu.
+class WakeVideoDailySelection {
+  const WakeVideoDailySelection._();
+
+  static WakeVideo pick(List<WakeVideo> catalog, DateTime date) {
+    final items = [...catalog]
+      ..sort((a, b) {
+        final order = a.sortOrder.compareTo(b.sortOrder);
+        return order != 0 ? order : a.id.compareTo(b.id);
+      });
+    if (items.isEmpty) return WakeVideoCatalog.pilot;
+    if (items.length == 1) return items.first;
+
+    final index = _indexFor(date, items.length);
+    final previousIndex = _indexFor(
+      date.subtract(const Duration(days: 1)),
+      items.length,
+    );
+    final adjusted = index == previousIndex
+        ? (index + 1) % items.length
+        : index;
+    return items[adjusted];
+  }
+
+  static int _indexFor(DateTime date, int length) {
+    final day =
+        '${date.year.toString().padLeft(4, '0')}-'
+        '${date.month.toString().padLeft(2, '0')}-'
+        '${date.day.toString().padLeft(2, '0')}';
+    var hash = 0;
+    for (final code in day.codeUnits) {
+      hash = (hash * 31 + code) & 0x7fffffff;
+    }
+    return hash % length;
+  }
+}
+
+class WakeScheduleDate {
+  const WakeScheduleDate._();
+
+  static DateTime nextTarget(
+    DateTime now,
+    int hour,
+    int minute,
+    Set<int> days,
+  ) {
+    var candidate = DateTime(now.year, now.month, now.day, hour, minute);
+    if (!candidate.isAfter(now)) {
+      candidate = candidate.add(const Duration(days: 1));
+    }
+    if (days.isEmpty) return candidate;
+    for (var i = 0; i < 8; i++) {
+      final androidDay = candidate.weekday == DateTime.sunday
+          ? 1
+          : candidate.weekday + 1;
+      if (days.contains(androidDay)) return candidate;
+      candidate = candidate.add(const Duration(days: 1));
+    }
+    return candidate;
+  }
 }
 
 class WakeVideoCache {

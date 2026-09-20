@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 
 import '../../data/wake_alarm_prefs.dart';
 import '../../data/wake_video.dart';
+import '../../data/content_repository.dart';
 import '../../ads/ad_service.dart';
 import '../../theme/auryel_theme.dart';
 import '../../widgets/wake_video_stage.dart';
@@ -32,16 +33,29 @@ class _WakeOnboardingScreenState extends State<WakeOnboardingScreen> {
   bool _videoFailed = false;
   bool _configured = false;
   WakeAlarmSettings? _savedSettings;
+  bool _previewStarted = false;
 
   @override
   void initState() {
     super.initState();
     AuryelAds.instance.setOnboardingFlowActive(true);
-    unawaited(_loadPreview());
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (!_previewStarted) {
+      _previewStarted = true;
+      unawaited(_loadPreview());
+    }
   }
 
   Future<void> _loadPreview() async {
-    final file = await _cache.prepare(WakeVideoCatalog.pilot);
+    final repository = ContentScope.maybeOf(context);
+    final video = repository == null
+        ? WakeVideoDailySelection.pick(WakeVideoCatalog.active, DateTime.now())
+        : await repository.wakeOfDay(DateTime.now());
+    final file = await _cache.prepare(video);
     if (!mounted) return;
     setState(() {
       _videoPath = file?.path;
@@ -96,7 +110,9 @@ class _WakeOnboardingScreenState extends State<WakeOnboardingScreen> {
     if (_configured && _savedSettings != null) {
       return Scaffold(
         body: Container(
-          decoration: const BoxDecoration(gradient: AuryelColors.backgroundGradient),
+          decoration: const BoxDecoration(
+            gradient: AuryelColors.backgroundGradient,
+          ),
           child: SafeArea(
             child: Center(
               child: Padding(
@@ -104,11 +120,22 @@ class _WakeOnboardingScreenState extends State<WakeOnboardingScreen> {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Icon(Icons.alarm_rounded, size: 48, color: AuryelColors.goldLight),
+                    const Icon(
+                      Icons.alarm_rounded,
+                      size: 48,
+                      color: AuryelColors.goldLight,
+                    ),
                     const SizedBox(height: 20),
-                    Text('Votre réveil est prêt', style: AuryelText.display(fontSize: 25), textAlign: TextAlign.center),
+                    Text(
+                      'Votre réveil est prêt',
+                      style: AuryelText.display(fontSize: 25),
+                      textAlign: TextAlign.center,
+                    ),
                     const SizedBox(height: 10),
-                    Text('Il sonnera à ${_time(_savedSettings!)}.', style: AuryelText.body(color: AuryelColors.textSecondary)),
+                    Text(
+                      'Il sonnera à ${_time(_savedSettings!)}.',
+                      style: AuryelText.body(color: AuryelColors.textSecondary),
+                    ),
                     const SizedBox(height: 28),
                     ElevatedButton(
                       key: const Key('wake-onboarding-continue'),
@@ -127,18 +154,35 @@ class _WakeOnboardingScreenState extends State<WakeOnboardingScreen> {
     final path = _videoPath;
     return Scaffold(
       body: Container(
-        decoration: const BoxDecoration(gradient: AuryelColors.backgroundGradient),
+        decoration: const BoxDecoration(
+          gradient: AuryelColors.backgroundGradient,
+        ),
         child: SafeArea(
           child: SingleChildScrollView(
             padding: const EdgeInsets.fromLTRB(24, 28, 24, 36),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Text('RÉVEIL AURYEL', style: AuryelText.body(color: AuryelColors.gold, letterSpacing: 3.2)),
+                Text(
+                  'RÉVEIL AURYEL',
+                  style: AuryelText.body(
+                    color: AuryelColors.gold,
+                    letterSpacing: 3.2,
+                  ),
+                ),
                 const SizedBox(height: 14),
-                Text('Réveillez-vous avec Auryel', style: AuryelText.display(fontSize: 27)),
+                Text(
+                  'Réveillez-vous avec Auryel',
+                  style: AuryelText.display(fontSize: 27),
+                ),
                 const SizedBox(height: 10),
-                Text('Commencez votre journée avec une expérience pensée pour vous réveiller en douceur.', style: AuryelText.body(color: AuryelColors.textSecondary, height: 1.45)),
+                Text(
+                  'Commencez votre journée avec une expérience pensée pour vous réveiller en douceur.',
+                  style: AuryelText.body(
+                    color: AuryelColors.textSecondary,
+                    height: 1.45,
+                  ),
+                ),
                 const SizedBox(height: 22),
                 ClipRRect(
                   borderRadius: BorderRadius.circular(20),
@@ -148,9 +192,19 @@ class _WakeOnboardingScreenState extends State<WakeOnboardingScreen> {
                         ? Container(
                             color: AuryelColors.surface,
                             alignment: Alignment.center,
-                            child: Icon(_videoFailed ? Icons.wb_sunny_outlined : Icons.alarm_rounded, size: 58, color: AuryelColors.goldLight),
+                            child: Icon(
+                              _videoFailed
+                                  ? Icons.wb_sunny_outlined
+                                  : Icons.alarm_rounded,
+                              size: 58,
+                              color: AuryelColors.goldLight,
+                            ),
                           )
-                        : WakeVideoStage(key: _stageKey, file: File(path), muted: false),
+                        : WakeVideoStage(
+                            key: _stageKey,
+                            file: File(path),
+                            muted: false,
+                          ),
                   ),
                 ),
                 const SizedBox(height: 22),

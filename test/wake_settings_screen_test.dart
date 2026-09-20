@@ -43,6 +43,11 @@ class _FakeChannel implements WakeAlarmChannel {
     required int hour,
     required int minute,
     required List<int> days,
+    String? wakeVideoId,
+    String? wakeVideoUrl,
+    String? wakeVideoTitle,
+    String? wakeTargetDate,
+    String? wakeScheduleJson,
   }) async {
     calls.add('saveAlarm');
     lastSaved = (enabled: enabled, hour: hour, minute: minute, days: days);
@@ -58,6 +63,8 @@ class _FakeChannel implements WakeAlarmChannel {
 
   @override
   Future<bool> consumeWakeRingingLaunch() async => false;
+  @override
+  Future<Map<String, dynamic>?> consumeWakeRingingLaunchDetails() async => null;
 
   @override
   Future<void> stopRinging() async => calls.add('stopRinging');

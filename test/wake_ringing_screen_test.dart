@@ -28,6 +28,11 @@ class _FakeChannel implements WakeAlarmChannel {
     required int hour,
     required int minute,
     required List<int> days,
+    String? wakeVideoId,
+    String? wakeVideoUrl,
+    String? wakeVideoTitle,
+    String? wakeTargetDate,
+    String? wakeScheduleJson,
   }) async => true;
   @override
   Future<void> cancelAlarm() async {}
@@ -39,6 +44,8 @@ class _FakeChannel implements WakeAlarmChannel {
 
   @override
   Future<bool> consumeWakeRingingLaunch() async => false;
+  @override
+  Future<Map<String, dynamic>?> consumeWakeRingingLaunchDetails() async => null;
   @override
   Future<void> stopRinging() async => calls.add('stop');
 }

@@ -35,6 +35,9 @@ class WakeAlarmReceiver : BroadcastReceiver() {
         } finally {
             if (wakeLock.isHeld) wakeLock.release()
         }
+        if (!AlarmScheduler.isSnoozeAlarm(context)) {
+            AlarmScheduler.advanceWakeSnapshot(context)
+        }
         // Occurrence suivante programmée tout de suite : l'alarme reste
         // récurrente même si l'utilisateur ne rouvre jamais l'app.
         AlarmScheduler.armNext(context)
@@ -70,6 +73,9 @@ class WakeAlarmReceiver : BroadcastReceiver() {
 
         val fullScreenIntent = Intent(context, MainActivity::class.java).apply {
             putExtra(AlarmScheduler.EXTRA_WAKE_RINGING, true)
+            for ((key, value) in AlarmScheduler.wakeVideoSnapshot(context)) {
+                if (value != null) putExtra(key, value)
+            }
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or
                 Intent.FLAG_ACTIVITY_CLEAR_TOP or
                 Intent.FLAG_ACTIVITY_SINGLE_TOP

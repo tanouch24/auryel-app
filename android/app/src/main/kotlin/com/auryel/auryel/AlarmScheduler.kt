@@ -29,8 +29,17 @@ object AlarmScheduler {
     private const val KEY_MINUTE = "minute"
     private const val KEY_DAYS = "days" // Set<String> de Calendar.DAY_OF_WEEK (1=dimanche..7=samedi)
     private const val KEY_SOUND = "sound"
+    private const val KEY_WAKE_VIDEO_ID = "wake_video_id"
+    private const val KEY_WAKE_VIDEO_URL = "wake_video_url"
+    private const val KEY_WAKE_VIDEO_TITLE = "wake_video_title"
+    private const val KEY_WAKE_TARGET_DATE = "wake_target_date"
+    private const val KEY_WAKE_SCHEDULE = "wake_schedule"
     private const val KEY_SNOOZE_EPOCH = "snooze_epoch_millis"
     const val EXTRA_WAKE_RINGING = "auryel.wake_ringing"
+    const val EXTRA_WAKE_VIDEO_ID = "auryel.wake_video_id"
+    const val EXTRA_WAKE_VIDEO_URL = "auryel.wake_video_url"
+    const val EXTRA_WAKE_VIDEO_TITLE = "auryel.wake_video_title"
+    const val EXTRA_WAKE_TARGET_DATE = "auryel.wake_target_date"
     const val DEFAULT_SOUND = "wake_freesound_community_wake_up_33353"
 
     private fun prefs(ctx: Context) =
@@ -56,12 +65,22 @@ object AlarmScheduler {
      * l'alarme si activé. Renvoie `false` sans planifier si la permission
      * d'alarme exacte manque (l'appelant Dart doit alors guider l'utilisateur
      * vers le réglage spécial avant de réessayer). */
-    fun save(ctx: Context, enabled: Boolean, hour: Int, minute: Int, days: Set<Int>): Boolean {
+    fun save(
+        ctx: Context, enabled: Boolean, hour: Int, minute: Int, days: Set<Int>,
+        wakeVideoId: String?, wakeVideoUrl: String?, wakeVideoTitle: String?,
+        wakeTargetDate: String?,
+        wakeScheduleJson: String?,
+    ): Boolean {
         prefs(ctx).edit()
             .putBoolean(KEY_ENABLED, enabled)
             .putInt(KEY_HOUR, hour)
             .putInt(KEY_MINUTE, minute)
             .putStringSet(KEY_DAYS, days.map { it.toString() }.toSet())
+            .putString(KEY_WAKE_VIDEO_ID, wakeVideoId)
+            .putString(KEY_WAKE_VIDEO_URL, wakeVideoUrl)
+            .putString(KEY_WAKE_VIDEO_TITLE, wakeVideoTitle)
+            .putString(KEY_WAKE_TARGET_DATE, wakeTargetDate)
+            .putString(KEY_WAKE_SCHEDULE, wakeScheduleJson)
             .remove(KEY_SNOOZE_EPOCH)
             .apply()
         if (!enabled) {
@@ -80,6 +99,35 @@ object AlarmScheduler {
 
     fun setSound(ctx: Context, soundId: String) {
         prefs(ctx).edit().putString(KEY_SOUND, soundId).apply()
+    }
+
+    fun wakeVideoSnapshot(ctx: Context): Map<String, String?> = mapOf(
+        EXTRA_WAKE_VIDEO_ID to prefs(ctx).getString(KEY_WAKE_VIDEO_ID, null),
+        EXTRA_WAKE_VIDEO_URL to prefs(ctx).getString(KEY_WAKE_VIDEO_URL, null),
+        EXTRA_WAKE_VIDEO_TITLE to prefs(ctx).getString(KEY_WAKE_VIDEO_TITLE, null),
+        EXTRA_WAKE_TARGET_DATE to prefs(ctx).getString(KEY_WAKE_TARGET_DATE, null),
+    )
+
+    /** Promotes the next precomputed daily content after an alarm fires. */
+    fun advanceWakeSnapshot(ctx: Context) {
+        val p = prefs(ctx)
+        val raw = p.getString(KEY_WAKE_SCHEDULE, null) ?: return
+        try {
+            val array = org.json.JSONArray(raw)
+            if (array.length() <= 1) return
+            val next = array.getJSONObject(1)
+            p.edit()
+                .putString(KEY_WAKE_VIDEO_ID, next.optString("id", null))
+                .putString(KEY_WAKE_VIDEO_URL, next.optString("url", null))
+                .putString(KEY_WAKE_VIDEO_TITLE, next.optString("title", null))
+                .putString(KEY_WAKE_TARGET_DATE, next.optString("date", null))
+                .putString(KEY_WAKE_SCHEDULE, org.json.JSONArray().apply {
+                    for (index in 1 until array.length()) put(array.get(index))
+                }.toString())
+                .apply()
+        } catch (_: Exception) {
+            // The native alarm must remain reliable if a cache is malformed.
+        }
     }
 
     fun soundResourceName(ctx: Context): String =
@@ -102,6 +150,9 @@ object AlarmScheduler {
         p.edit().putLong(KEY_SNOOZE_EPOCH, epoch).apply()
         armAt(ctx, epoch)
     }
+
+    fun isSnoozeAlarm(ctx: Context): Boolean =
+        prefs(ctx).getLong(KEY_SNOOZE_EPOCH, 0L) > 0L
 
     /** Recalcule et (ré)arme la PROCHAINE occurrence — utilisée après avoir
      * sonné (jour suivant), après un redémarrage, ou juste après `save()`.

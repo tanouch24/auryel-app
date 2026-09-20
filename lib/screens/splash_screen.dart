@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../data/intro_video_store.dart';
+import '../data/wake_video.dart';
 import '../services/wake_alarm_channel.dart';
 import '../state/auryel_state.dart';
 import '../state/auth_controller.dart';
@@ -221,10 +222,23 @@ class _SplashScreenState extends State<SplashScreen> {
   }
 
   Future<void> _maybeShowWakeRinging(NavigatorState navigator) async {
-    final launched = await _wakeChannel.consumeWakeRingingLaunch();
-    if (!launched || !mounted) return;
+    final details = await _wakeChannel.consumeWakeRingingLaunchDetails();
+    if (details == null && !await _wakeChannel.consumeWakeRingingLaunch()) {
+      return;
+    }
+    final video = details == null
+        ? WakeVideoCatalog.pilot
+        : WakeVideo.tryFromJson({
+            'id': details['wakeVideoId'],
+            'video_url': details['wakeVideoUrl'],
+            'title': details['wakeVideoTitle'],
+          });
+    if (!mounted) return;
     navigator.push(
-      MaterialPageRoute(builder: (_) => const WakeRingingScreen()),
+      MaterialPageRoute(
+        builder: (_) =>
+            WakeRingingScreen(video: video ?? WakeVideoCatalog.pilot),
+      ),
     );
   }
 
