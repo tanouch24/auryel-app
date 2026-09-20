@@ -5,7 +5,7 @@ import '../state/auth_controller.dart';
 import '../state/wellbeing_controller.dart';
 import '../theme/auryel_theme.dart';
 import '../widgets/wellbeing_journey_map.dart';
-import 'meditation_screen.dart';
+import 'meditation_library_screen.dart';
 import 'tirage_screen.dart';
 
 /// « Mon parcours bien-être » — 4 missions quotidiennes, progression par cycle
@@ -156,8 +156,7 @@ class _WellbeingJourneyScreenState extends State<WellbeingJourneyScreen>
   }
 
   Future<void> _openMoment() async {
-    await Navigator.of(context)
-        .push(MaterialPageRoute(builder: (_) => const MeditationScreen()));
+    await openVideoMeditationLibrary(context);
     await _controller?.refresh();
   }
 

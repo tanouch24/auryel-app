@@ -35,7 +35,7 @@ import '../widgets/auryel_banner.dart';
 import 'dashboard_screen.dart';
 import 'premium_screen.dart';
 import 'rewards_wallet_screen.dart';
-import 'meditation_feed_screen.dart';
+import 'meditation_library_screen.dart';
 import 'tirage_jeu_screen.dart';
 import 'tirage_screen.dart';
 
@@ -1161,11 +1161,7 @@ class _MissionsSectionState extends State<_MissionsSection>
         // sur une activité de consultation réelle).
         _goTab(kTabConsultation);
       case 'moment':
-        // Le lecteur reste une route interne depuis le nouveau parcours ; il
-        // ne réapparaît pas comme onglet principal.
-        Navigator.of(
-          context,
-        ).push(MaterialPageRoute(builder: (_) => const MeditationFeedScreen()));
+        await openVideoMeditationLibrary(context);
     }
     if (mounted) await _refresh();
   }

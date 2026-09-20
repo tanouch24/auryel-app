@@ -1,10 +1,37 @@
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../data/content_repository.dart';
 import '../data/meditation_catalog.dart';
 import '../data/meditation_item.dart';
+import '../data/relaxation_video.dart';
 import '../theme/auryel_theme.dart';
 import 'meditation_feed_screen.dart';
+import 'relaxation_video_feed_screen.dart';
+
+/// Ouvre le parcours utilisateur actuel : la bibliothèque vidéo dynamique.
+///
+/// Le lecteur audio historique reste compilable pour les données legacy et
+/// ses tests, mais aucune route de production ne doit plus y conduire.
+Future<void> openVideoMeditationLibrary(BuildContext context) async {
+  final content = ContentScope.maybeOf(context);
+  final videos = content == null
+      ? const <RelaxationVideo>[]
+      : await content.meditationVideos();
+  if (!context.mounted) return;
+  final prefs = await SharedPreferences.getInstance();
+  if (!context.mounted) return;
+  const lastKey = 'auryel.meditations.last_played_slug.v1';
+  await Navigator.of(context).push(
+    MaterialPageRoute(
+      builder: (_) => RelaxationVideoFeedScreen(
+        videos: videos,
+        lastPlayedSlug: prefs.getString(lastKey),
+        onItemChanged: (video) => prefs.setString(lastKey, video.slug),
+      ),
+    ),
+  );
+}
 
 /// Onglet « Méditation » — la BIBLIOTHÈQUE. Une liste 100 % distante et
 /// extensible : 1 entrée = 1 AUDIO, identifiée par `id` stable. Une méditation

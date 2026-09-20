@@ -23,7 +23,6 @@ import 'premium_screen.dart';
 import 'rewards_wallet_screen.dart';
 import 'ebook_reader_screen.dart';
 import 'meditation_library_screen.dart';
-import 'meditation_screen.dart';
 import 'exercise_detail_screen.dart';
 
 /// Délai de présentation naturel après réception de la réponse réelle.
@@ -779,19 +778,7 @@ class _ChatScreenState extends State<ChatScreen> {
       return;
     }
     if (recommendation.isMeditation) {
-      if (recommendation.navigationOnly) {
-        await Navigator.of(context).push(
-          MaterialPageRoute(builder: (_) => const MeditationLibraryScreen()),
-        );
-        return;
-      }
-      final item = recommendation.asMeditation();
-      if (item == null) return;
-      await Navigator.of(context).push(
-        MaterialPageRoute(
-          builder: (_) => MeditationScreen(item: item, autoplayOnOpen: true),
-        ),
-      );
+      await openVideoMeditationLibrary(context);
       return;
     }
     final exercise = recommendation.asExercise();

@@ -18,8 +18,8 @@ import 'package:auryel/data/meditation_catalog.dart';
 import 'package:auryel/data/meditation_feed_order.dart';
 import 'package:auryel/data/meditation_item.dart';
 import 'package:auryel/screens/meditation_feed_screen.dart';
-import 'package:auryel/screens/meditation_library_screen.dart';
 import 'package:auryel/screens/meditation_screen.dart';
+import 'package:auryel/screens/relaxation_video_feed_screen.dart';
 import 'package:auryel/widgets/relaxation_video_background.dart';
 
 // ===========================================================================
@@ -413,7 +413,7 @@ void main() {
   });
 
   testWidgets(
-    'bouton « Toutes les méditations » ouvre la bibliothèque existante',
+    'bouton « Toutes les méditations » ouvre la bibliothèque vidéo existante',
     (t) async {
       final repo = _repoWithMeditations([_m('a'), _m('b')]);
       await t.pumpWidget(_host(repo));
@@ -421,7 +421,7 @@ void main() {
 
       await t.tap(find.byKey(const Key('meditation-feed-library-button')));
       await t.pumpAndSettle();
-      expect(find.byType(MeditationLibraryScreen), findsOneWidget);
+      expect(find.byType(RelaxationVideoFeedScreen), findsOneWidget);
     },
   );
 

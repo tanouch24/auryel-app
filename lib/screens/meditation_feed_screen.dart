@@ -506,9 +506,7 @@ class _MeditationFeedScreenState extends State<MeditationFeedScreen> {
   }
 
   void _openLibrary() {
-    Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => const MeditationLibraryScreen()),
-    );
+    unawaited(openVideoMeditationLibrary(context));
   }
 
   @override
