@@ -4,19 +4,25 @@ import '../api/api_client.dart';
 import '../api/unread_api.dart';
 
 class UnreadController extends ChangeNotifier {
-  UnreadController({
-    required this._api,
-    required this._tokenProvider,
-  });
+  UnreadController({required this._api, required this._tokenProvider});
 
   final UnreadApi _api;
   final Future<String?> Function() _tokenProvider;
   Map<String, int> _counts = const {};
+  final Set<String> _consultationAdvisorIds = <String>{};
   bool _refreshing = false;
 
   int count(String category) => _counts[category] ?? 0;
   int get consultation => count('consultation');
   int get wellbeing => count('wellbeing');
+  Set<String> get consultationAdvisorIds =>
+      Set.unmodifiable(_consultationAdvisorIds);
+
+  void noteConsultationAdvisor(String? advisorId) {
+    final normalized = advisorId?.trim().toLowerCase();
+    if (normalized == null || normalized.isEmpty) return;
+    if (_consultationAdvisorIds.add(normalized)) notifyListeners();
+  }
 
   Future<void> refresh() async {
     if (_refreshing) return;
@@ -25,6 +31,7 @@ class UnreadController extends ChangeNotifier {
       final token = await _tokenProvider();
       if (token == null || token.isEmpty) return;
       _counts = await _api.counts(bearer: token);
+      if (consultation == 0) _consultationAdvisorIds.clear();
       notifyListeners();
     } on ApiUnauthorizedException {
       clear();
@@ -45,8 +52,10 @@ class UnreadController extends ChangeNotifier {
       if (_counts.containsKey(category)) {
         final next = Map<String, int>.from(_counts)..[category] = 0;
         _counts = next;
+        if (category == 'consultation') _consultationAdvisorIds.clear();
         notifyListeners();
       }
+      await refresh();
     } on ApiUnauthorizedException {
       clear();
     } on ApiException {
@@ -57,8 +66,9 @@ class UnreadController extends ChangeNotifier {
   }
 
   void clear() {
-    if (_counts.isEmpty) return;
+    if (_counts.isEmpty && _consultationAdvisorIds.isEmpty) return;
     _counts = const {};
+    _consultationAdvisorIds.clear();
     notifyListeners();
   }
 }

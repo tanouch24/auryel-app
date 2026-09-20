@@ -27,6 +27,21 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   group('FcmNotificationService — Firebase absent (env de test)', () {
+    test('notification title/body complètent data sans écraser data', () {
+      final message = RemoteMessage(
+        data: const {'type': 'personal_guidance', 'title': 'Titre data'},
+        notification: const RemoteNotification(
+          title: 'Titre FCM',
+          body: 'Corps FCM',
+        ),
+      );
+      final data = FcmNotificationService.notificationDataFromRemoteMessage(
+        message,
+      );
+      expect(data['title'], 'Titre data');
+      expect(data['body'], 'Corps FCM');
+      expect(data['type'], 'personal_guidance');
+    });
     test('R1 — initialize() ne crash pas, isAvailable == false', () async {
       final s = FcmNotificationService();
       addTearDown(s.dispose);

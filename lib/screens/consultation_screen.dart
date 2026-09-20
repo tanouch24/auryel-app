@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:phosphor_icons/phosphor_icons.dart';
 
@@ -6,6 +8,7 @@ import '../data/advisor_audio.dart';
 import '../data/consultation.dart';
 import '../state/auth_controller.dart';
 import '../state/consultation_controller.dart';
+import '../state/unread_controller.dart';
 import '../theme/auryel_theme.dart';
 import '../widgets/advisors_carousel.dart' show AdvisorInfo, advisorByGuideKey;
 import '../widgets/main_nav_scope.dart';
@@ -35,11 +38,13 @@ class ConsultationScreen extends StatefulWidget {
     super.key,
     this.audioOverride,
     this.pendingContext,
+    this.notificationAdvisorId,
   });
 
   /// Transmis au sélecteur de conseillers (aucun canal plateforme en test).
   final AdvisorAudio? audioOverride;
   final String? pendingContext;
+  final ValueNotifier<String?>? notificationAdvisorId;
 
   @override
   State<ConsultationScreen> createState() => _ConsultationScreenState();
@@ -49,11 +54,22 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
   bool _refreshedOnce = false;
   int? _lastTabIndex;
   bool _busy = false;
+  bool _openingNotification = false;
 
   @override
   void initState() {
     super.initState();
+    widget.notificationAdvisorId?.addListener(_openNotificationAdvisor);
     WidgetsBinding.instance.addPostFrameCallback((_) => _refresh());
+    WidgetsBinding.instance.addPostFrameCallback(
+      (_) => _openNotificationAdvisor(),
+    );
+  }
+
+  @override
+  void dispose() {
+    widget.notificationAdvisorId?.removeListener(_openNotificationAdvisor);
+    super.dispose();
   }
 
   @override
@@ -78,12 +94,38 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
     await ConsultationScope.maybeReadOf(context)?.refreshConsultations();
   }
 
+  Future<void> _openNotificationAdvisor() async {
+    if (!mounted || _openingNotification) return;
+    final advisorId = widget.notificationAdvisorId?.value;
+    if (advisorId == null || advisorId.isEmpty) return;
+    _openingNotification = true;
+    try {
+      await _refresh();
+      if (!mounted) return;
+      ConsultationSummaryDto? summary;
+      for (final item
+          in _controller?.consultations ?? const <ConsultationSummaryDto>[]) {
+        if (item.advisorId == advisorId) {
+          summary = item;
+          break;
+        }
+      }
+      widget.notificationAdvisorId?.value = null;
+      if (summary != null) {
+        await _openThread(summary, markReadOnOpen: true);
+      }
+    } finally {
+      _openingNotification = false;
+    }
+  }
+
   ConsultationController? get _controller =>
       ConsultationScope.maybeReadOf(context);
 
   Future<void> _openThread(
     ConsultationSummaryDto summary, {
     String? initialMessage,
+    bool markReadOnOpen = true,
   }) async {
     final advisor = advisorByGuideKey(summary.advisorId);
     if (advisor == null) {
@@ -91,6 +133,9 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
       // conseiller. Erreur utilisateur contrôlée.
       _snack('Cette consultation est momentanément indisponible.');
       return;
+    }
+    if (markReadOnOpen) {
+      unawaited(UnreadScope.maybeReadOf(context)?.markRead('consultation'));
     }
     await Navigator.of(context).push(
       MaterialPageRoute(
@@ -204,6 +249,9 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
                 onChoose: _chooseAdvisor,
                 onOpen: _openThread,
                 busy: _busy,
+                unreadAdvisorIds:
+                    UnreadScope.maybeOf(context)?.consultationAdvisorIds ??
+                    const <String>{},
               )
             : ListenableBuilder(
                 listenable: controller,
@@ -212,6 +260,9 @@ class _ConsultationScreenState extends State<ConsultationScreen> {
                   onChoose: _chooseAdvisor,
                   onOpen: _openThread,
                   busy: _busy,
+                  unreadAdvisorIds:
+                      UnreadScope.maybeOf(context)?.consultationAdvisorIds ??
+                      const <String>{},
                 ),
               ),
       ),
@@ -227,12 +278,14 @@ class _Body extends StatelessWidget {
     required this.onChoose,
     required this.onOpen,
     required this.busy,
+    required this.unreadAdvisorIds,
   });
 
   final ConsultationController? controller;
   final VoidCallback onChoose;
   final ValueChanged<ConsultationSummaryDto> onOpen;
   final bool busy;
+  final Set<String> unreadAdvisorIds;
 
   @override
   Widget build(BuildContext context) {
@@ -297,6 +350,7 @@ class _Body extends StatelessWidget {
                   consultations: consultations,
                   onOpen: onOpen,
                   onAskAnother: busy ? null : onChoose,
+                  unreadAdvisorIds: unreadAdvisorIds,
                 ),
         ),
       ],
@@ -346,11 +400,13 @@ class _ConsultationList extends StatelessWidget {
     required this.consultations,
     required this.onOpen,
     required this.onAskAnother,
+    required this.unreadAdvisorIds,
   });
 
   final List<ConsultationSummaryDto> consultations;
   final ValueChanged<ConsultationSummaryDto> onOpen;
   final VoidCallback? onAskAnother;
+  final Set<String> unreadAdvisorIds;
 
   @override
   Widget build(BuildContext context) {
@@ -362,6 +418,7 @@ class _ConsultationList extends StatelessWidget {
             summary: summary,
             advisor: advisorByGuideKey(summary.advisorId),
             onTap: () => onOpen(summary),
+            unread: unreadAdvisorIds.contains(summary.advisorId),
           ),
         const SizedBox(height: 8),
         _OutlineButton(label: 'Demander un autre avis', onTap: onAskAnother),
@@ -375,11 +432,13 @@ class _ConsultationCard extends StatelessWidget {
     required this.summary,
     required this.advisor,
     required this.onTap,
+    required this.unread,
   });
 
   final ConsultationSummaryDto summary;
   final AdvisorInfo? advisor;
   final VoidCallback onTap;
+  final bool unread;
 
   @override
   Widget build(BuildContext context) {
@@ -468,6 +527,26 @@ class _ConsultationCard extends StatelessWidget {
                                     color: AuryelColors.goldLight,
                                     letterSpacing: 0.4,
                                   ),
+                                ),
+                              ),
+                            ],
+                            if (unread) ...[
+                              const SizedBox(width: 8),
+                              Container(
+                                width: 7,
+                                height: 7,
+                                decoration: const BoxDecoration(
+                                  color: AuryelColors.goldLight,
+                                  shape: BoxShape.circle,
+                                ),
+                              ),
+                              const SizedBox(width: 5),
+                              Text(
+                                'Nouveau',
+                                style: AuryelText.body(
+                                  fontSize: 9,
+                                  fontWeight: FontWeight.w700,
+                                  color: AuryelColors.goldLight,
                                 ),
                               ),
                             ],

@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 
@@ -14,7 +16,7 @@ import 'notification_payload.dart';
 /// `onMessageOpenedApp`).
 class LocalNotificationPresenter {
   LocalNotificationPresenter({FlutterLocalNotificationsPlugin? plugin})
-      : _plugin = plugin ?? FlutterLocalNotificationsPlugin();
+    : _plugin = plugin ?? FlutterLocalNotificationsPlugin();
 
   final FlutterLocalNotificationsPlugin _plugin;
 
@@ -42,7 +44,8 @@ class LocalNotificationPresenter {
       );
       await _plugin
           .resolvePlatformSpecificImplementation<
-              AndroidFlutterLocalNotificationsPlugin>()
+            AndroidFlutterLocalNotificationsPlugin
+          >()
           ?.createNotificationChannel(_channel);
       _ready = true;
     } catch (e) {
@@ -74,7 +77,13 @@ class LocalNotificationPresenter {
             visibility: NotificationVisibility.private,
           ),
         ),
-        payload: payload.type.wire,
+        payload: jsonEncode({
+          'type': payload.type.wire,
+          if (payload.advisor != null) 'advisor': payload.advisor,
+          if (payload.consultationId != null)
+            'consultation_id': payload.consultationId,
+          if (payload.contentId != null) 'content_id': payload.contentId,
+        }),
       );
     } catch (_) {
       /* affichage best-effort */
@@ -84,7 +93,21 @@ class LocalNotificationPresenter {
   void _onResponse(NotificationResponse response) {
     final cb = onSelect;
     if (cb == null) return;
-    final type = NotificationType.fromWire(response.payload);
-    cb(NotificationPayload(type: type));
+    final raw = response.payload;
+    if (raw == null || raw.isEmpty) return;
+    try {
+      final decoded = jsonDecode(raw);
+      if (decoded is Map) {
+        cb(
+          NotificationPayload.fromData(
+            decoded.map<String, Object?>((k, v) => MapEntry(k.toString(), v)),
+          ),
+        );
+        return;
+      }
+    } catch (_) {
+      // Legacy local notifications stored only the wire type.
+    }
+    cb(NotificationPayload(type: NotificationType.fromWire(raw)));
   }
 }

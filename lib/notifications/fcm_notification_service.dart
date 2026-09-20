@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
+import 'package:flutter/foundation.dart';
 
 import 'fcm_background_handler.dart';
 import 'notification_payload.dart';
@@ -70,7 +71,11 @@ class FcmNotificationService implements AuryelNotificationService {
       _subs.add(
         FirebaseMessaging.onMessage.listen((m) {
           if (!_foreground.isClosed) {
-            _foreground.add(NotificationPayload.fromData(_data(m)));
+            _foreground.add(
+              NotificationPayload.fromData(
+                notificationDataFromRemoteMessage(m),
+              ),
+            );
           }
         }),
       );
@@ -79,7 +84,11 @@ class FcmNotificationService implements AuryelNotificationService {
       _subs.add(
         FirebaseMessaging.onMessageOpenedApp.listen((m) {
           if (!_opened.isClosed) {
-            _opened.add(NotificationPayload.fromData(_data(m)));
+            _opened.add(
+              NotificationPayload.fromData(
+                notificationDataFromRemoteMessage(m),
+              ),
+            );
           }
         }),
       );
@@ -94,7 +103,9 @@ class FcmNotificationService implements AuryelNotificationService {
       // Notification ayant LANCÉ l'app depuis un état terminé.
       final initial = await _fm!.getInitialMessage();
       if (initial != null) {
-        _initialPayload = NotificationPayload.fromData(_data(initial));
+        _initialPayload = NotificationPayload.fromData(
+          notificationDataFromRemoteMessage(initial),
+        );
       }
 
       _available = true;
@@ -103,9 +114,24 @@ class FcmNotificationService implements AuryelNotificationService {
     }
   }
 
-  static Map<String, Object?> _data(RemoteMessage m) {
-    // `RemoteMessage.data` est `Map<String, dynamic>` ; on le normalise.
-    return m.data.map((k, v) => MapEntry(k, v as Object?));
+  /// Data values are authoritative when present; notification title/body are
+  /// the safe fallback used by FCM notification messages. Android exposes the
+  /// latter outside `RemoteMessage.data`, especially on the foreground path.
+  @visibleForTesting
+  static Map<String, Object?> notificationDataFromRemoteMessage(
+    RemoteMessage m,
+  ) {
+    final data = m.data.map((k, v) => MapEntry(k, v as Object?));
+    final notification = m.notification;
+    if ((data['title'] == null || data['title'].toString().trim().isEmpty) &&
+        notification?.title != null) {
+      data['title'] = notification!.title;
+    }
+    if ((data['body'] == null || data['body'].toString().trim().isEmpty) &&
+        notification?.body != null) {
+      data['body'] = notification!.body;
+    }
+    return data;
   }
 
   @override

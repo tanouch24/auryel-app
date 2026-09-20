@@ -51,18 +51,13 @@ class MainNavShell extends StatefulWidget {
 class _MainNavShellState extends State<MainNavShell> {
   int _index = 0;
 
+  late final ValueNotifier<String?> _pendingAdvisorId;
+  late final List<Widget> _screens;
+
   // Chaque shell possède ses propres instances d'écran. Une liste statique
   // partageait les mêmes widgets Stateful entre deux montages successifs
   // (notamment après AdultGate), ce qui pouvait laisser un callback
   // d'animation/transformation actif dans la suite Flutter.
-  final List<Widget> _screens = [
-    HomeScreen(),
-    WellbeingProgramScreen(),
-    ConsultationScreen(),
-    BoutiqueComingSoonScreen(),
-    WakeSettingsScreen(),
-  ];
-
   static const _router = NotificationRouter();
 
   AuryelNotificationService? _notifications;
@@ -73,12 +68,24 @@ class _MainNavShellState extends State<MainNavShell> {
   /// une cible `requiresAuth`) : rejouée dès que la session devient valide.
   NotificationRoute? _pendingRoute;
 
+  @override
+  void initState() {
+    super.initState();
+    _pendingAdvisorId = ValueNotifier(null);
+    _screens = [
+      HomeScreen(),
+      WellbeingProgramScreen(),
+      ConsultationScreen(notificationAdvisorId: _pendingAdvisorId),
+      BoutiqueComingSoonScreen(),
+      WakeSettingsScreen(),
+    ];
+  }
+
   void _goToTab(int i) {
     if (i < 0 || i >= _screens.length) return;
     final changed = _index != i;
     if (changed) setState(() => _index = i);
     final unread = UnreadScope.maybeReadOf(context);
-    if (i == kTabConsultation) unawaited(unread?.markRead('consultation'));
     if (i == kTabBienEtre) unawaited(unread?.markRead('wellbeing'));
     // La mission « Moment » n'est PLUS cochée à l'ouverture de l'onglet : elle
     // l'est uniquement sur une écoute réellement aboutie (cf. MeditationScreen).
@@ -120,6 +127,12 @@ class _MainNavShellState extends State<MainNavShell> {
     if (_pendingRoute != null && _isSignedIn) {
       final route = _pendingRoute!;
       _pendingRoute = null;
+      if (route.tabIndex == kTabConsultation) {
+        final unread = UnreadScope.maybeReadOf(context);
+        unread?.noteConsultationAdvisor(route.advisorId);
+        _pendingAdvisorId.value = route.advisorId;
+        unawaited(unread?.refresh());
+      }
       _goToTab(route.tabIndex);
     }
   }
@@ -136,6 +149,16 @@ class _MainNavShellState extends State<MainNavShell> {
       _pendingRoute = route;
       return;
     }
+    if (route.tabIndex == kTabConsultation) {
+      final unread = UnreadScope.maybeReadOf(context);
+      unread?.noteConsultationAdvisor(route.advisorId);
+      _pendingAdvisorId.value = route.advisorId;
+      unawaited(unread?.refresh());
+      // A notification tap must leave an already-open ChatScreen before the
+      // consultation destination is selected. Otherwise the underlying tab
+      // changes while the old chat remains visibly on top.
+      Navigator.of(context).popUntil((entry) => entry.isFirst);
+    }
     _goToTab(route.tabIndex);
   }
 
@@ -143,6 +166,7 @@ class _MainNavShellState extends State<MainNavShell> {
   void dispose() {
     _openedSub?.cancel();
     _foregroundTapSub?.cancel();
+    _pendingAdvisorId.dispose();
     super.dispose();
   }
 

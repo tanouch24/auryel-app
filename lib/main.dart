@@ -299,7 +299,15 @@ class _AuryelAppState extends State<AuryelApp> with WidgetsBindingObserver {
       final presenter = LocalNotificationPresenter()
         ..onSelect = notifications.handleForegroundTap;
       unawaited(presenter.initialize());
-      _foregroundSub = notifications.onForegroundMessage.listen(presenter.show);
+      _foregroundSub = notifications.onForegroundMessage.listen((payload) {
+        widget.unread?.noteConsultationAdvisor(
+          payload.type == NotificationType.personalGuidance
+              ? payload.advisor
+              : null,
+        );
+        unawaited(presenter.show(payload));
+        unawaited(widget.unread?.refresh() ?? Future<void>.value());
+      });
     }
   }
 
@@ -334,6 +342,7 @@ class _AuryelAppState extends State<AuryelApp> with WidgetsBindingObserver {
     // pour que « Consultations en cours » reflète l'activité la plus récente.
     if (state == AppLifecycleState.resumed && widget.auth.isSignedIn) {
       widget.consultation.refreshAll();
+      unawaited(widget.unread?.refresh() ?? Future<void>.value());
       widget.wellbeing?.refresh();
       widget.wellbeingProgram?.refresh();
       widget.wellbeingEbooks?.refresh();

@@ -224,8 +224,10 @@ void main() {
       expect(r.requiresAuth, isTrue);
     });
     test('5 — weekly_life_lesson supprimé -> type inconnu', () {
-      expect(NotificationType.fromWire('weekly_life_lesson'),
-          NotificationType.unknown);
+      expect(
+        NotificationType.fromWire('weekly_life_lesson'),
+        NotificationType.unknown,
+      );
     });
     test('6 — type inconnu -> null (aucune navigation)', () {
       expect(router.routeFor(NotificationType.unknown), isNull);
@@ -418,6 +420,17 @@ void main() {
         initial: _payload('personal_guidance'),
       );
       expect(await _pumpShell(t, fake, signedIn: true), kTabConsultation);
+    });
+
+    test('personal_guidance conserve le conseiller ciblé', () {
+      final route = const NotificationRouter().routeForPayload(
+        NotificationPayload.fromData(const {
+          'type': 'personal_guidance',
+          'advisor': 'thea',
+        }),
+      );
+      expect(route?.tabIndex, kTabConsultation);
+      expect(route?.advisorId, 'thea');
     });
 
     testWidgets('6/7 — type inconnu / payload vide -> onglet 0, aucun crash', (

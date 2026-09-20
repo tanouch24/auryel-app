@@ -4,7 +4,11 @@ import 'notification_payload.dart';
 /// Destination produit d'une notification : un onglet de [MainNavShell].
 /// JAMAIS un nouvel onglet, JAMAIS la Boutique.
 class NotificationRoute {
-  const NotificationRoute({required this.tabIndex, this.requiresAuth = false});
+  const NotificationRoute({
+    required this.tabIndex,
+    this.requiresAuth = false,
+    this.advisorId,
+  });
 
   /// Index d'onglet cible (`kTab*` de `main_nav_scope.dart`).
   final int tabIndex;
@@ -14,18 +18,23 @@ class NotificationRoute {
   /// après authentification (cf. `MainNavShell`), jamais forcée.
   final bool requiresAuth;
 
+  /// Canonical guide key carried by Personal Guidance notifications.
+  final String? advisorId;
+
   @override
   bool operator ==(Object other) =>
       other is NotificationRoute &&
       other.tabIndex == tabIndex &&
-      other.requiresAuth == requiresAuth;
+      other.requiresAuth == requiresAuth &&
+      other.advisorId == advisorId;
 
   @override
-  int get hashCode => Object.hash(tabIndex, requiresAuth);
+  int get hashCode => Object.hash(tabIndex, requiresAuth, advisorId);
 
   @override
   String toString() =>
-      'NotificationRoute(tab: $tabIndex, requiresAuth: $requiresAuth)';
+      'NotificationRoute(tab: $tabIndex, requiresAuth: $requiresAuth, '
+      'advisorId: $advisorId)';
 }
 
 /// Traduit un [NotificationType] en onglet. Table figée V1 :
@@ -61,6 +70,16 @@ class NotificationRouter {
     }
   }
 
-  NotificationRoute? routeForPayload(NotificationPayload payload) =>
-      routeFor(payload.type);
+  NotificationRoute? routeForPayload(NotificationPayload payload) {
+    final route = routeFor(payload.type);
+    if (route == null || payload.type != NotificationType.personalGuidance) {
+      return route;
+    }
+    final advisor = payload.advisor?.trim().toLowerCase();
+    return NotificationRoute(
+      tabIndex: route.tabIndex,
+      requiresAuth: route.requiresAuth,
+      advisorId: advisor == null || advisor.isEmpty ? null : advisor,
+    );
+  }
 }
