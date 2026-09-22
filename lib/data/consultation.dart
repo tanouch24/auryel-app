@@ -101,6 +101,16 @@ class ConsultationTimeState {
   /// bloc `time` est toujours présent.
   static ConsultationTimeState? maybeFromJson(Object? raw) =>
       raw is Map<String, dynamic> ? ConsultationTimeState.fromJson(raw) : null;
+
+  Map<String, dynamic> toJson() => {
+    'first_free_remaining_seconds': firstFreeRemainingSeconds,
+    'premium_remaining_seconds': premiumRemainingSeconds,
+    'earned_remaining_seconds': earnedRemainingSeconds,
+    'purchased_remaining_seconds': purchasedRemainingSeconds,
+    'total_remaining_seconds': totalRemainingSeconds,
+    'window_active': windowActive,
+    'window_expires_at': windowExpiresAt?.toIso8601String(),
+  };
 }
 
 /// DTO d'une consultation renvoyée par `POST /api/consultation/message` /
@@ -348,6 +358,18 @@ class QuotaDto {
     periodEnd: _date(json['period_end']),
     firstFreeAvailable: json['first_free_available'] == true,
   );
+
+  Map<String, dynamic> toJson() => {
+    'is_premium': isPremium,
+    'monthly_limit': monthlyLimit,
+    'monthly_used': monthlyUsed,
+    'monthly_remaining': monthlyRemaining,
+    'earned_available': earnedAvailable,
+    'questions_available': questionsAvailable,
+    'period_start': periodStart?.toIso8601String(),
+    'period_end': periodEnd?.toIso8601String(),
+    'first_free_available': firstFreeAvailable,
+  };
 }
 
 /// Réponse 200 de `POST /api/consultation/message`.

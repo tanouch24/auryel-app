@@ -30,7 +30,10 @@ class _NotificationOnboardingScreenState
     if (_busy) return;
     setState(() => _busy = true);
     if (service != null) {
-      await service.requestPermission();
+      final status = await service.permissionStatus();
+      if (status == NotificationPermissionStatus.notDetermined) {
+        await service.requestPermission();
+      }
     }
     if (!mounted) return;
     _continue();
@@ -47,7 +50,9 @@ class _NotificationOnboardingScreenState
   @override
   Widget build(BuildContext context) => Scaffold(
     body: Container(
-      decoration: const BoxDecoration(gradient: AuryelColors.backgroundGradient),
+      decoration: const BoxDecoration(
+        gradient: AuryelColors.backgroundGradient,
+      ),
       child: SafeArea(
         child: Padding(
           padding: const EdgeInsets.fromLTRB(28, 28, 28, 24),
@@ -55,20 +60,29 @@ class _NotificationOnboardingScreenState
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               const Spacer(),
-              const Icon(Icons.notifications_none_rounded,
-                  size: 58, color: AuryelColors.goldLight),
+              const Icon(
+                Icons.notifications_none_rounded,
+                size: 58,
+                color: AuryelColors.goldLight,
+              ),
               const SizedBox(height: 24),
-              Text('Reste connecté à Auryel',
-                  textAlign: TextAlign.center,
-                  style: AuryelText.display(fontSize: 28,
-                      fontWeight: FontWeight.w600)),
+              Text(
+                'Reste connecté à Auryel',
+                textAlign: TextAlign.center,
+                style: AuryelText.display(
+                  fontSize: 28,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
               const SizedBox(height: 14),
               Text(
                 'Reçois ta pensée du jour, les nouveautés de ton conseiller '
                 'et tes moments Bien-être.',
                 textAlign: TextAlign.center,
-                style: AuryelText.body(color: AuryelColors.textSecondary,
-                    height: 1.45),
+                style: AuryelText.body(
+                  color: AuryelColors.textSecondary,
+                  height: 1.45,
+                ),
               ),
               const Spacer(),
               AuryelGoldButton(

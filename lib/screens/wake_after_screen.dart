@@ -25,6 +25,7 @@ class WakeAfterScreen extends StatefulWidget {
     super.key,
     this.selectorAudioOverride,
     this.pendingContext,
+    this.returnToOnboarding = false,
   });
 
   /// Test uniquement : lecteur audio du sélecteur de conseiller injecté
@@ -35,6 +36,9 @@ class WakeAfterScreen extends StatefulWidget {
   /// Brouillon contextuel à remettre au chat après un réveil réel. Il reste
   /// soumis à l'envoi explicite de l'utilisateur et n'est jamais envoyé ici.
   final String? pendingContext;
+  final bool returnToOnboarding;
+
+  static const onboardingRouteName = 'auryel:onboarding:wake';
 
   @override
   State<WakeAfterScreen> createState() => _WakeAfterScreenState();
@@ -44,6 +48,12 @@ class _WakeAfterScreenState extends State<WakeAfterScreen> {
   bool _opening = false;
 
   void _continueMyDay() {
+    if (widget.returnToOnboarding) {
+      Navigator.of(context).popUntil(
+        (route) => route.settings.name == WakeAfterScreen.onboardingRouteName,
+      );
+      return;
+    }
     Navigator.of(context).pushAndRemoveUntil(
       MaterialPageRoute(builder: (_) => const MainNavShell()),
       (route) => false,
@@ -180,9 +190,7 @@ class _WakeAfterScreenState extends State<WakeAfterScreen> {
                               borderRadius: BorderRadius.circular(16),
                             ),
                             child: Padding(
-                              padding: const EdgeInsets.symmetric(
-                                vertical: 16,
-                              ),
+                              padding: const EdgeInsets.symmetric(vertical: 16),
                               child: Center(
                                 child: _opening
                                     ? const SizedBox(

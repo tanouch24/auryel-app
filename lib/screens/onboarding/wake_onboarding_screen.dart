@@ -87,6 +87,7 @@ class _WakeOnboardingScreenState extends State<WakeOnboardingScreen> {
     await Navigator.of(context).push(
       MaterialPageRoute(
         builder: (_) => WakeSettingsScreen(
+          returnToOnboarding: true,
           onConfigured: () => Navigator.of(context).pop(true),
           onSkip: () => Navigator.of(context).pop(false),
         ),

@@ -119,6 +119,7 @@ void main() async {
     api: consultationApi,
     auth: auth,
     metaEvents: metaEvents,
+    userIdProvider: () => state.userId,
   );
   // AUDIT ACCUEIL/PARCOURS — instance UNIQUE et PARTAGÉE (cf. WellbeingScope) :
   // Le parcours bien-être reste disponible dans son écran dédié ; la Home
@@ -195,6 +196,7 @@ void main() async {
       unawaited(wellbeingEbooks.refresh());
       unawaited(unread.refresh());
     } else {
+      consultation.reset();
       unread.clear();
     }
   });

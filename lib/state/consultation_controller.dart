@@ -10,6 +10,7 @@ import '../analytics/meta_events.dart';
 import '../api/api_client.dart';
 import '../api/consultation_api.dart';
 import '../data/consultation.dart';
+import '../data/consultation_state_cache.dart';
 import 'auth_controller.dart';
 
 /// État global d'une consultation, partagé dans toute l'app (F4 / TIMER-D.1).
@@ -34,13 +35,19 @@ class ConsultationController extends ChangeNotifier {
     required ConsultationApi api,
     required AuthController auth,
     MetaEvents metaEvents = const NoopMetaEvents(),
+    ConsultationStateCache? stateCache,
+    String? Function()? userIdProvider,
   }) : _api = api,
        _auth = auth,
-       _meta = metaEvents;
+       _meta = metaEvents,
+       _stateCache = stateCache ?? ConsultationStateCache(),
+       _userIdProvider = userIdProvider;
 
   final ConsultationApi _api;
   final AuthController _auth;
   final MetaEvents _meta;
+  final ConsultationStateCache _stateCache;
+  final String? Function()? _userIdProvider;
 
   ConsultationDto? _active;
   QuotaDto? _quota;
@@ -79,6 +86,40 @@ class ConsultationController extends ChangeNotifier {
 
   bool get refreshing => _refreshing;
   Object? get refreshError => _refreshError;
+
+  String? get _cacheUserId => _userIdProvider?.call() ?? _auth.account?.userId;
+
+  /// Restaure uniquement le dernier état quota/Premium vérifié pour le même
+  /// compte. Cela rend le démarrage hors ligne lisible sans transformer le
+  /// cache en autorité : toute réponse serveur ultérieure le remplace.
+  Future<void> restoreLastKnownState() async {
+    if (_disposed || _quota != null) return;
+    final userId = _cacheUserId;
+    if (userId == null || userId.isEmpty) return;
+    final cached = await _stateCache.load(userId: userId);
+    if (_disposed || cached == null || _quota != null) return;
+    _quota = cached.quota;
+    _time = cached.time;
+    _syncTimer();
+    notifyListeners();
+  }
+
+  Future<void> _saveLastKnownState() async {
+    final userId = _cacheUserId;
+    final quota = _quota;
+    if (userId == null || userId.isEmpty || quota == null) return;
+    try {
+      await _stateCache.save(userId: userId, quota: quota, time: _time);
+    } catch (_) {
+      // Une panne du stockage local ne doit jamais interrompre la session.
+    }
+  }
+
+  void _clearLastKnownState() {
+    final userId = _cacheUserId;
+    if (userId == null || userId.isEmpty) return;
+    unawaited(_stateCache.clear(userId: userId));
+  }
 
   /// Secondes de temps disponible. Priorité au bloc `time` du serveur ;
   /// fallback backend ancien = `consultation.secondsRemaining` (le nouveau
@@ -184,6 +225,7 @@ class ConsultationController extends ChangeNotifier {
       _time = res.time; // null si backend ancien -> fallback [_walletSeconds]
       _refreshError = null;
       _syncTimer();
+      unawaited(_saveLastKnownState());
     } on ApiUnauthorizedException {
       _active = null;
       _time = null;
@@ -287,6 +329,7 @@ class ConsultationController extends ChangeNotifier {
     if (res.time != null) _time = res.time;
     _refreshError = null;
     _syncTimer();
+    unawaited(_saveLastKnownState());
     notifyListeners();
   }
 
@@ -297,6 +340,7 @@ class ConsultationController extends ChangeNotifier {
     if (time != null) _time = time;
     if (quota != null) _quota = quota;
     _syncTimer();
+    unawaited(_saveLastKnownState());
     notifyListeners();
   }
 
@@ -320,6 +364,7 @@ class ConsultationController extends ChangeNotifier {
     _consultations = const [];
     _consultationsError = null;
     _syncTimer();
+    _clearLastKnownState();
     notifyListeners();
   }
 

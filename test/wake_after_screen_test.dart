@@ -40,7 +40,10 @@ http.Response _json(Map<String, dynamic> body, [int status = 200]) =>
 
 class _FakeAudio implements AdvisorAudio {
   @override
-  Future<void> play(String assetPath, {Duration fadeIn = Duration.zero}) async {}
+  Future<void> play(
+    String assetPath, {
+    Duration fadeIn = Duration.zero,
+  }) async {}
   @override
   Future<void> stop() async {}
   @override
@@ -101,7 +104,12 @@ _Env _env({List<Map<String, dynamic>> threads = const []}) {
     tirageApi: TirageApi(client),
   );
   final controller = ConsultationController(api: capi, auth: auth);
-  return (auth: auth, controller: controller, posts: posts, openBodies: openBodies);
+  return (
+    auth: auth,
+    controller: controller,
+    posts: posts,
+    openBodies: openBodies,
+  );
 }
 
 Future<void> _pump(
@@ -143,6 +151,46 @@ Future<void> _pump(
 }
 
 void main() {
+  testWidgets(
+    'le retour du test depuis onboarding revient sur l\'étape Réveil',
+    (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Builder(
+            builder: (context) => Scaffold(
+              body: ElevatedButton(
+                onPressed: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      settings: const RouteSettings(
+                        name: WakeAfterScreen.onboardingRouteName,
+                      ),
+                      builder: (_) => const Text('Étape Réveil onboarding'),
+                    ),
+                  );
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) =>
+                          const WakeAfterScreen(returnToOnboarding: true),
+                    ),
+                  );
+                },
+                child: const Text('ouvrir réveil'),
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.text('ouvrir réveil'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Continuer ma journée'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Étape Réveil onboarding'), findsOneWidget);
+      expect(find.byType(WakeAfterScreen), findsNothing);
+    },
+  );
+
   testWidgets('affiche « Belle journée » + les deux CTA attendus', (
     tester,
   ) async {
@@ -215,38 +263,32 @@ void main() {
     },
   );
 
-  testWidgets(
-    'un fil existant pour ce conseiller est REPRIS (jamais de 2e '
-    '`POST /open`)',
-    (tester) async {
-      final e = _env(
-        threads: [
-          {
-            'id': 'c-selena-existing',
-            'advisor_id': 'selena',
-            'started_at': '2026-09-01T10:00:00Z',
-            'window_active': false,
-            'preview': 'salut',
-          },
-        ],
-      );
-      await _pump(tester, e);
+  testWidgets('un fil existant pour ce conseiller est REPRIS (jamais de 2e '
+      '`POST /open`)', (tester) async {
+    final e = _env(
+      threads: [
+        {
+          'id': 'c-selena-existing',
+          'advisor_id': 'selena',
+          'started_at': '2026-09-01T10:00:00Z',
+          'window_active': false,
+          'preview': 'salut',
+        },
+      ],
+    );
+    await _pump(tester, e);
 
-      await tester.tap(find.text('Parler à mon conseiller'));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Reprendre avec Séléna'));
-      await tester.pumpAndSettle();
-      await tester.pump(const Duration(milliseconds: 200));
-      await tester.pumpAndSettle();
+    await tester.tap(find.text('Parler à mon conseiller'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Reprendre avec Séléna'));
+    await tester.pumpAndSettle();
+    await tester.pump(const Duration(milliseconds: 200));
+    await tester.pumpAndSettle();
 
-      final chat = tester.widget<ChatScreen>(find.byType(ChatScreen));
-      expect(chat.consultationId, 'c-selena-existing');
-      expect(
-        e.posts.where((p) => p == 'POST /api/consultation/open'),
-        isEmpty,
-      );
-    },
-  );
+    final chat = tester.widget<ChatScreen>(find.byType(ChatScreen));
+    expect(chat.consultationId, 'c-selena-existing');
+    expect(e.posts.where((p) => p == 'POST /api/consultation/open'), isEmpty);
+  });
 
   testWidgets(
     'annuler le sélecteur -> reste sur « Belle journée », aucun appel réseau '
@@ -264,7 +306,9 @@ void main() {
       expect(find.byType(ChatScreen), findsNothing);
       expect(
         e.posts.where(
-          (p) => p.contains('consultation/open') || p.contains('consultation/message'),
+          (p) =>
+              p.contains('consultation/open') ||
+              p.contains('consultation/message'),
         ),
         isEmpty,
       );

@@ -87,10 +87,11 @@ class _SplashScreenState extends State<SplashScreen> {
     // transitoirement `quota == null` -> `isPremium: false` via les replis
     // `?? false`), il se reconstruit automatiquement dès que la réponse
     // serveur arrive — « non Premium » n'y est jamais un état terminal, juste
-    // transitoire. Aucun cache Premium local n'est introduit : le backend
-    // reste l'unique source de vérité.
+    // transitoire. Hors ligne, le dernier état vérifié du même compte peut
+    // être présenté ; le backend reste l'autorité des actions protégées.
     if (auth.isSignedIn) {
       // Portefeuille (`/state`) + liste des consultations (`/list`, J6-F2).
+      unawaited(consultation.restoreLastKnownState());
       unawaited(consultation.refreshAll());
       // AUDIT ACCUEIL/PARCOURS — même logique non bloquante : Accueil et
       // « Mon parcours bien-être » écoutent la MÊME instance partagée

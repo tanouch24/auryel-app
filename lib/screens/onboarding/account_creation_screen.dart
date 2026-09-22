@@ -11,6 +11,7 @@ import '../../widgets/auth_fields.dart';
 import '../../widgets/onboarding_scaffold.dart';
 import 'wake_onboarding_screen.dart';
 import 'email_auth_screen.dart';
+import '../wake_after_screen.dart';
 
 /// Étape 5/5 — création de compte AUTH V2 : email + mot de passe, AUCUN code OTP.
 ///
@@ -130,7 +131,8 @@ class _AccountCreationScreenState extends State<AccountCreationScreen> {
 
     // Le conseiller reste personnalisable dans l'application, mais ne bloque
     // plus l'inscription. Selena est uniquement le repli serveur explicite.
-    final advisor = advisorByNameOrNull(state.selectedAdvisor) ??
+    final advisor =
+        advisorByNameOrNull(state.selectedAdvisor) ??
         advisorByNameOrNull('Séléna');
     final prenom = (state.firstName ?? '').trim();
     final birth = state.birthDate;
@@ -167,7 +169,12 @@ class _AccountCreationScreenState extends State<AccountCreationScreen> {
         await state.completeOnboarding(userId: auth.account?.userId);
         if (!mounted) return;
         Navigator.of(context).pushAndRemoveUntil(
-          MaterialPageRoute(builder: (_) => const WakeOnboardingScreen()),
+          MaterialPageRoute(
+            settings: const RouteSettings(
+              name: WakeAfterScreen.onboardingRouteName,
+            ),
+            builder: (_) => const WakeOnboardingScreen(),
+          ),
           (route) => false,
         );
       case ProfileSyncOutcome.unauthorized:

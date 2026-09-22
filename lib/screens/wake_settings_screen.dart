@@ -28,6 +28,7 @@ class WakeSettingsScreen extends StatefulWidget {
     this.prefsStore,
     this.onConfigured,
     this.onSkip,
+    this.returnToOnboarding = false,
   });
 
   /// Test uniquement : pont natif / stockage injectés.
@@ -35,6 +36,7 @@ class WakeSettingsScreen extends StatefulWidget {
   final WakeAlarmPrefsStore? prefsStore;
   final VoidCallback? onConfigured;
   final VoidCallback? onSkip;
+  final bool returnToOnboarding;
 
   @override
   State<WakeSettingsScreen> createState() => _WakeSettingsScreenState();
@@ -200,8 +202,12 @@ class _WakeSettingsScreenState extends State<WakeSettingsScreen>
     if (!mounted) return;
     await Navigator.of(context).push(
       MaterialPageRoute(
-        builder: (_) =>
-            WakeRingingScreen(testMode: true, video: video, cache: _videoCache),
+        builder: (_) => WakeRingingScreen(
+          testMode: true,
+          video: video,
+          cache: _videoCache,
+          returnToOnboarding: widget.returnToOnboarding,
+        ),
       ),
     );
   }
