@@ -23,6 +23,7 @@ class UnreadController extends ChangeNotifier {
   Map<String, int> _counts = const {};
   final Set<String> _consultationAdvisorIds = <String>{};
   bool _refreshing = false;
+  int _sessionGeneration = 0;
 
   int count(String category) => _counts[category] ?? 0;
   int get consultation => count('consultation');
@@ -39,10 +40,13 @@ class UnreadController extends ChangeNotifier {
   Future<void> refresh() async {
     if (_refreshing) return;
     _refreshing = true;
+    final requestGeneration = _sessionGeneration;
     try {
       final token = await _tokenProvider();
       if (token == null || token.isEmpty) return;
-      _counts = await _api.counts(bearer: token);
+      final counts = await _api.counts(bearer: token);
+      if (requestGeneration != _sessionGeneration) return;
+      _counts = counts;
       if (consultation == 0) _consultationAdvisorIds.clear();
       notifyListeners();
       await _syncBadge();
@@ -58,10 +62,12 @@ class UnreadController extends ChangeNotifier {
   }
 
   Future<void> markRead(String category) async {
+    final requestGeneration = _sessionGeneration;
     final token = await _tokenProvider();
     if (token == null || token.isEmpty) return;
     try {
       await _api.markRead(category, bearer: token);
+      if (requestGeneration != _sessionGeneration) return;
       if (_counts.containsKey(category)) {
         final next = Map<String, int>.from(_counts)..[category] = 0;
         _counts = next;
@@ -80,10 +86,11 @@ class UnreadController extends ChangeNotifier {
   }
 
   void clear() {
-    if (_counts.isEmpty && _consultationAdvisorIds.isEmpty) return;
+    _sessionGeneration++;
+    final hadState = _counts.isNotEmpty || _consultationAdvisorIds.isNotEmpty;
     _counts = const {};
     _consultationAdvisorIds.clear();
-    notifyListeners();
+    if (hadState) notifyListeners();
     unawaited(_syncBadge());
   }
 
