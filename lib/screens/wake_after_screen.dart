@@ -26,6 +26,7 @@ class WakeAfterScreen extends StatefulWidget {
     this.selectorAudioOverride,
     this.pendingContext,
     this.returnToOnboarding = false,
+    this.returnToWakeSettings = false,
   });
 
   /// Test uniquement : lecteur audio du sélecteur de conseiller injecté
@@ -37,6 +38,10 @@ class WakeAfterScreen extends StatefulWidget {
   /// soumis à l'envoi explicite de l'utilisateur et n'est jamais envoyé ici.
   final String? pendingContext;
   final bool returnToOnboarding;
+
+  /// Le test lancé depuis l'onglet Réveil doit retrouver cet onglet, qui est
+  /// déjà sous la route du réveil dans la pile de navigation.
+  final bool returnToWakeSettings;
 
   static const onboardingRouteName = 'auryel:onboarding:wake';
 
@@ -52,6 +57,10 @@ class _WakeAfterScreenState extends State<WakeAfterScreen> {
       Navigator.of(context).popUntil(
         (route) => route.settings.name == WakeAfterScreen.onboardingRouteName,
       );
+      return;
+    }
+    if (widget.returnToWakeSettings) {
+      Navigator.of(context).pop();
       return;
     }
     Navigator.of(context).pushAndRemoveUntil(

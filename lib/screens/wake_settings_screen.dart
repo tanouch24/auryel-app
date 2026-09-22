@@ -207,6 +207,7 @@ class _WakeSettingsScreenState extends State<WakeSettingsScreen>
           video: video,
           cache: _videoCache,
           returnToOnboarding: widget.returnToOnboarding,
+          returnToWakeSettings: !widget.returnToOnboarding,
         ),
       ),
     );

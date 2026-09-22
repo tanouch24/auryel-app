@@ -23,6 +23,7 @@ class WakeRingingScreen extends StatefulWidget {
     this.video = WakeVideoCatalog.pilot,
     this.cache,
     this.returnToOnboarding = false,
+    this.returnToWakeSettings = false,
   });
 
   final WakeAlarmChannel? alarmChannel;
@@ -31,6 +32,7 @@ class WakeRingingScreen extends StatefulWidget {
   final WakeVideo video;
   final WakeVideoCache? cache;
   final bool returnToOnboarding;
+  final bool returnToWakeSettings;
 
   @override
   State<WakeRingingScreen> createState() => _WakeRingingScreenState();
@@ -98,6 +100,7 @@ class _WakeRingingScreenState extends State<WakeRingingScreen> {
         builder: (_) => WakeAfterScreen(
           pendingContext: 'Je viens de terminer mon réveil Auryel.',
           returnToOnboarding: widget.returnToOnboarding,
+          returnToWakeSettings: widget.returnToWakeSettings,
         ),
       ),
     );

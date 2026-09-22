@@ -191,6 +191,36 @@ void main() {
     },
   );
 
+  testWidgets(
+    'le retour du test depuis l\'onglet Réveil retrouve l\'onglet Réveil',
+    (tester) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: const Scaffold(body: Text('Onglet Réveil')),
+          onGenerateRoute: (settings) {
+            if (settings.name == '/test-wake') {
+              return MaterialPageRoute(
+                builder: (_) =>
+                    const WakeAfterScreen(returnToWakeSettings: true),
+              );
+            }
+            return null;
+          },
+        ),
+      );
+      final context = tester.element(find.text('Onglet Réveil'));
+      Navigator.of(context).pushNamed('/test-wake');
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('Continuer ma journée'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Onglet Réveil'), findsOneWidget);
+      expect(find.byType(WakeAfterScreen), findsNothing);
+      expect(find.byType(HomeScreen), findsNothing);
+    },
+  );
+
   testWidgets('affiche « Belle journée » + les deux CTA attendus', (
     tester,
   ) async {
