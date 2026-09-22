@@ -95,6 +95,8 @@ void main() {
     expect(find.text('Sonnerie'), findsNothing);
     expect(find.text('Écouter la sonnerie'), findsNothing);
     expect(find.text('Tester mon réveil'), findsOneWidget);
+    expect(find.byKey(const Key('wake-settings-preview')), findsOneWidget);
+    expect(find.text('Aperçu du réveil du jour'), findsOneWidget);
     expect(find.text('07:00'), findsOneWidget);
     expect(
       t.widget<Switch>(find.byKey(const Key('wake-enabled-switch'))).value,

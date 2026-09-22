@@ -15,6 +15,7 @@ import '../data/wake_alarm_prefs.dart';
 import '../services/wake_alarm_channel.dart';
 import '../theme/auryel_theme.dart';
 import '../widgets/main_nav_scope.dart';
+import '../widgets/wake_video_stage.dart';
 import 'wake_ringing_screen.dart';
 
 /// Onglet « Réveil » — Réveil Auryel. Volontairement SIMPLE :
@@ -68,13 +69,15 @@ class _WakeSettingsScreenState extends State<WakeSettingsScreen>
   int? _lastNavIndex;
   WakeVideo _dailyVideo = WakeVideoCatalog.pilot;
   bool _dailyVideoLoaded = false;
+  final _previewStageKey = GlobalKey<WakeVideoStageState>();
+  String? _previewPath;
+  bool _previewFailed = false;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _load();
-    unawaited(_prepareWakeVideo());
   }
 
   @override
@@ -114,10 +117,6 @@ class _WakeSettingsScreenState extends State<WakeSettingsScreen>
     });
   }
 
-  Future<void> _prepareWakeVideo() async {
-    await _videoCache.prepare(_dailyVideo);
-  }
-
   Future<WakeVideo> _resolveDailyVideo(DateTime date) async {
     final repository = ContentScope.maybeOf(context);
     final video = repository == null
@@ -128,8 +127,18 @@ class _WakeSettingsScreenState extends State<WakeSettingsScreen>
         _dailyVideo = video;
         _dailyVideoLoaded = true;
       });
+      unawaited(_prepareWakeVideo(video));
     }
     return video;
+  }
+
+  Future<void> _prepareWakeVideo(WakeVideo video) async {
+    final file = await _videoCache.prepare(video);
+    if (!mounted) return;
+    setState(() {
+      _previewPath = file?.path;
+      _previewFailed = file == null;
+    });
   }
 
   Future<void> _persist(WakeAlarmSettings next) async {
@@ -428,6 +437,37 @@ class _WakeSettingsScreenState extends State<WakeSettingsScreen>
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    Text(
+                      'Aperçu du réveil du jour',
+                      style: AuryelText.overline(color: AuryelColors.gold),
+                    ),
+                    const SizedBox(height: 10),
+                    ClipRRect(
+                      key: const Key('wake-settings-preview'),
+                      borderRadius: BorderRadius.circular(18),
+                      child: SizedBox(
+                        height: 184,
+                        width: double.infinity,
+                        child: _previewPath == null
+                            ? Container(
+                                color: AuryelColors.backgroundDeep,
+                                alignment: Alignment.center,
+                                child: Icon(
+                                  _previewFailed
+                                      ? Icons.wb_sunny_outlined
+                                      : Icons.alarm_rounded,
+                                  size: 48,
+                                  color: AuryelColors.goldLight,
+                                ),
+                              )
+                            : WakeVideoStage(
+                                key: _previewStageKey,
+                                file: File(_previewPath!),
+                                muted: true,
+                              ),
+                      ),
+                    ),
+                    const SizedBox(height: 18),
                     Row(
                       children: [
                         Expanded(
