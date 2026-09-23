@@ -84,7 +84,7 @@ class _WakeSettingsScreenState extends State<WakeSettingsScreen>
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
-    unawaited(_previewStageKey.currentState?.stop());
+    unawaited(_stopPreview());
     _videoCache.close();
     super.dispose();
   }
@@ -108,8 +108,18 @@ class _WakeSettingsScreenState extends State<WakeSettingsScreen>
     final nav = MainNavScope.maybeOf(context);
     if (nav != null &&
         nav.currentIndex != _lastNavIndex &&
-        nav.currentIndex != kTabReveil) {}
+        nav.currentIndex != kTabReveil) {
+      unawaited(_stopPreview());
+    }
     _lastNavIndex = nav?.currentIndex;
+  }
+
+  Future<void> _stopPreview() async {
+    final stage = _previewStageKey.currentState;
+    if (stage != null) await stage.stop();
+    if (mounted && _previewPlaying) {
+      setState(() => _previewPlaying = false);
+    }
   }
 
   Future<void> _load() async {
@@ -215,12 +225,14 @@ class _WakeSettingsScreenState extends State<WakeSettingsScreen>
 
   Future<void> _testWake() async {
     if (!mounted) return;
+    final navigator = Navigator.of(context);
     final video = _dailyVideoLoaded
         ? _dailyVideo
         : await _resolveDailyVideo(_nextWakeDate);
     await _videoCache.prepare(video);
     if (!mounted) return;
-    await Navigator.of(context).push(
+    await _stopPreview();
+    await navigator.push(
       MaterialPageRoute(
         builder: (_) => WakeRingingScreen(
           testMode: true,
@@ -397,7 +409,12 @@ class _WakeSettingsScreenState extends State<WakeSettingsScreen>
     final stage = _previewStageKey.currentState;
     if (stage == null || !_previewReady) return;
     await stage.togglePlayback();
-    if (mounted) setState(() => _previewPlaying = stage.isPlaying);
+    if (mounted) {
+      setState(
+        () =>
+            _previewPlaying = _previewStageKey.currentState?.isPlaying == true,
+      );
+    }
   }
 
   @override

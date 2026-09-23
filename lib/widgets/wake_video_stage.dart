@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -27,6 +28,8 @@ class WakeVideoStage extends StatefulWidget {
 
 class WakeVideoStageState extends State<WakeVideoStage> {
   VideoPlayerController? _controller;
+  Future<void>? _playbackOperation;
+  bool _disposed = false;
 
   bool get isReady => _controller?.value.isInitialized == true;
 
@@ -37,51 +40,100 @@ class WakeVideoStageState extends State<WakeVideoStage> {
   }
 
   Future<void> _initialize() async {
+    VideoPlayerController? controller;
     try {
-      final controller = VideoPlayerController.file(widget.file);
+      controller = VideoPlayerController.file(widget.file);
       _controller = controller;
       await controller.initialize();
+      if (_disposed || !mounted || !identical(_controller, controller)) {
+        await controller.dispose();
+        return;
+      }
       await controller.setLooping(true);
       await controller.setVolume(widget.muted ? 0.0 : 1.0);
-      if (!mounted) return;
+      if (_disposed || !mounted || !identical(_controller, controller)) {
+        await controller.dispose();
+        return;
+      }
       setState(() {});
       widget.onReady?.call();
-      if (widget.autoplay) await controller.play();
+      if (widget.autoplay) await play();
     } catch (_) {
+      if (controller != null && identical(_controller, controller)) {
+        _controller = null;
+        try {
+          await controller.dispose();
+        } catch (_) {}
+      }
       if (mounted) widget.onError?.call();
     }
   }
 
-  Future<void> stop() async {
-    try {
-      await _controller?.pause();
-      await _controller?.seekTo(Duration.zero);
-    } catch (_) {}
+  Future<void> _enqueuePlayback(Future<void> Function() operation) {
+    final previous = _playbackOperation ?? Future<void>.value();
+    final next = previous.then((_) async {
+      if (_disposed) return;
+      try {
+        await operation();
+      } catch (_) {}
+    });
+    _playbackOperation = next;
+    unawaited(
+      next.then((_) {
+        if (identical(_playbackOperation, next)) _playbackOperation = null;
+      }),
+    );
+    return next;
   }
+
+  Future<void> stop() => _enqueuePlayback(() async {
+    final controller = _controller;
+    if (controller == null) return;
+    await controller.pause();
+    await controller.seekTo(Duration.zero);
+    if (mounted) setState(() {});
+  });
+
+  Future<void> play() => _enqueuePlayback(() async {
+    final controller = _controller;
+    if (controller == null || !controller.value.isInitialized) return;
+    await controller.play();
+    if (mounted) setState(() {});
+  });
+
+  Future<void> pause() => _enqueuePlayback(() async {
+    final controller = _controller;
+    if (controller == null || !controller.value.isInitialized) return;
+    await controller.pause();
+    if (mounted) setState(() {});
+  });
+
+  Future<void> togglePlayback() => _enqueuePlayback(() async {
+    final controller = _controller;
+    if (controller == null || !controller.value.isInitialized) return;
+    if (controller.value.isPlaying) {
+      await controller.pause();
+    } else {
+      await controller.play();
+    }
+    if (mounted) setState(() {});
+  });
 
   bool get isPlaying => _controller?.value.isPlaying == true;
 
-  Future<void> play() async {
-    try {
-      await _controller?.play();
-      if (mounted) setState(() {});
-    } catch (_) {}
-  }
-
-  Future<void> pause() async {
-    try {
-      await _controller?.pause();
-      if (mounted) setState(() {});
-    } catch (_) {}
-  }
-
-  Future<void> togglePlayback() => isPlaying ? pause() : play();
-
   @override
   void dispose() {
+    _disposed = true;
     final controller = _controller;
     _controller = null;
-    controller?.dispose();
+    final pending = _playbackOperation;
+    unawaited(() async {
+      try {
+        if (pending != null) await pending;
+        await controller?.pause();
+        await controller?.dispose();
+      } catch (_) {}
+    }());
     super.dispose();
   }
 
