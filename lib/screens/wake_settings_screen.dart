@@ -413,7 +413,7 @@ class _WakeSettingsScreenState extends State<WakeSettingsScreen>
       ),
       child: SafeArea(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.fromLTRB(24, 18, 24, 128),
+          padding: const EdgeInsets.fromLTRB(20, 10, 20, 128),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
@@ -431,17 +431,18 @@ class _WakeSettingsScreenState extends State<WakeSettingsScreen>
                       style: TextButton.styleFrom(
                         foregroundColor: AuryelColors.textMuted,
                         padding: const EdgeInsets.symmetric(horizontal: 4),
+                        minimumSize: const Size(44, 44),
                       ),
                       child: const Text('Plus tard'),
                     ),
                 ],
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 4),
               Text(
                 'Commence ta journée\navec Auryel',
-                style: AuryelText.screenTitle(),
+                style: AuryelText.screenTitle().copyWith(fontSize: 27),
               ),
-              const SizedBox(height: 10),
+              const SizedBox(height: 8),
               Text(
                 'Chaque matin, découvre un réveil différent pour commencer '
                 'ta journée en douceur.',
@@ -449,271 +450,246 @@ class _WakeSettingsScreenState extends State<WakeSettingsScreen>
                   color: AuryelColors.textSecondary,
                 ),
               ),
-              const SizedBox(height: 24),
+              const SizedBox(height: 18),
               Container(
                 key: const Key('wake-next-alarm'),
-                padding: const EdgeInsets.fromLTRB(20, 20, 20, 20),
+                padding: const EdgeInsets.fromLTRB(18, 17, 18, 18),
                 decoration: BoxDecoration(
                   gradient: const LinearGradient(
                     begin: Alignment.topLeft,
                     end: Alignment.bottomRight,
-                    colors: [AuryelColors.surfaceLight, AuryelColors.surface],
+                    colors: [Color(0xCC302148), Color(0xB51D162B)],
                   ),
-                  borderRadius: BorderRadius.circular(26),
-                  border: Border.all(
-                    color: AuryelColors.gold.withValues(alpha: 0.32),
-                  ),
+                  borderRadius: BorderRadius.circular(24),
                   boxShadow: [
                     BoxShadow(
-                      color: AuryelColors.backgroundDeep.withValues(alpha: 0.4),
-                      blurRadius: 24,
-                      offset: const Offset(0, 12),
+                      color: AuryelColors.backgroundDeep.withValues(
+                        alpha: 0.32,
+                      ),
+                      blurRadius: 22,
+                      offset: const Offset(0, 9),
                     ),
                   ],
                 ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'Prochain réveil',
-                                style: AuryelText.overline(
-                                  color: AuryelColors.gold,
-                                ),
-                              ),
-                              const SizedBox(height: 6),
-                              InkWell(
-                                key: const Key('wake-time-button'),
-                                onTap: _pickTime,
-                                borderRadius: BorderRadius.circular(12),
-                                child: Text(
-                                  _timeLabel,
-                                  style: AuryelText.display(
-                                    fontSize: 48,
-                                    fontWeight: FontWeight.w700,
-                                    color: AuryelColors.textCream,
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(height: 3),
-                              Text(
-                                _settings.enabled
-                                    ? (_previewDateLabel ==
-                                              "Réveil d'aujourd'hui"
-                                          ? "Aujourd'hui matin"
-                                          : 'Demain matin')
-                                    : 'Réveil en pause',
-                                style: AuryelText.bodySecondary(),
-                              ),
-                            ],
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Prochain réveil',
+                            style: AuryelText.overline(
+                              color: AuryelColors.gold,
+                            ),
                           ),
+                          const SizedBox(height: 5),
+                          InkWell(
+                            key: const Key('wake-time-button'),
+                            onTap: _pickTime,
+                            borderRadius: BorderRadius.circular(12),
+                            child: Text(
+                              _timeLabel,
+                              style: AuryelText.display(
+                                fontSize: 60,
+                                fontWeight: FontWeight.w700,
+                                color: AuryelColors.goldLight,
+                                letterSpacing: -1.5,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(height: 1),
+                          Text(
+                            _settings.enabled
+                                ? (_previewDateLabel == "Réveil d'aujourd'hui"
+                                      ? "Aujourd'hui matin"
+                                      : 'Demain matin')
+                                : 'Réveil en pause',
+                            style: AuryelText.bodySecondary(),
+                          ),
+                        ],
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.all(2),
+                      decoration: BoxDecoration(
+                        color: AuryelColors.backgroundDeep.withValues(
+                          alpha: 0.28,
                         ),
-                        Container(
-                          padding: const EdgeInsets.all(4),
-                          decoration: BoxDecoration(
-                            color: _settings.enabled
-                                ? AuryelColors.gold.withValues(alpha: 0.18)
-                                : AuryelColors.backgroundDeep.withValues(
-                                    alpha: 0.45,
-                                  ),
-                            borderRadius: BorderRadius.circular(20),
-                          ),
-                          child: Switch(
-                            key: const Key('wake-enabled-switch'),
-                            value: _settings.enabled,
-                            activeThumbColor: AuryelColors.goldLight,
-                            activeTrackColor: AuryelColors.goldDark,
-                            inactiveThumbColor: AuryelColors.textMuted,
-                            inactiveTrackColor: AuryelColors.backgroundDeep,
-                            onChanged: (v) {
-                              if (v) {
-                                _tryEnable();
-                              } else {
-                                _persist(_settings.copyWith(enabled: false));
-                              }
-                            },
-                          ),
-                        ),
-                      ],
+                        borderRadius: BorderRadius.circular(18),
+                      ),
+                      child: Switch(
+                        key: const Key('wake-enabled-switch'),
+                        value: _settings.enabled,
+                        activeThumbColor: AuryelColors.goldLight,
+                        activeTrackColor: AuryelColors.goldDark,
+                        inactiveThumbColor: AuryelColors.textMuted,
+                        inactiveTrackColor: AuryelColors.backgroundDeep,
+                        onChanged: (v) {
+                          if (v) {
+                            _tryEnable();
+                          } else {
+                            _persist(_settings.copyWith(enabled: false));
+                          }
+                        },
+                      ),
                     ),
                   ],
                 ),
               ),
-              const SizedBox(height: 18),
+              const SizedBox(height: 24),
               Container(
                 key: const Key('wake-daily-preview'),
-                padding: const EdgeInsets.fromLTRB(16, 16, 16, 14),
+                padding: EdgeInsets.zero,
                 decoration: BoxDecoration(
-                  color: AuryelColors.surface.withValues(alpha: 0.82),
-                  borderRadius: BorderRadius.circular(26),
-                  border: Border.all(
-                    color: AuryelColors.gold.withValues(alpha: 0.24),
-                  ),
+                  color: AuryelColors.surface.withValues(alpha: 0.22),
+                  borderRadius: BorderRadius.circular(28),
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                _previewDateLabel,
-                                style: AuryelText.cardTitle(),
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                'Une nouvelle expérience chaque matin',
-                                style: AuryelText.bodySecondary(
-                                  color: AuryelColors.textSecondary,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        if (_dailyVideo.durationSeconds != null)
-                          Text(
-                            '${_dailyVideo.durationSeconds}s',
-                            style: AuryelText.overline(),
-                          ),
-                      ],
-                    ),
-                    const SizedBox(height: 14),
                     ClipRRect(
                       key: const Key('wake-settings-preview'),
-                      borderRadius: BorderRadius.circular(20),
-                      child: SizedBox(
-                        height: 238,
-                        width: double.infinity,
-                        child: Stack(
-                          fit: StackFit.expand,
-                          children: [
-                            _previewPath == null
-                                ? Container(
-                                    color: AuryelColors.backgroundDeep,
-                                    alignment: Alignment.center,
-                                    child: Icon(
-                                      _previewFailed
-                                          ? Icons.wb_sunny_outlined
-                                          : Icons.alarm_rounded,
-                                      size: 48,
-                                      color: AuryelColors.goldLight,
-                                    ),
-                                  )
-                                : WakeVideoStage(
-                                    key: _previewStageKey,
-                                    file: File(_previewPath!),
-                                    muted: false,
-                                    autoplay: false,
-                                    onReady: () {
-                                      if (mounted) {
-                                        setState(() => _previewReady = true);
-                                      }
-                                    },
-                                  ),
-                            Positioned.fill(
-                              child: IgnorePointer(
-                                ignoring: !_previewReady,
-                                child: Center(
-                                  child: Material(
-                                    color: Colors.transparent,
-                                    child: Semantics(
-                                      button: true,
-                                      label: _previewPlaying
-                                          ? 'Mettre en pause la preview'
-                                          : 'Lire la preview avec le son',
-                                      child: InkWell(
-                                        key: const Key('wake-preview-play'),
-                                        onTap: _togglePreview,
-                                        customBorder: const CircleBorder(),
-                                        child: Ink(
-                                          width: 64,
-                                          height: 64,
-                                          decoration: BoxDecoration(
-                                            color: AuryelColors.backgroundDeep
-                                                .withValues(alpha: 0.78),
-                                            shape: BoxShape.circle,
-                                            border: Border.all(
-                                              color: AuryelColors.goldLight
-                                                  .withValues(alpha: 0.72),
+                      borderRadius: BorderRadius.circular(26),
+                      child: LayoutBuilder(
+                        builder: (context, constraints) {
+                          final previewHeight = (constraints.maxWidth * 16 / 9)
+                              .clamp(280.0, 430.0);
+                          return SizedBox(
+                            height: previewHeight,
+                            width: double.infinity,
+                            child: Stack(
+                              fit: StackFit.expand,
+                              children: [
+                                _previewPath == null
+                                    ? Container(
+                                        color: AuryelColors.backgroundDeep,
+                                        alignment: Alignment.center,
+                                        child: Icon(
+                                          _previewFailed
+                                              ? Icons.wb_sunny_outlined
+                                              : Icons.alarm_rounded,
+                                          size: 48,
+                                          color: AuryelColors.goldLight,
+                                        ),
+                                      )
+                                    : WakeVideoStage(
+                                        key: _previewStageKey,
+                                        file: File(_previewPath!),
+                                        muted: false,
+                                        autoplay: false,
+                                        onReady: () {
+                                          if (mounted) {
+                                            setState(
+                                              () => _previewReady = true,
+                                            );
+                                          }
+                                        },
+                                      ),
+                                Positioned.fill(
+                                  child: IgnorePointer(
+                                    ignoring: !_previewReady,
+                                    child: Center(
+                                      child: Material(
+                                        color: Colors.transparent,
+                                        child: Semantics(
+                                          button: true,
+                                          label: _previewPlaying
+                                              ? 'Mettre en pause la preview'
+                                              : 'Lire la preview avec le son',
+                                          child: InkWell(
+                                            key: const Key('wake-preview-play'),
+                                            onTap: _togglePreview,
+                                            customBorder: const CircleBorder(),
+                                            child: Ink(
+                                              width: 68,
+                                              height: 68,
+                                              decoration: BoxDecoration(
+                                                color: AuryelColors
+                                                    .backgroundDeep
+                                                    .withValues(alpha: 0.72),
+                                                shape: BoxShape.circle,
+                                              ),
+                                              child: Icon(
+                                                _previewPlaying
+                                                    ? Icons.pause_rounded
+                                                    : Icons.play_arrow_rounded,
+                                                size: 34,
+                                                color: AuryelColors.textCream,
+                                              ),
                                             ),
-                                          ),
-                                          child: Icon(
-                                            _previewPlaying
-                                                ? Icons.pause_rounded
-                                                : Icons.play_arrow_rounded,
-                                            size: 32,
-                                            color: AuryelColors.goldLight,
                                           ),
                                         ),
                                       ),
                                     ),
                                   ),
                                 ),
-                              ),
+                              ],
                             ),
-                          ],
+                          );
+                        },
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(4, 16, 4, 4),
+                      child: Text(
+                        _previewDateLabel,
+                        style: AuryelText.sectionTitle().copyWith(fontSize: 22),
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 4),
+                      child: Text(
+                        'Une nouvelle expérience chaque matin, pensée pour '
+                        'commencer ta journée en douceur.',
+                        style: AuryelText.bodySecondary(
+                          color: AuryelColors.textSecondary,
                         ),
                       ),
                     ),
-                    const SizedBox(height: 10),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            'Chaque jour, un nouveau réveil',
-                            style: AuryelText.bodySecondary(),
-                          ),
+                    Align(
+                      alignment: Alignment.centerLeft,
+                      child: TextButton.icon(
+                        key: const Key('wake-fullscreen-test'),
+                        onPressed: _testWake,
+                        icon: const Icon(Icons.open_in_full_rounded, size: 17),
+                        style: TextButton.styleFrom(
+                          foregroundColor: AuryelColors.goldLight,
+                          padding: const EdgeInsets.fromLTRB(0, 10, 8, 4),
+                          minimumSize: const Size(44, 44),
                         ),
-                        TextButton(
-                          key: const Key('wake-fullscreen-test'),
-                          onPressed: _testWake,
-                          style: TextButton.styleFrom(
-                            foregroundColor: AuryelColors.goldLight,
-                            padding: const EdgeInsets.symmetric(horizontal: 4),
-                          ),
-                          child: const Text('Tester l’alarme en plein écran'),
-                        ),
-                      ],
+                        label: const Text('Tester l’alarme en plein écran'),
+                      ),
                     ),
                   ],
                 ),
               ),
-              const SizedBox(height: 24),
+              const SizedBox(height: 26),
               Container(
-                padding: const EdgeInsets.symmetric(vertical: 4),
+                padding: const EdgeInsets.fromLTRB(4, 0, 4, 0),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
                       'Répétition',
-                      style: AuryelText.body(
-                        fontSize: 15,
-                        fontWeight: FontWeight.w600,
-                        color: AuryelColors.textCream,
-                      ),
+                      style: AuryelText.sectionTitle().copyWith(fontSize: 20),
                     ),
                     const SizedBox(height: 4),
                     Text(
                       _settings.days.isEmpty
-                          ? 'Aucun jour choisi · tous les jours'
+                          ? 'Tous les jours'
                           : 'Les jours où ton réveil sonne',
                       style: AuryelText.bodySecondary(),
                     ),
                     const SizedBox(height: 12),
                     Container(
-                      padding: const EdgeInsets.all(4),
+                      padding: const EdgeInsets.all(3),
                       decoration: BoxDecoration(
-                        color: AuryelColors.surface.withValues(alpha: 0.72),
+                        color: AuryelColors.surfaceLight.withValues(
+                          alpha: 0.62,
+                        ),
                         borderRadius: BorderRadius.circular(18),
-                        border: Border.all(color: AuryelColors.warmBorder),
                       ),
                       child: Row(
                         children: [
@@ -736,21 +712,60 @@ class _WakeSettingsScreenState extends State<WakeSettingsScreen>
                         ],
                       ),
                     ),
-                    const SizedBox(height: 18),
-                    const Divider(color: AuryelColors.warmBorder, height: 1),
-                    const SizedBox(height: 14),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Text('Report', style: AuryelText.body()),
-                        ),
-                        Text(
-                          '10 minutes',
-                          style: AuryelText.body(
-                            color: AuryelColors.textSecondary,
+                    const SizedBox(height: 12),
+                    Container(
+                      padding: const EdgeInsets.fromLTRB(14, 12, 12, 12),
+                      decoration: BoxDecoration(
+                        color: AuryelColors.surface.withValues(alpha: 0.62),
+                        borderRadius: BorderRadius.circular(18),
+                      ),
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 40,
+                            height: 40,
+                            alignment: Alignment.center,
+                            decoration: BoxDecoration(
+                              color: AuryelColors.gold.withValues(alpha: 0.14),
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(
+                              Icons.schedule_rounded,
+                              size: 21,
+                              color: AuryelColors.goldLight,
+                            ),
                           ),
-                        ),
-                      ],
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Répéter après',
+                                  style: AuryelText.body(
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.w600,
+                                    color: AuryelColors.textCream,
+                                  ),
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  'Durée entre les alarmes',
+                                  style: AuryelText.bodySecondary(),
+                                ),
+                              ],
+                            ),
+                          ),
+                          Text(
+                            '10 min',
+                            style: AuryelText.body(
+                              fontSize: 16,
+                              fontWeight: FontWeight.w600,
+                              color: AuryelColors.textCream,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ],
                 ),
@@ -780,23 +795,31 @@ class _DayChip extends StatelessWidget {
       onTap: onTap,
       borderRadius: BorderRadius.circular(13),
       child: Container(
-        constraints: const BoxConstraints(minHeight: 46),
+        constraints: const BoxConstraints(minHeight: 48),
         alignment: Alignment.center,
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(13),
           color: selected
-              ? AuryelColors.gold.withValues(alpha: 0.22)
-              : Colors.transparent,
-          border: Border.all(
-            color: selected ? AuryelColors.goldLight : Colors.transparent,
-          ),
+              ? AuryelColors.goldLight
+              : AuryelColors.surface.withValues(alpha: 0.42),
+          boxShadow: selected
+              ? [
+                  BoxShadow(
+                    color: AuryelColors.gold.withValues(alpha: 0.18),
+                    blurRadius: 10,
+                    offset: const Offset(0, 4),
+                  ),
+                ]
+              : null,
         ),
         child: Text(
           label,
           style: AuryelText.body(
             fontSize: 12.5,
             fontWeight: FontWeight.w600,
-            color: selected ? AuryelColors.goldLight : AuryelColors.textMuted,
+            color: selected
+                ? AuryelColors.backgroundDeep
+                : AuryelColors.textSecondary,
           ),
         ),
       ),
