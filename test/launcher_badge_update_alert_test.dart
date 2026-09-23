@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
@@ -214,5 +215,23 @@ void main() {
       ),
       isFalse,
     );
+  });
+
+  test('Android badge contract clears stale state before unread refresh', () {
+    final activity = File(
+      'android/app/src/main/kotlin/com/auryel/auryel/MainActivity.kt',
+    ).readAsStringSync();
+    final manifest = File('android/app/src/main/AndroidManifest.xml')
+        .readAsStringSync();
+    final presenter = File(
+      'lib/notifications/local_notification_presenter.dart',
+    ).readAsStringSync();
+
+    expect(activity, contains('clearStaleBadgeState()'));
+    expect(activity, contains('manager.cancel(launcherBadgeNotificationId)'));
+    expect(activity, contains('manager.deleteNotificationChannel'));
+    expect(manifest, contains('android:value="auryel_default_v2"'));
+    expect(presenter, contains("'auryel_default_v2'"));
+    expect(activity, contains('setShowBadge(false)'));
   });
 }

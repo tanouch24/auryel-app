@@ -8,7 +8,7 @@ import 'notification_payload.dart';
 /// Affiche une notification LOCALE quand un message FCM arrive alors que l'app
 /// est au premier plan (Android n'affiche rien de lui-même dans ce cas).
 ///
-/// Crée aussi le canal Android `auryel_default` avec une visibilité PRIVÉE sur
+/// Crée aussi le canal Android `auryel_default_v2` avec une visibilité PRIVÉE sur
 /// l'écran verrouillé : le titre/corps affichés restent ceux, GÉNÉRIQUES,
 /// envoyés par le serveur — jamais de contenu de consultation.
 ///
@@ -21,7 +21,7 @@ class LocalNotificationPresenter {
   final FlutterLocalNotificationsPlugin _plugin;
 
   static const _channel = AndroidNotificationChannel(
-    'auryel_default',
+    'auryel_default_v2',
     'Auryel',
     description: 'Rappels doux et messages de ton conseiller.',
     importance: Importance.defaultImportance,

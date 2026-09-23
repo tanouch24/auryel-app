@@ -25,10 +25,13 @@ class MainActivity : FlutterActivity() {
     private var pendingWakeVideo: Map<String, String?>? = null
     private var wakeRingingChannel: MethodChannel? = null
     private val launcherBadgeChannel = "auryel_unread_badge"
+    private val legacyInformativeChannel = "auryel_default"
+    private val informativeChannel = "auryel_default_v2"
     private val launcherBadgeNotificationId = 19001
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        clearStaleBadgeState()
         applyWakeRingingFlagsIfNeeded(intent)
     }
 
@@ -243,6 +246,34 @@ class MainActivity : FlutterActivity() {
             manager.notify(launcherBadgeNotificationId, notification)
         } catch (_: Exception) {
             // Permission refusée / launcher incompatible : badge best-effort.
+        }
+    }
+
+    /**
+     * Clears state left by the previous badge/channel implementation before
+     * Flutter starts its network-backed unread refresh. Android keeps active
+     * notifications across package replacement, so this must be local and
+     * unconditional. Informative notifications move to a non-badging channel;
+     * removing the legacy channel also removes its old launcher indication.
+     */
+    private fun clearStaleBadgeState() {
+        try {
+            val manager = getSystemService(NotificationManager::class.java) ?: return
+            manager.cancel(launcherBadgeNotificationId)
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                manager.deleteNotificationChannel(legacyInformativeChannel)
+                val channel = NotificationChannel(
+                    informativeChannel,
+                    "Auryel",
+                    NotificationManager.IMPORTANCE_DEFAULT,
+                ).apply {
+                    description = "Rappels doux et messages de ton conseiller."
+                    setShowBadge(false)
+                }
+                manager.createNotificationChannel(channel)
+            }
+        } catch (_: Exception) {
+            // Badge cleanup is best-effort and must never block app startup.
         }
     }
 }

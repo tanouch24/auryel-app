@@ -80,12 +80,12 @@
             </intent-filter>
         </receiver>
         <!-- FCM : canal Android utilisé quand un message `notification` arrive
-             app en arrière-plan / tuée. Le canal `auryel_default` est créé côté
+             app en arrière-plan / tuée. Le canal `auryel_default_v2` est créé côté
              Dart (flutter_local_notifications) avec visibilité PRIVATE (rien de
              sensible sur écran verrouillé). -->
         <meta-data
-            android:name="com.google.firebase.messaging.default_notification_channel_id"
-            android:value="auryel_default" />
+          android:name="com.google.firebase.messaging.default_notification_channel_id"
+          android:value="auryel_default_v2" />
         <!-- Petite icône status bar : silhouette monochrome dédiée (jamais
              l'icône launcher couleur, illisible en barre d'état). -->
         <meta-data
