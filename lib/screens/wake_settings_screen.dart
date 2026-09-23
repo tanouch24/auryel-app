@@ -215,8 +215,9 @@ class _WakeSettingsScreenState extends State<WakeSettingsScreen>
           testMode: true,
           video: video,
           cache: _videoCache,
-          returnToOnboarding: widget.returnToOnboarding,
-          returnToWakeSettings: !widget.returnToOnboarding,
+          origin: widget.returnToOnboarding
+              ? WakeRingingOrigin.onboardingPreview
+              : WakeRingingOrigin.settingsPreview,
         ),
       ),
     );

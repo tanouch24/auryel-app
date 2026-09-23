@@ -56,6 +56,11 @@ WakeVideoCache _cache() {
   return WakeVideoCache(directory: directory);
 }
 
+class _NoNetworkWakeCache extends WakeVideoCache {
+  @override
+  Future<File?> prepare(WakeVideo video) async => null;
+}
+
 void main() {
   testWidgets('mode test affiche Éteindre et ne propose pas de snooze', (
     t,
@@ -87,6 +92,93 @@ void main() {
     await t.pump();
     expect(find.bySemanticsLabel('Éteindre le réveil'), findsOneWidget);
     expect(find.byType(WakeAfterScreen), findsNothing);
+  });
+
+  testWidgets(
+    'preview depuis les réglages revient directement à l’onglet Réveil',
+    (t) async {
+      final channel = _FakeChannel();
+      await t.pumpWidget(
+        MaterialApp(
+          home: Builder(
+            builder: (context) => Scaffold(
+              body: ElevatedButton(
+                onPressed: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => WakeRingingScreen(
+                        testMode: true,
+                        origin: WakeRingingOrigin.settingsPreview,
+                        alarmChannel: channel,
+                        cache: _NoNetworkWakeCache(),
+                      ),
+                    ),
+                  );
+                },
+                child: const Text('Ouvrir le test Réveil'),
+              ),
+            ),
+          ),
+        ),
+      );
+      await t.tap(find.text('Ouvrir le test Réveil'));
+      await t.pumpAndSettle();
+      expect(find.byType(WakeRingingScreen), findsOneWidget);
+      t
+          .widget<InkWell>(find.byKey(const Key('wake-stop-button')))
+          .onTap!
+          .call();
+      await t.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 100)),
+      );
+      await t.pumpAndSettle();
+
+      expect(channel.calls, contains('stop'));
+      expect(find.byType(WakeRingingScreen), findsNothing);
+      expect(find.byType(WakeAfterScreen), findsNothing);
+      expect(find.text('Continuer ma journée'), findsNothing);
+      expect(find.text('Parler à mon conseiller'), findsNothing);
+    },
+  );
+
+  testWidgets('preview onboarding conserve l’écran de fin onboarding', (
+    t,
+  ) async {
+    final channel = _FakeChannel();
+    await t.pumpWidget(
+      MaterialApp(
+        home: Builder(
+          builder: (context) => Scaffold(
+            body: ElevatedButton(
+              onPressed: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => WakeRingingScreen(
+                      testMode: true,
+                      origin: WakeRingingOrigin.onboardingPreview,
+                      alarmChannel: channel,
+                      cache: _NoNetworkWakeCache(),
+                    ),
+                  ),
+                );
+              },
+              child: const Text('Ouvrir le test onboarding'),
+            ),
+          ),
+        ),
+      ),
+    );
+    await t.tap(find.text('Ouvrir le test onboarding'));
+    await t.pumpAndSettle();
+    expect(find.byType(WakeRingingScreen), findsOneWidget);
+    t.widget<InkWell>(find.byKey(const Key('wake-stop-button'))).onTap!.call();
+    await t.runAsync(
+      () => Future<void>.delayed(const Duration(milliseconds: 100)),
+    );
+    await t.pumpAndSettle();
+
+    expect(channel.calls, contains('stop'));
+    expect(find.byType(WakeAfterScreen), findsOneWidget);
   });
 
   testWidgets('Snooze réel est exposé hors mode test', (t) async {

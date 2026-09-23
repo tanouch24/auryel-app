@@ -12,6 +12,13 @@ import '../theme/auryel_theme.dart';
 import '../widgets/wake_video_stage.dart';
 import 'wake_after_screen.dart';
 
+/// Provenance de l'ouverture du réveil.
+///
+/// Une preview lancée depuis les réglages revient directement à cette page ;
+/// l'onboarding conserve son écran de fin et une vraie alarme programmée
+/// conserve le parcours « Belle journée ».
+enum WakeRingingOrigin { onboardingPreview, settingsPreview, scheduledAlarm }
+
 /// Écran d'alarme V2 : un MP4 local contient l'image, la musique et la voix.
 /// Le réseau n'est utilisé qu'avant l'alarme, lors de la préparation du cache.
 class WakeRingingScreen extends StatefulWidget {
@@ -22,8 +29,7 @@ class WakeRingingScreen extends StatefulWidget {
     this.testMode = false,
     this.video = WakeVideoCatalog.pilot,
     this.cache,
-    this.returnToOnboarding = false,
-    this.returnToWakeSettings = false,
+    this.origin = WakeRingingOrigin.scheduledAlarm,
   });
 
   final WakeAlarmChannel? alarmChannel;
@@ -31,8 +37,7 @@ class WakeRingingScreen extends StatefulWidget {
   final bool testMode;
   final WakeVideo video;
   final WakeVideoCache? cache;
-  final bool returnToOnboarding;
-  final bool returnToWakeSettings;
+  final WakeRingingOrigin origin;
 
   @override
   State<WakeRingingScreen> createState() => _WakeRingingScreenState();
@@ -47,6 +52,7 @@ class _WakeRingingScreenState extends State<WakeRingingScreen> {
   DateTime _now = DateTime.now();
   Timer? _clockTimer;
   bool _acting = false;
+  bool _fallbackPlaying = false;
 
   Future<void> _startFallback() async {
     if (_acting) return;
@@ -57,6 +63,7 @@ class _WakeRingingScreenState extends State<WakeRingingScreen> {
       await _fallbackPlayer.play(
         ap.AssetSource(sound.assetPath.replaceFirst('assets/', '')),
       );
+      _fallbackPlaying = true;
     } catch (_) {}
   }
 
@@ -84,9 +91,12 @@ class _WakeRingingScreenState extends State<WakeRingingScreen> {
 
   Future<void> _stopMedia() async {
     await _videoKey.currentState?.stop();
-    try {
-      await _fallbackPlayer.stop();
-    } catch (_) {}
+    if (_fallbackPlaying) {
+      try {
+        await _fallbackPlayer.stop();
+      } catch (_) {}
+      _fallbackPlaying = false;
+    }
   }
 
   Future<void> _turnOff() async {
@@ -95,12 +105,16 @@ class _WakeRingingScreenState extends State<WakeRingingScreen> {
     await _stopMedia();
     await _channel.stopRinging();
     if (!mounted) return;
+    if (widget.origin == WakeRingingOrigin.settingsPreview) {
+      Navigator.of(context).pop();
+      return;
+    }
     Navigator.of(context).pushReplacement(
       MaterialPageRoute(
         builder: (_) => WakeAfterScreen(
           pendingContext: 'Je viens de terminer mon réveil Auryel.',
-          returnToOnboarding: widget.returnToOnboarding,
-          returnToWakeSettings: widget.returnToWakeSettings,
+          returnToOnboarding:
+              widget.origin == WakeRingingOrigin.onboardingPreview,
         ),
       ),
     );
@@ -177,6 +191,7 @@ class _WakeRingingScreenState extends State<WakeRingingScreen> {
                         color: Colors.transparent,
                         shape: const CircleBorder(),
                         child: InkWell(
+                          key: const Key('wake-stop-button'),
                           customBorder: const CircleBorder(),
                           onTap: _acting ? null : _turnOff,
                           child: Ink(
