@@ -12,12 +12,14 @@ class WakeVideoStage extends StatefulWidget {
     this.onReady,
     this.onError,
     this.muted = false,
+    this.autoplay = true,
   });
 
   final File file;
   final VoidCallback? onReady;
   final VoidCallback? onError;
   final bool muted;
+  final bool autoplay;
 
   @override
   State<WakeVideoStage> createState() => WakeVideoStageState();
@@ -44,7 +46,7 @@ class WakeVideoStageState extends State<WakeVideoStage> {
       if (!mounted) return;
       setState(() {});
       widget.onReady?.call();
-      await controller.play();
+      if (widget.autoplay) await controller.play();
     } catch (_) {
       if (mounted) widget.onError?.call();
     }
@@ -56,6 +58,24 @@ class WakeVideoStageState extends State<WakeVideoStage> {
       await _controller?.seekTo(Duration.zero);
     } catch (_) {}
   }
+
+  bool get isPlaying => _controller?.value.isPlaying == true;
+
+  Future<void> play() async {
+    try {
+      await _controller?.play();
+      if (mounted) setState(() {});
+    } catch (_) {}
+  }
+
+  Future<void> pause() async {
+    try {
+      await _controller?.pause();
+      if (mounted) setState(() {});
+    } catch (_) {}
+  }
+
+  Future<void> togglePlayback() => isPlaying ? pause() : play();
 
   @override
   void dispose() {

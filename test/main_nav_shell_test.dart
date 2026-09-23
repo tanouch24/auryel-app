@@ -165,7 +165,7 @@ void main() {
       await tester.tap(_tab('Réveil'));
       await tester.pumpAndSettle();
       expect(find.byType(WakeSettingsScreen), findsOneWidget);
-      expect(find.text('Commence ta journée avec Auryel'), findsOneWidget);
+      expect(find.text('Commence ta journée\navec Auryel'), findsOneWidget);
 
       // Retour Accueil.
       await tester.tap(_tab('Accueil'));

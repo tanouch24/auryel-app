@@ -87,16 +87,18 @@ void main() {
     await t.pumpWidget(_host(channel: _FakeChannel()));
     await t.pumpAndSettle();
 
-    expect(find.text('Commence ta journée avec Auryel'), findsOneWidget);
+    expect(find.text('Commence ta journée\navec Auryel'), findsOneWidget);
     expect(
-      find.textContaining("Choisis l'heure de ton réveil"),
+      find.textContaining('Chaque matin, découvre un réveil différent'),
       findsOneWidget,
     );
     expect(find.text('Sonnerie'), findsNothing);
     expect(find.text('Écouter la sonnerie'), findsNothing);
-    expect(find.text('Tester mon réveil'), findsOneWidget);
+    expect(find.text('Tester mon réveil'), findsNothing);
+    expect(find.text('Tester l’alarme en plein écran'), findsOneWidget);
     expect(find.byKey(const Key('wake-settings-preview')), findsOneWidget);
-    expect(find.text('Aperçu du réveil du jour'), findsOneWidget);
+    expect(find.text('Réveil de demain'), findsOneWidget);
+    expect(find.byKey(const Key('wake-daily-preview')), findsOneWidget);
     expect(find.text('07:00'), findsOneWidget);
     expect(
       t.widget<Switch>(find.byKey(const Key('wake-enabled-switch'))).value,
@@ -215,7 +217,7 @@ void main() {
     await t.pumpWidget(_host(channel: channel, store: store));
     await t.pumpAndSettle();
 
-    final monday = find.text('L');
+    final monday = find.text('Lun');
     await t.ensureVisible(monday); // lundi -> Calendar.DAY_OF_WEEK = 2
     await t.tap(monday);
     await t.pumpAndSettle();
