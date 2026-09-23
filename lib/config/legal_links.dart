@@ -14,8 +14,9 @@ import 'dart:io' show Platform;
 class LegalLinks {
   const LegalLinks._();
 
-  /// Politique de confidentialité / RGPD. `null` = pas encore publiée.
-  static const String? privacyPolicyUrl = null;
+  /// Politique de confidentialité / RGPD, publiée sur le site Auryel.
+  static const String privacyPolicyUrl =
+      'https://auryelvoyance.com/confidentialite';
 
   /// Conditions générales d'utilisation. `null` = pas encore publiées.
   static const String? termsUrl = null;
