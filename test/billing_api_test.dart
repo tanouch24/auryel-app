@@ -191,6 +191,45 @@ void main() {
     });
   });
 
+  group('BillingApi.verifyAppStorePurchase (« +1 h » consommable)', () {
+    test('envoie transaction_id App Store, jamais purchase_token', () async {
+      final rig = _rig(
+        (_) async => _json({
+          'purchase': {
+            'store': 'app_store',
+            'product_id': kExtraHourProductId,
+            'credited_seconds': 3600,
+            'already_credited': false,
+          },
+          'quota': {
+            'is_premium': false,
+            'monthly_limit': 0,
+            'monthly_used': 0,
+            'monthly_remaining': 0,
+            'earned_available': 0,
+            'period_start': null,
+            'period_end': null,
+          },
+        }),
+      );
+      final response = await rig.api.verifyAppStorePurchase(
+        bearer: 'tok-ios',
+        productId: kExtraHourProductId,
+        transactionId: 'apple-txn-1',
+      );
+      final req = rig.reqs.single;
+      expect(req.url.path, '/api/billing/purchase');
+      expect(req.headers['Authorization'], 'Bearer tok-ios');
+      expect(jsonDecode(req.body), {
+        'store': 'app_store',
+        'product_id': 'auryel_extra_hour',
+        'transaction_id': 'apple-txn-1',
+      });
+      expect(response.purchase.creditedSeconds, 3600);
+      expect(response.purchase.alreadyCredited, isFalse);
+    });
+  });
+
   group('mapping erreurs (via ApiClient)', () {
     Future<Object?> runCatch(Future<void> Function() run) async {
       try {

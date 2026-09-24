@@ -2,15 +2,9 @@ import 'dart:io' show Platform;
 
 /// Liens juridiques & confidentialité affichés dans « Mon compte ».
 ///
-/// ⚠️ AUCUNE URL FICTIVE. Tant que les pages définitives (3E Technology Ltd)
-/// ne sont pas en ligne, les constantes ci-dessous valent `null` et l'UI
-/// affiche l'entrée en état « bientôt disponible » — jamais un lien qui
-/// ouvrirait une mauvaise page.
+/// Les URLs ci-dessous sont les pages publiques Auryel vérifiées ou fournies
+/// par l'éditeur. Elles ne remplacent pas les documents affichés dans l'app.
 ///
-/// DÉPENDANCE : quand les URLs seront fournies (politique de confidentialité
-/// obligatoire pour la soumission Stores), il suffira de les renseigner ici.
-/// L'ouverture réelle d'un lien externe nécessitera alors `url_launcher`
-/// (pas encore une dépendance — hors périmètre de ce lot).
 class LegalLinks {
   const LegalLinks._();
 
@@ -18,8 +12,12 @@ class LegalLinks {
   static const String privacyPolicyUrl =
       'https://auryelvoyance.com/confidentialite';
 
-  /// Conditions générales d'utilisation. `null` = pas encore publiées.
-  static const String? termsUrl = null;
+  /// Conditions générales d'utilisation publiques.
+  static const String termsUrl = 'https://auryelvoyance.com/cgu';
+
+  /// Demande publique de suppression de compte fournie par l'éditeur.
+  static const String accountDeletionUrl =
+      'https://auryelvoyance.com/suppression-compte';
 
   /// Mentions légales (3E Technology Ltd, n° 17179077). `null` = pas publiées.
   static const String? legalNoticeUrl = null;

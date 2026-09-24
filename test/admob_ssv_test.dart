@@ -1,7 +1,38 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter/foundation.dart';
 import 'package:auryel/ads/ad_service.dart';
 
 void main() {
+  test('iOS sans App ID désactive entièrement les publicités', () {
+    expect(
+      adsConfiguredForPlatform(
+        platform: TargetPlatform.iOS,
+        iosAppId: '',
+      ),
+      isFalse,
+    );
+  });
+
+  test('un App ID iOS réel pourra réactiver les publicités plus tard', () {
+    expect(
+      adsConfiguredForPlatform(
+        platform: TargetPlatform.iOS,
+        iosAppId: 'ca-app-pub-real~ios-app',
+      ),
+      isTrue,
+    );
+  });
+
+  test('Android conserve son comportement sans configuration iOS', () {
+    expect(
+      adsConfiguredForPlatform(
+        platform: TargetPlatform.android,
+        iosAppId: '',
+      ),
+      isTrue,
+    );
+  });
+
   test('prépare uniquement des identifiants SSV non sensibles', () {
     final options = rewardedSsvOptions(
       userId: 'user-uuid',

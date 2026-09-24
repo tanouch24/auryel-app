@@ -14,6 +14,14 @@ ServerSideVerificationOptions rewardedSsvOptions({
 const int rewardedConsultationQuestionAmount = 1;
 const String rewardedConsultationQuestionItem = 'consultation_question';
 
+/// iOS remains ad-free until a real AdMob iOS App ID is supplied at build
+/// time. Android keeps its existing behavior and does not require this flag.
+bool adsConfiguredForPlatform({
+  required TargetPlatform platform,
+  required String iosAppId,
+}) =>
+    platform != TargetPlatform.iOS || iosAppId.trim().isNotEmpty;
+
 String rewardedAdCtaLabel({bool loading = false}) =>
     loading ? 'Chargement…' : 'Regarder une publicité';
 
@@ -66,6 +74,13 @@ class AuryelAds {
   bool _rewardedShowing = false;
   DateTime? _lastRewardedAt;
 
+  static const _iosAppId = String.fromEnvironment('AURYEL_ADMOB_IOS_APP_ID');
+
+  bool get _configuredForPlatform => adsConfiguredForPlatform(
+    platform: defaultTargetPlatform,
+    iosAppId: _iosAppId,
+  );
+
   String get rewardedUnitId => kDebugMode ? _rewardedTest : _rewardedProduction;
   String get appOpenUnitId => kDebugMode ? _appOpenTest : _appOpenProduction;
   String get bannerUnitId => kDebugMode ? _bannerTest : _bannerProduction;
@@ -78,6 +93,7 @@ class AuryelAds {
 
   /// Décision de confidentialité fournie par Google UMP.
   Future<bool> privacyOptionsRequired() async {
+    if (!_configuredForPlatform) return false;
     try {
       return await ConsentInformation.instance
               .getPrivacyOptionsRequirementStatus() ==
@@ -89,6 +105,7 @@ class AuryelAds {
 
   /// Ouvre le formulaire officiel UMP quand il est requis/disponible.
   Future<bool> showPrivacyOptions() async {
+    if (!_configuredForPlatform) return false;
     try {
       final result = Completer<bool>();
       await ConsentForm.showPrivacyOptionsForm((error) {
@@ -111,6 +128,10 @@ class AuryelAds {
   }
 
   Future<void> initialize() async {
+    if (!_configuredForPlatform) {
+      _canRequestAds = false;
+      return;
+    }
     if (_initializing) return;
     _initializing = true;
     try {
@@ -168,7 +189,9 @@ class AuryelAds {
     required Future<void> Function() onReward,
     ServerSideVerificationOptions? ssvOptions,
   }) async {
-    if (!_canRequestAds || _rewarded == null) return false;
+    if (!_configuredForPlatform || !_canRequestAds || _rewarded == null) {
+      return false;
+    }
     final last = _lastRewardedAt;
     if (last != null &&
         DateTime.now().difference(last) < const Duration(seconds: 8)) {
@@ -230,6 +253,7 @@ class AuryelAds {
     required bool onboardingComplete,
     required bool blocked,
   }) async {
+    if (!_configuredForPlatform) return;
     if (!appOpenEligibility(
       canRequestAds: _canRequestAds,
       rewardedShowing: _rewardedShowing,

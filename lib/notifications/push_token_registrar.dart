@@ -47,10 +47,12 @@ class HttpPushTokenRegistrar implements PushTokenRegistrar {
   HttpPushTokenRegistrar({
     required ApiClient apiClient,
     required Future<String?> Function() bearerProvider,
-    String platform = 'android',
-  })  : _api = apiClient,
-        _bearer = bearerProvider,
-        _platform = platform;
+    String? platform,
+  }) : _api = apiClient,
+       _bearer = bearerProvider,
+       // Keep Android's existing payload unchanged while selecting the
+       // correct backend platform automatically on iOS.
+       _platform = platform ?? (Platform.isIOS ? 'ios' : 'android');
 
   final ApiClient _api;
   final Future<String?> Function() _bearer;
@@ -71,16 +73,12 @@ class HttpPushTokenRegistrar implements PushTokenRegistrar {
     if (bearer == null || bearer.isEmpty) return; // pas de session -> rien
     final os = _osVersion;
     try {
-      await _api.postJson(
-        '/api/app/push/register',
-        {
-          'fcm_token': token,
-          'platform': _platform,
-          'app_version': kAppVersion,
-          if (os.isNotEmpty) 'os_version': os,
-        },
-        bearer: bearer,
-      );
+      await _api.postJson('/api/app/push/register', {
+        'fcm_token': token,
+        'platform': _platform,
+        'app_version': kAppVersion,
+        if (os.isNotEmpty) 'os_version': os,
+      }, bearer: bearer);
     } catch (_) {
       // best effort : 4xx/5xx/réseau -> on retentera au prochain refresh /
       // passage signedIn.
@@ -93,11 +91,9 @@ class HttpPushTokenRegistrar implements PushTokenRegistrar {
     final bearer = await _safeBearer();
     if (bearer == null || bearer.isEmpty) return;
     try {
-      await _api.postJson(
-        '/api/app/push/unregister',
-        {'fcm_token': token},
-        bearer: bearer,
-      );
+      await _api.postJson('/api/app/push/unregister', {
+        'fcm_token': token,
+      }, bearer: bearer);
     } catch (_) {
       // best effort : le serveur purge de toute façon les devices à la
       // suppression de compte ; un logout ne doit jamais être bloqué.

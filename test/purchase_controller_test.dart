@@ -750,6 +750,16 @@ void main() {
       'quota': _stateBody(isPremium: false)['quota'],
     };
 
+    Map<String, dynamic> applePurchaseOk({bool already = false}) => {
+      'purchase': {
+        'store': 'app_store',
+        'product_id': kExtraHourProductId,
+        'credited_seconds': already ? 0 : 3600,
+        'already_credited': already,
+      },
+      'quota': _stateBody(isPremium: false)['quota'],
+    };
+
     Future<http.Response> happyExtra(http.Request req) async {
       if (req.url.path == '/api/billing/purchase') return _json(purchaseOk());
       if (req.url.path == '/api/consultation/state') {
@@ -935,17 +945,47 @@ void main() {
       },
     );
 
-    test('iOS -> verifyFatal unsupported_platform (lot Android)', () async {
-      final rig = _rig(platform: TargetPlatform.iOS, handler: happyExtra);
+    test('iOS purchased -> validation App Store, +1h, complete', () async {
+      final rig = _rig(
+        platform: TargetPlatform.iOS,
+        handler: (req) async {
+          if (req.url.path == '/api/billing/purchase') {
+            return _json(applePurchaseOk());
+          }
+          if (req.url.path == '/api/consultation/state') {
+            return _json(_stateBody());
+          }
+          return _json({}, 404);
+        },
+      );
       rig.gateway.products = [_product(), extraProduct()];
       await rig.controller.initialize();
       rig.log.clear();
       rig.gateway.emit([pdExtra()]);
       await pumpEventQueue();
-      expect(rig.controller.extraHourState, ExtraHourPurchaseState.verifyFatal);
-      expect(rig.controller.extraHourError, 'unsupported_platform');
-      expect(rig.log.contains('POST /api/billing/purchase'), isFalse);
+      expect(rig.controller.extraHourState, ExtraHourPurchaseState.credited);
+      expect(rig.log.contains('POST /api/billing/purchase'), isTrue);
+      expect(rig.gateway.completed, hasLength(1));
     });
+
+    test(
+      'iOS restored consommable -> jamais de validation ni de crédit',
+      () async {
+        final rig = _rig(platform: TargetPlatform.iOS, handler: happyExtra);
+        rig.gateway.products = [_product(), extraProduct()];
+        await rig.controller.initialize();
+        rig.log.clear();
+        rig.gateway.emit([pdExtra(status: PurchaseStatus.restored)]);
+        await pumpEventQueue();
+        expect(
+          rig.controller.extraHourState,
+          ExtraHourPurchaseState.verifyFatal,
+        );
+        expect(rig.controller.extraHourError, 'consumable_not_restorable');
+        expect(rig.log.contains('POST /api/billing/purchase'), isFalse);
+        expect(rig.gateway.completed, isEmpty);
+      },
+    );
 
     test(
       'achat Premium reste intact quand le contrôleur gère aussi +1 h',

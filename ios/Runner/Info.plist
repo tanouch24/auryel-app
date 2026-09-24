@@ -22,6 +22,16 @@
 	<string>$(FLUTTER_BUILD_NAME)</string>
 	<key>CFBundleSignature</key>
 	<string>????</string>
+	<!--
+		AdMob iOS is intentionally disabled until the approved production App ID
+		is supplied. This documented SDK flag prevents the linked SDK from
+		crashing before Dart can apply the fail-safe. Remove it when enabling
+		AdMob with a real GADApplicationIdentifier.
+	-->
+	<key>GADIntegrationManager</key>
+	<string>webview</string>
+	<key>NSAlarmKitUsageDescription</key>
+	<string>Auryel utilise les alarmes pour vous proposer un réveil personnalisé à l’heure choisie.</string>
 	<key>CFBundleVersion</key>
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
 	<key>LSRequiresIPhoneOS</key>

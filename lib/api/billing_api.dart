@@ -84,4 +84,21 @@ class BillingApi {
     }, bearer: bearer);
     return BillingPurchaseResponse.fromJson(json);
   }
+
+  /// Vérifie + crédite un achat CONSOMMABLE App Store (« 1 heure
+  /// supplémentaire »). `transactionId` est l'identifiant de transaction
+  /// Apple fourni par StoreKit. Le serveur vérifie la transaction signée
+  /// auprès de l'App Store Server API avant tout crédit.
+  Future<BillingPurchaseResponse> verifyAppStorePurchase({
+    required String bearer,
+    required String productId,
+    required String transactionId,
+  }) async {
+    final json = await _client.postJson(_purchasePath, {
+      'store': kStoreAppStore,
+      'product_id': productId,
+      'transaction_id': transactionId,
+    }, bearer: bearer);
+    return BillingPurchaseResponse.fromJson(json);
+  }
 }

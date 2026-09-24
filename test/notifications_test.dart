@@ -389,6 +389,57 @@ void main() {
     });
   });
 
+  group('HttpPushTokenRegistrar', () {
+    test('iOS envoie platform=ios sans modifier le contrat Android', () async {
+      final requests = <http.Request>[];
+      final client = ApiClient(
+        baseUrl: 'http://test.local',
+        httpClient: MockClient((request) async {
+          requests.add(request);
+          return http.Response(
+            jsonEncode({'status': 'registered'}),
+            200,
+            headers: {'content-type': 'application/json'},
+          );
+        }),
+      );
+      final registrar = HttpPushTokenRegistrar(
+        apiClient: client,
+        bearerProvider: () async => 'session-token',
+        platform: 'ios',
+      );
+      await registrar.register('ios-device-token');
+
+      expect(requests, hasLength(1));
+      final body = jsonDecode(requests.single.body) as Map<String, dynamic>;
+      expect(body['fcm_token'], 'ios-device-token');
+      expect(body['platform'], 'ios');
+      expect(requests.single.headers['authorization'], 'Bearer session-token');
+      client.close();
+    });
+
+    test('la valeur explicite android reste inchangée', () async {
+      final requests = <http.Request>[];
+      final client = ApiClient(
+        baseUrl: 'http://test.local',
+        httpClient: MockClient((request) async {
+          requests.add(request);
+          return http.Response('{}', 200);
+        }),
+      );
+      final registrar = HttpPushTokenRegistrar(
+        apiClient: client,
+        bearerProvider: () async => 'session-token',
+        platform: 'android',
+      );
+      await registrar.register('android-device-token');
+
+      final body = jsonDecode(requests.single.body) as Map<String, dynamic>;
+      expect(body['platform'], 'android');
+      client.close();
+    });
+  });
+
   // -------------------------------------------------------------------------
   // ROUTING dans MainNavShell
   // -------------------------------------------------------------------------

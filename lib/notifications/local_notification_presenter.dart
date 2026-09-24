@@ -38,8 +38,13 @@ class LocalNotificationPresenter {
     if (_ready) return;
     try {
       const initAndroid = AndroidInitializationSettings(_smallIcon);
+      const initDarwin = DarwinInitializationSettings(
+        requestAlertPermission: false,
+        requestBadgePermission: false,
+        requestSoundPermission: false,
+      );
       await _plugin.initialize(
-        const InitializationSettings(android: initAndroid),
+        const InitializationSettings(android: initAndroid, iOS: initDarwin),
         onDidReceiveNotificationResponse: _onResponse,
       );
       await _plugin
@@ -76,6 +81,7 @@ class LocalNotificationPresenter {
             priority: Priority.defaultPriority,
             visibility: NotificationVisibility.private,
           ),
+          iOS: const DarwinNotificationDetails(),
         ),
         payload: jsonEncode({
           'type': payload.type.wire,

@@ -250,8 +250,10 @@ class PurchaseController extends ChangeNotifier {
       if (!available) {
         _set(PurchaseState.storeUnavailable, errorCode: 'store_unavailable');
         _extraHourProduct = null;
-        _setExtra(ExtraHourPurchaseState.unavailable,
-            errorCode: 'store_unavailable');
+        _setExtra(
+          ExtraHourPurchaseState.unavailable,
+          errorCode: 'store_unavailable',
+        );
         return;
       }
       final resp = await _gateway.queryProductDetails({
@@ -271,11 +273,12 @@ class PurchaseController extends ChangeNotifier {
       }
 
       // --- « 1 heure supplémentaire » (indépendant de Premium) ---
-      if (extraHour == null ||
-          resp.notFoundIDs.contains(kExtraHourProductId)) {
+      if (extraHour == null || resp.notFoundIDs.contains(kExtraHourProductId)) {
         _extraHourProduct = null;
-        _setExtra(ExtraHourPurchaseState.unavailable,
-            errorCode: 'product_not_found');
+        _setExtra(
+          ExtraHourPurchaseState.unavailable,
+          errorCode: 'product_not_found',
+        );
       } else {
         _extraHourProduct = extraHour;
         _setExtra(ExtraHourPurchaseState.idle);
@@ -295,8 +298,10 @@ class PurchaseController extends ChangeNotifier {
       _premiumProduct = null;
       _extraHourProduct = null;
       _set(PurchaseState.productsUnavailable, errorCode: 'query_failed:$e');
-      _setExtra(ExtraHourPurchaseState.unavailable,
-          errorCode: 'query_failed:$e');
+      _setExtra(
+        ExtraHourPurchaseState.unavailable,
+        errorCode: 'query_failed:$e',
+      );
     }
   }
 
@@ -575,8 +580,17 @@ class PurchaseController extends ChangeNotifier {
         );
         return;
       case PurchaseStatus.purchased:
-      case PurchaseStatus.restored:
         await _verifyAndCompleteExtraHour(pd);
+        return;
+      case PurchaseStatus.restored:
+        // Apple ne restaure pas les consommables. Même si un plugin ou un
+        // StoreKit local émet un événement inattendu, il ne doit jamais
+        // recréditer une ancienne transaction.
+        _extraHourPendingRetry = null;
+        _setExtra(
+          ExtraHourPurchaseState.verifyFatal,
+          errorCode: 'consumable_not_restorable',
+        );
         return;
     }
   }
@@ -584,21 +598,32 @@ class PurchaseController extends ChangeNotifier {
   Future<void> _verifyAndCompleteExtraHour(PurchaseDetails pd) async {
     if (_disposed) return;
 
-    // Consommable « +1 h » : lot Android. Toute autre plateforme -> fatal
-    // (le backend renverrait 422 pour app_store de toute façon).
-    if (_platform != TargetPlatform.android) {
+    final isAndroid = _platform == TargetPlatform.android;
+    final isIOS = _platform == TargetPlatform.iOS;
+    if (!isAndroid && !isIOS) {
       _extraHourPendingRetry = null;
-      _setExtra(ExtraHourPurchaseState.verifyFatal,
-          errorCode: 'unsupported_platform');
+      _setExtra(
+        ExtraHourPurchaseState.verifyFatal,
+        errorCode: 'unsupported_platform',
+      );
       return;
     }
 
-    // Google : purchase token = serverVerificationData (JAMAIS purchaseID).
-    final proof = pd.verificationData.serverVerificationData;
+    // Google : purchase token = serverVerificationData. Apple : transaction
+    // ID = purchaseID. Ne jamais substituer la preuve d'une plateforme à
+    // l'autre.
+    final String proof;
+    if (isAndroid) {
+      proof = pd.verificationData.serverVerificationData;
+    } else {
+      proof = pd.purchaseID ?? '';
+    }
     if (proof.isEmpty) {
       _extraHourPendingRetry = null;
-      _setExtra(ExtraHourPurchaseState.verifyFatal,
-          errorCode: 'missing_store_proof');
+      _setExtra(
+        ExtraHourPurchaseState.verifyFatal,
+        errorCode: isAndroid ? 'missing_store_proof' : 'missing_transaction_id',
+      );
       return;
     }
 
@@ -611,18 +636,26 @@ class PurchaseController extends ChangeNotifier {
       if (_disposed) return;
       if (token == null || token.isEmpty) {
         _extraHourPendingRetry = pd;
-        _setExtra(ExtraHourPurchaseState.requiresAuthentication,
-            errorCode: 'requires_authentication');
+        _setExtra(
+          ExtraHourPurchaseState.requiresAuthentication,
+          errorCode: 'requires_authentication',
+        );
         return;
       }
 
       _setExtra(ExtraHourPurchaseState.verifying);
 
-      final resp = await _billing.verifyGooglePlayPurchase(
-        bearer: token,
-        productId: pd.productID,
-        purchaseToken: proof,
-      );
+      final resp = isAndroid
+          ? await _billing.verifyGooglePlayPurchase(
+              bearer: token,
+              productId: pd.productID,
+              purchaseToken: proof,
+            )
+          : await _billing.verifyAppStorePurchase(
+              bearer: token,
+              productId: pd.productID,
+              transactionId: proof,
+            );
       if (_disposed) return;
 
       // ORDRE STRICT : verify 200 -> refresh wallet -> completePurchase.
@@ -637,28 +670,36 @@ class PurchaseController extends ChangeNotifier {
         await _gateway.completePurchase(pd);
       }
       _extraHourPendingRetry = null;
-      _setExtra(resp.purchase.alreadyCredited
-          ? ExtraHourPurchaseState.alreadyCredited
-          : ExtraHourPurchaseState.credited);
+      _setExtra(
+        resp.purchase.alreadyCredited
+            ? ExtraHourPurchaseState.alreadyCredited
+            : ExtraHourPurchaseState.credited,
+      );
     } on ApiUnauthorizedException {
       await _auth.invalidateSession();
       _extraHourPendingRetry = pd;
-      _setExtra(ExtraHourPurchaseState.requiresAuthentication,
-          errorCode: 'requires_authentication');
+      _setExtra(
+        ExtraHourPurchaseState.requiresAuthentication,
+        errorCode: 'requires_authentication',
+      );
     } on ApiNetworkException {
       _extraHourPendingRetry = pd;
       _setExtra(ExtraHourPurchaseState.verifyRetryable, errorCode: 'network');
     } on ApiException catch (e) {
       if (e.statusCode == 503 || e.statusCode >= 500) {
         _extraHourPendingRetry = pd;
-        _setExtra(ExtraHourPurchaseState.verifyRetryable,
-            errorCode: e.code ?? 'server_error');
+        _setExtra(
+          ExtraHourPurchaseState.verifyRetryable,
+          errorCode: e.code ?? 'server_error',
+        );
       } else {
         // 409 account_mismatch / 422 invalid_store_receipt / 400 -> fatal,
         // aucun completePurchase.
         _extraHourPendingRetry = null;
-        _setExtra(ExtraHourPurchaseState.verifyFatal,
-            errorCode: e.code ?? 'bad_request');
+        _setExtra(
+          ExtraHourPurchaseState.verifyFatal,
+          errorCode: e.code ?? 'bad_request',
+        );
       }
     } on FormatException {
       _extraHourPendingRetry = null;

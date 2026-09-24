@@ -1,0 +1,25 @@
+{
+  "identifier" : "Auryel-Local-StoreKit",
+  "products" : [
+    {
+      "displayPrice" : "4.99",
+      "familyShareable" : false,
+      "internalID" : "auryel-local-premium-monthly",
+      "locale" : "fr_FR",
+      "productID" : "auryel_premium_monthly",
+      "referenceName" : "Auryel Premium mensuel (DEV)",
+      "recurringSubscriptionPeriod" : "P1M",
+      "subscriptionGroupIdentifier" : "auryel-premium-dev",
+      "type" : "Auto-Renewable Subscription"
+    },
+    {
+      "displayPrice" : "1.99",
+      "familyShareable" : false,
+      "internalID" : "auryel-local-extra-hour",
+      "locale" : "fr_FR",
+      "productID" : "auryel_extra_hour",
+      "referenceName" : "Auryel +1 heure (DEV)",
+      "type" : "Consumable"
+    }
+  ]
+}
