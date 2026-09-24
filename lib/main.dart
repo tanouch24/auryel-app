@@ -34,6 +34,7 @@ import 'notifications/notification_coordinator.dart';
 import 'notifications/notification_payload.dart';
 import 'notifications/push_token_registrar.dart';
 import 'analytics/meta_events.dart';
+import 'analytics/first_party_analytics.dart';
 import 'ads/ad_service.dart';
 import 'state/meta_consent_controller.dart';
 import 'screens/splash_screen.dart';
@@ -106,6 +107,10 @@ void main() async {
     installationIdStore: SecureInstallationIdStore(),
   );
   StartupTrace.mark('controllers/auth-ready');
+  final firstPartyAnalytics = FirstPartyAnalytics(
+    api: apiClient,
+    tokenProvider: auth.currentToken,
+  );
 
   // UX-B §6 — changement de conseiller préféré : synchro `guide` seul via
   // l'`AuthController` existant (aucun second client HTTP).
@@ -113,7 +118,10 @@ void main() async {
     repository: repository,
     initial: record,
     guideSync: (guideKey) => auth.syncGuide(guide: guideKey),
-    onOnboardingCompleted: () => unawaited(metaEvents.logOnboardingCompleted()),
+    onOnboardingCompleted: () {
+      unawaited(metaEvents.logOnboardingCompleted());
+      unawaited(firstPartyAnalytics.log('onboarding_completed'));
+    },
   );
   final consultation = ConsultationController(
     api: consultationApi,
@@ -191,6 +199,7 @@ void main() async {
   auth.attachPushUnregister(notifications.unregisterCurrent);
   auth.addListener(() {
     if (auth.isSignedIn) {
+      unawaited(firstPartyAnalytics.logSessionStarted());
       unawaited(notifications.onSignedIn());
       unawaited(wellbeingProgram.refresh());
       unawaited(wellbeingEbooks.refresh());
@@ -214,6 +223,7 @@ void main() async {
       rewards: rewards,
       purchase: purchase,
       notifications: notifications,
+      analytics: firstPartyAnalytics,
       metaEvents: metaEvents,
       metaConsent: metaConsent,
       content: content,
@@ -235,6 +245,7 @@ class AuryelApp extends StatefulWidget {
     this.rewards,
     this.purchase,
     this.notifications,
+    this.analytics,
     this.metaEvents,
     this.metaConsent,
     this.content,
@@ -274,6 +285,7 @@ class AuryelApp extends StatefulWidget {
   /// Optionnel : quand fourni, l'arbre est enveloppé d'un [NotificationScope]
   /// et le coordinateur est disposé avec l'app. Absent des tests hérités.
   final NotificationCoordinator? notifications;
+  final FirstPartyAnalytics? analytics;
 
   /// Optionnel : mesure Meta (no-op sans config / sans consentement). Quand
   /// fourni, l'arbre est enveloppé d'un [AnalyticsScope].
@@ -332,6 +344,7 @@ class _AuryelAppState extends State<AuryelApp> with WidgetsBindingObserver {
 
   Future<void> _handleWakeAlarmCall(MethodCall call) async {
     if (call.method != 'wakeRingingIntent') return;
+    unawaited(widget.analytics?.log('wake_triggered') ?? Future<void>.value());
     final raw = call.arguments;
     final map = raw is Map
         ? raw.map((key, value) => MapEntry(key.toString(), value))
@@ -457,6 +470,10 @@ class _AuryelAppState extends State<AuryelApp> with WidgetsBindingObserver {
     final unread = widget.unread;
     if (unread != null) {
       tree = UnreadScope(controller: unread, child: tree);
+    }
+    final analytics = widget.analytics;
+    if (analytics != null) {
+      tree = FirstPartyAnalyticsScope(analytics: analytics, child: tree);
     }
     return AuthScope(
       controller: widget.auth,

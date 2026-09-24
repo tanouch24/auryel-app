@@ -7,6 +7,7 @@ import '../notifications/notification_coordinator.dart';
 import '../notifications/notification_payload.dart';
 import '../notifications/notification_router.dart';
 import '../notifications/notification_service.dart';
+import '../analytics/first_party_analytics.dart';
 import '../screens/consultation_screen.dart';
 import '../screens/home_screen.dart';
 import '../screens/boutique_coming_soon_screen.dart';
@@ -147,6 +148,16 @@ class _MainNavShellState extends State<MainNavShell> {
   /// `requiresAuth` alors que l'utilisateur n'est pas connecté -> différée
   /// (jamais poussé de force dans Consultation). JAMAIS la Boutique.
   void _handlePayload(NotificationPayload payload) {
+    final analytics = FirstPartyAnalyticsScope.maybeReadOf(context);
+    if (analytics != null && payload.isActionable) {
+      unawaited(analytics.log(
+        'notification_opened',
+        properties: {
+          'category': payload.type.wire,
+          if (payload.advisor != null) 'advisor_id': payload.advisor!,
+        },
+      ));
+    }
     final route = _router.routeForPayload(payload);
     if (route == null || !mounted) return;
     if (route.requiresAuth && !_isSignedIn) {

@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:phosphor_icons/phosphor_icons.dart';
 
 import '../data/wake_sound_catalog.dart';
+import '../analytics/first_party_analytics.dart';
 import '../data/wake_video.dart';
 import '../services/wake_alarm_channel.dart';
 import '../theme/auryel_theme.dart';
@@ -101,9 +102,11 @@ class _WakeRingingScreenState extends State<WakeRingingScreen> {
 
   Future<void> _turnOff() async {
     if (_acting) return;
+    final analytics = FirstPartyAnalyticsScope.maybeReadOf(context);
     setState(() => _acting = true);
     await _stopMedia();
     await _channel.stopRinging();
+    unawaited(analytics?.log('wake_stopped') ?? Future<void>.value());
     if (!mounted) return;
     if (widget.origin == WakeRingingOrigin.settingsPreview) {
       Navigator.of(context).pop();
@@ -122,10 +125,12 @@ class _WakeRingingScreenState extends State<WakeRingingScreen> {
 
   Future<void> _snooze() async {
     if (_acting) return;
+    final analytics = FirstPartyAnalyticsScope.maybeReadOf(context);
     setState(() => _acting = true);
     await _stopMedia();
     await _channel.stopRinging();
     if (!widget.testMode) await _channel.snoozeAlarm(minutes: 10);
+    unawaited(analytics?.log('wake_snoozed') ?? Future<void>.value());
     if (mounted) Navigator.of(context).pop();
   }
 

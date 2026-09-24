@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:phosphor_icons/phosphor_icons.dart';
 
 import '../api/wellbeing_api.dart';
+import '../analytics/first_party_analytics.dart';
 import '../data/content_repository.dart';
 import '../data/daily_mission_tracker.dart';
 import '../data/meditation_audio.dart';
@@ -352,6 +353,13 @@ class _MeditationScreenState extends State<MeditationScreen>
       if (_total > Duration.zero) _elapsed = _total;
       _videoActive = false;
     });
+    if (!_completionLogged) {
+      _completionLogged = true;
+      unawaited(FirstPartyAnalyticsScope.maybeReadOf(context)?.log(
+        'content_completed',
+        properties: {'content_type': 'meditation', 'content_id': _item.id},
+      ));
+    }
   }
 
   /// (Re)démarre le délai avant disparition des contrôles. Annule tout
@@ -541,6 +549,13 @@ class _MeditationScreenState extends State<MeditationScreen>
       _status = ok ? _PlayStatus.playing : _PlayStatus.unavailable;
       if (ok) _videoActive = true;
     });
+    if (ok) {
+      _completionLogged = false;
+      unawaited(FirstPartyAnalyticsScope.maybeReadOf(context)?.log(
+        'content_started',
+        properties: {'content_type': 'meditation', 'content_id': item.id},
+      ));
+    }
   }
 
   Future<void> _goPrevious() async {
@@ -591,6 +606,13 @@ class _MeditationScreenState extends State<MeditationScreen>
       _status = ok ? _PlayStatus.playing : _PlayStatus.unavailable;
       if (ok) _videoActive = true;
     });
+    if (ok) {
+      _completionLogged = false;
+      unawaited(FirstPartyAnalyticsScope.maybeReadOf(context)?.log(
+        'content_started',
+        properties: {'content_type': 'meditation', 'content_id': _item.id},
+      ));
+    }
     // AUCUN repli mission ici : le démarrage de l'audio, à lui seul, ne coche
     // JAMAIS « Prends ton temps ». Seul un démarrage vidéo RÉELLEMENT
     // confirmé le fait (cf. _onVideoStarted). Si aucune vidéo ne peut

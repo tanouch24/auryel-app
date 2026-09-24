@@ -1,5 +1,8 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
+import '../analytics/first_party_analytics.dart';
 import '../data/exercise.dart';
 import '../theme/auryel_theme.dart';
 
@@ -200,6 +203,13 @@ class _ExerciseDailySessionScreenState extends State<ExerciseDailySessionScreen>
             key: Key(last ? 'daily-exercise-finish' : 'daily-exercise-next'),
             onPressed: () {
               if (last) {
+                unawaited(FirstPartyAnalyticsScope.maybeReadOf(context)?.log(
+                  'content_completed',
+                  properties: {
+                    'content_type': 'exercise',
+                    'content_id': exercise.id,
+                  },
+                ));
                 Navigator.of(context).pushReplacement(MaterialPageRoute(
                   builder: (_) => const _DailyExerciseCompleteScreen(),
                 ));

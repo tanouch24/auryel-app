@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
+import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../api/wellbeing_ebooks_api.dart';
 import '../data/content_repository.dart';
+import '../analytics/first_party_analytics.dart';
 import '../data/exercise.dart';
 import '../data/daily_exercise_session.dart';
 import '../data/relaxation_video.dart';
@@ -256,9 +258,15 @@ class _ExerciseCard extends StatelessWidget {
     margin: const EdgeInsets.only(bottom: 12),
     child: InkWell(
       borderRadius: BorderRadius.circular(16),
-      onTap: () => Navigator.of(context).push(
-        MaterialPageRoute(builder: (_) => ExerciseDetailScreen(exercise: item)),
-      ),
+      onTap: () {
+        unawaited(FirstPartyAnalyticsScope.maybeReadOf(context)?.log(
+          'content_opened',
+          properties: {'content_type': 'exercise', 'content_id': item.id},
+        ));
+        Navigator.of(context).push(
+          MaterialPageRoute(builder: (_) => ExerciseDetailScreen(exercise: item)),
+        );
+      },
       child: Padding(
         padding: const EdgeInsets.all(16),
         child: Row(
@@ -550,12 +558,21 @@ class _EbookCard extends StatelessWidget {
     return InkWell(
       borderRadius: BorderRadius.circular(14),
       onTap: canRead
-          ? () => Navigator.of(context).push(
+          ? () {
+              unawaited(FirstPartyAnalyticsScope.maybeReadOf(context)?.log(
+                'content_opened',
+                properties: {
+                  'content_type': 'ebook',
+                  'content_id': ebook.id,
+                },
+              ));
+              Navigator.of(context).push(
               MaterialPageRoute(
                 builder: (_) =>
                     EbookReaderScreen(title: ebook.title, url: ebook.pdfUrl!),
               ),
-            )
+              );
+            }
           : null,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,

@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -5,6 +7,7 @@ import '../data/content_repository.dart';
 import '../data/meditation_catalog.dart';
 import '../data/meditation_item.dart';
 import '../data/relaxation_video.dart';
+import '../analytics/first_party_analytics.dart';
 import '../theme/auryel_theme.dart';
 import 'meditation_feed_screen.dart';
 import 'relaxation_video_feed_screen.dart';
@@ -131,6 +134,10 @@ class _MeditationLibraryScreenState extends State<MeditationLibraryScreen> {
   }
 
   void _open(MeditationItem item) {
+    unawaited(FirstPartyAnalyticsScope.maybeReadOf(context)?.log(
+      'content_opened',
+      properties: {'content_type': 'meditation', 'content_id': item.id},
+    ));
     // FEED MÉDITATION — un tap explicite dans la bibliothèque ouvre
     // désormais le feed vertical directement sur cette séance (réaction
     // immédiate : autoplay dès la 1ʳᵉ page, voir

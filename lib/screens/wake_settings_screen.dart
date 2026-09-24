@@ -11,6 +11,7 @@ import '../data/content_repository.dart';
 import 'package:permission_handler/permission_handler.dart';
 
 import '../data/wake_alarm_prefs.dart';
+import '../analytics/first_party_analytics.dart';
 import '../services/wake_alarm_channel.dart';
 import '../theme/auryel_theme.dart';
 import '../widgets/main_nav_scope.dart';
@@ -159,6 +160,7 @@ class _WakeSettingsScreenState extends State<WakeSettingsScreen>
   }
 
   Future<void> _persist(WakeAlarmSettings next) async {
+    final analytics = FirstPartyAnalyticsScope.maybeReadOf(context);
     final target = WakeScheduleDate.nextTarget(
       DateTime.now(),
       next.hour,
@@ -218,6 +220,12 @@ class _WakeSettingsScreenState extends State<WakeSettingsScreen>
         wakeScheduleJson: jsonEncode(schedule),
       );
       if (scheduled) widget.onConfigured?.call();
+      if (scheduled) {
+        unawaited(analytics?.log(
+          'wake_scheduled',
+          properties: {'days_count': snapshot.days.length},
+        ) ?? Future<void>.value());
+      }
     } else {
       await _channel.cancelAlarm();
     }

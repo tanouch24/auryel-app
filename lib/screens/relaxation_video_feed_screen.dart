@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:video_player/video_player.dart';
 
 import '../data/relaxation_video.dart';
+import '../analytics/first_party_analytics.dart';
 import '../data/meditation_play_queue.dart';
 import '../theme/auryel_theme.dart';
 import '../widgets/relaxation_video_background.dart';
@@ -84,6 +85,24 @@ class _RelaxationVideoFeedScreenState extends State<RelaxationVideoFeedScreen> {
               video: _items[index],
               active: index == _activeIndex,
               surfaceFactory: widget.surfaceFactory,
+              onStarted: () => unawaited(
+                FirstPartyAnalyticsScope.maybeReadOf(context)?.log(
+                  'content_started',
+                  properties: {
+                    'content_type': 'relaxation_video',
+                    'content_id': _items[index].id,
+                  },
+                ) ?? Future<void>.value(),
+              ),
+              onVideoCompleted: () => unawaited(
+                FirstPartyAnalyticsScope.maybeReadOf(context)?.log(
+                  'content_completed',
+                  properties: {
+                    'content_type': 'relaxation_video',
+                    'content_id': _items[index].id,
+                  },
+                ) ?? Future<void>.value(),
+              ),
               onCompleted: _advance,
             ),
           ),
@@ -141,12 +160,16 @@ class _ImmersiveVideoPage extends StatefulWidget {
     required this.video,
     required this.active,
     this.surfaceFactory,
+    this.onStarted,
+    this.onVideoCompleted,
     required this.onCompleted,
   });
 
   final RelaxationVideo video;
   final bool active;
   final RelaxationVideoSurface Function()? surfaceFactory;
+  final VoidCallback? onStarted;
+  final VoidCallback? onVideoCompleted;
   final VoidCallback onCompleted;
 
   @override
@@ -217,6 +240,7 @@ class _ImmersiveVideoPageState extends State<_ImmersiveVideoPage>
       return;
     }
     _completionReported = true;
+    widget.onVideoCompleted?.call();
     widget.onCompleted();
   }
 
@@ -224,6 +248,7 @@ class _ImmersiveVideoPageState extends State<_ImmersiveVideoPage>
     if (!_ready) return;
     final started = await _surface.play();
     if (mounted) setState(() => _playing = started);
+    if (started) widget.onStarted?.call();
   }
 
   Future<void> _toggle() async {
